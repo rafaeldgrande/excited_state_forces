@@ -101,17 +101,21 @@ def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
     tree = ET.parse(patterns_file)
     root = tree.getroot()
 
-    Nirreps = int(root[0][3].text.split("\n")[1])
+    #Nirreps = int(root[0][3].text.split("\n")[1])
+    Nirreps = int(root[0][3].text)
 
     imode = 0
     for irreps in range(Nirreps):
 
         # number of perturbations for this representation
-        n_pert = int(root[0][irreps + 4][0].text.split('\n')[1])
-        Perts.append(n_pert)
+        #n_pert = int(root[0][irreps + 4][0].text.split('\n')[1])
+        Npert = int(root[0][irreps + 4][0].text)
+        Perts.append(Npert)
 
-        for ipert in range(n_pert):
-            text_temp = root[0][irreps + 4][1][ipert + 2].text
+        for ipert in range(Npert):
+            #text_temp = root[0][irreps + 4][1][ipert + 2].text
+            text_temp = root[0][irreps + 4][1 + ipert][0].text
+            print("Olha aqui!", text_temp, irreps, ipert)
             text_temp = text_temp.replace(",", " ")
             numbers_temp = np.fromstring(text_temp, sep='\n')
             # reading complex numbers -> A[::2] (A[1::2]) gives the first (second) collum
@@ -455,3 +459,49 @@ def calculate_Fcvk(Ncbnds, Nvbnds, Akcv, Edft_cond, Edft_val, Eqp_cond, Eqp_val,
     print('DeltaE ik, ic, iv', ik, ic, iv,Fcvk_diag, Fcvk_offdiag)
     #print(ik, ic, iv, Fcvk_diag, Fcvk_offdiag)
     return Fcvk_diag, Fcvk_offdiag
+
+
+def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_val, Edft_cond, Eqp_val, Eqp_cond, TOL_DEG):
+
+    Shape_cond = (Nmodes, Nkpoints, Ncbnds, Ncbnds)
+    aux_cond_matrix = np.zeros(Shape_cond, dtype=np.complex64)
+
+    Shape_val = (Nmodes, Nkpoints, Nvbnds, Nvbnds)
+    aux_val_matrix = np.zeros(Shape_val, dtype=np.complex64)
+
+    for imode in range(Nmodes):
+        for ik in range(Nkpoints):
+
+            for ic1 in range(Ncbnds):
+                for ic2 in range(Ncbnds):
+
+                    elph = elph_cond[imode, ik, ic1, ic2]
+
+                    if ic1 == ic2:
+                        aux_cond_matrix[imode][ik][ic1][ic2] = elph
+                    
+                    elif abs(Edft_cond[ik, ic1] - Edft_cond[ik, ic2]) > TOL_DEG: 
+                        deltaEqp = Eqp_cond[ik, ic1] - Eqp_cond[ik, ic2]
+                        deltaEdft = Edft_cond[ik, ic1] - Edft_cond[ik, ic2]
+                        aux_cond_matrix[imode, ik, ic1, ic2] = elph * deltaEqp / deltaEdft
+
+            for iv1 in range(Nvbnds):
+                for iv2 in range(Nvbnds):
+
+                    elph = elph_val[imode, ik, iv1, iv2]
+
+                    if iv1 == iv2:
+                        aux_val_matrix[imode][ik][iv1][iv2] = elph
+                    
+                    elif abs(Edft_val[ik, iv1] - Edft_val[ik, iv2]) > TOL_DEG: 
+                        deltaEqp = Eqp_val[ik, iv1] - Eqp_val[ik, iv2]
+                        deltaEdft = Edft_val[ik, iv1] - Edft_val[ik, iv2]
+                        aux_val_matrix[imode, ik, iv1, iv2] = elph * deltaEqp / deltaEdft
+        
+    return aux_cond_matrix, aux_val_matrix
+
+def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2):
+
+    # calculate matrix element imode, ik, ic1, ic2, iv1, iv2
+    D_c1v1k_c2v2k = aux_cond_matrix[imode, ik, ic1, ic2] - aux_val_matrix[imode, ik, iv1, iv2]
+    return Akcv[ik, ic1, iv1] * np.conj(Akcv[ik, ic2, iv2]) * D_c1v1k_c2v2k

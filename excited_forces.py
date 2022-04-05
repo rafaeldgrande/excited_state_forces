@@ -116,6 +116,9 @@ if calc_IBL_way == True:
     print('Calculating derivatives of Kernel using Ismail-Beigi and Louie\'s paper approach')
 print('\n---------------------\n\n')
 
+
+params_calc = Nkpoints, Ncbnds, Nvbnds, Nval, Nmodes
+
 a = 15/bohr2A # FIXME: read it from input file or other source (maybe read volume instead)
 Vol = a**3
 Kernel_bgw_factor = Vol/(8*np.pi)
@@ -125,13 +128,15 @@ Kernel_bgw_factor = Vol/(8*np.pi)
 Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds)
 Shape2 = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
 
+DKinect          = np.zeros(Shape2, dtype=np.complex64) 
+
 DKinect_diag     = np.zeros(Shape, dtype=np.complex64)
 DKinect_offdiag  = np.zeros(Shape, dtype=np.complex64)
 #DKernel          = np.zeros(Shape2, dtype=np.complex64)
 #DKernel_IBL      = np.zeros(Shape2, dtype=np.complex64)
 
-Sum_DKinect_diag       = np.zeros((Nmodes), dtype=np.complex64)
-Sum_DKinect_offdiag    = np.zeros((Nmodes), dtype=np.complex64)
+Sum_DKinect_diag            = np.zeros((Nmodes), dtype=np.complex64)
+Sum_DKinect                 = np.zeros((Nmodes), dtype=np.complex64)
 #Sum_DKernel            = np.zeros((Nmodes), dtype=np.complex64)
 #Sum_DKernel_IBL        = np.zeros((Nmodes), dtype=np.complex64)
 
@@ -183,7 +188,7 @@ iq = 0 # FIXME -> generalize for set of q points
 
 
 Displacements, Nirreps, Perts = get_patterns2(el_ph_dir, iq, Nmodes, Nat)
-elph_aux, elph_cond, elph_val = get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, Nmodes, Nkpoints, Ncbnds, Nvbnds, Nval)
+elph_aux, elph_cond, elph_val = get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc)
 #elph_cond, elph_val = filter_elph_coeffs(elph_aux, Ncbnds, Nvbnds, Nkpoints, Nmodes, Nval)
 
 print("Max real value of <c|dH|c'> (eV/A): ", np.max(np.real(elph_cond)))
@@ -199,22 +204,35 @@ print("Max imag value of <v|dH|v'> (eV/A): ", np.max(np.imag(elph_val)))
 aux_diag = np.zeros(Shape, dtype=np.complex64)  # <ck|dV/du_mode|ck> - <vk|dV/du_mode|vk>
 aux_offdiag = np.zeros(Shape, dtype=np.complex64)
 
+# for imode in range(Nmodes):
+#     for ik in range(Nkpoints):
+#         for ic in range(Ncbnds):
+#             for iv in range(Nvbnds):
+#                 Fcvk_diag, Fcvk_offdiag = calculate_Fcvk(Ncbnds, Nvbnds, Akcv, Edft_cond, Edft_val, Eqp_cond, Eqp_val, elph_cond, elph_val, imode, ik, ic, iv, TOL_DEG)
+#                 #print('DEBUG', ik, ic, iv, Fcvk_diag, Fcvk_offdiag)
+#                 aux_diag[imode, ik, ic, iv] = Fcvk_diag
+#                 aux_offdiag[imode, ik, ic, iv] = Fcvk_offdiag
+
+aux_cond_matrix, aux_val_matrix = aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_val, Edft_cond, Eqp_val, Eqp_cond, TOL_DEG)
+
 for imode in range(Nmodes):
     for ik in range(Nkpoints):
-        for ic in range(Ncbnds):
-            for iv in range(Nvbnds):
-                Fcvk_diag, Fcvk_offdiag = calculate_Fcvk(Ncbnds, Nvbnds, Akcv, Edft_cond, Edft_val, Eqp_cond, Eqp_val, elph_cond, elph_val, imode, ik, ic, iv, TOL_DEG)
-                #print('DEBUG', ik, ic, iv, Fcvk_diag, Fcvk_offdiag)
-                aux_diag[imode, ik, ic, iv] = Fcvk_diag
-                aux_offdiag[imode, ik, ic, iv] = Fcvk_offdiag
+        for ic1 in range(Ncbnds):
+            for ic2 in range(Ncbnds):
+                for iv1 in range(Nvbnds):
+                    for iv2 in range(Nvbnds):
 
-# Compute diag elements - kinetic part
-for imode in range(Nmodes):
-    DKinect_diag[imode] = np.conj(Akcv)*aux_diag[imode]
+                        temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
+                        DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
 
-# Compute offdiag elements - kinetic part 
-for imode in range(Nmodes):
-    DKinect_offdiag[imode] = np.conj(Akcv)*aux_offdiag[imode]
+
+# # Compute diag elements - kinetic part
+# for imode in range(Nmodes):
+#     DKinect_diag[imode] = np.conj(Akcv)*aux_diag[imode]
+
+# # Compute offdiag elements - kinetic part 
+# for imode in range(Nmodes):
+#     DKinect_offdiag[imode] = np.conj(Akcv)*aux_offdiag[imode]
 
 # Forces from Kernel derivatives
 
@@ -247,17 +265,30 @@ for imode in range(Nmodes):
 
 
 # Sums
-for imode in range(Nmodes):
-    Sum_DKinect_diag[imode] = np.sum(DKinect_diag[imode])
-    Sum_DKinect_offdiag[imode] = np.sum(DKinect_offdiag[imode])
+# for imode in range(Nmodes):
+#     Sum_DKinect_diag[imode] = np.sum(DKinect_diag[imode])
+#     Sum_DKinect_offdiag[imode] = np.sum(DKinect_offdiag[imode])
 #    Sum_DKernel[imode] = np.sum(DKernel[imode])
 #    if calc_IBL_way == True:
 #        Sum_DKernel_IBL[imode] = np.sum(DKernel_IBL[imode])
 
+for imode in range(Nmodes):
+
+    sum_temp = 0.0 + 1.0j
+    for ik in range(Nkpoints):
+        for ic in range(Ncbnds):
+            for iv in range(Nvbnds):
+                sum_temp += DKinect[imode, ik, ic, iv, ik, ic, iv]
+
+    Sum_DKinect_diag[imode] = sum_temp
+
+    # sum of off-diagonal part + sum of diagonal part
+    Sum_DKinect[imode] = np.sum(DKinect[imode])
+
 
 # Convert to eV/A. Minus sign comes from F=-dV/du
 Sum_DKinect_diag = -Sum_DKinect_diag*Ry2eV/bohr2A
-Sum_DKinect_offdiag = -Sum_DKinect_offdiag*Ry2eV/bohr2A
+Sum_DKinect = -Sum_DKinect*Ry2eV/bohr2A
 #Sum_DKernel = -Sum_DKernel*Ry2eV/bohr2A
 #if calc_IBL_way == True:
 #    Sum_DKernel_IBL = -Sum_DKernel_IBL*Ry2eV/bohr2A
@@ -273,7 +304,7 @@ F_cart_KE_David                     = np.zeros((Nat, 3), dtype=np.complex64)  # 
 for iatom in range(Nat):
     for imode in range(Nmodes):
         F_cart_KE_IBL[iatom] += Displacements[imode, iatom] * Sum_DKinect_diag[imode]
-        F_cart_KE_David[iatom] += Displacements[imode, iatom] * (Sum_DKinect_offdiag[imode] + Sum_DKinect_diag[imode])
+        F_cart_KE_David[iatom] += Displacements[imode, iatom] * (Sum_DKinect[imode])
 #        F_cart_Kernel_IBL[iatom] += Displacements[imode, iatom] * Sum_DKernel_IBL[imode] 
 #        F_cart_Kernel_IBL_correct[iatom] += Displacements[imode, iatom] * Sum_DKernel[imode]
 
