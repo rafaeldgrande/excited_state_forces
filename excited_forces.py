@@ -150,8 +150,8 @@ Forces_modes          = np.zeros((Nmodes), dtype=np.complex64)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval)
 
 # Getting exciton info
-#Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
-Akcv, exc_energy = get_hdf5_exciton_info('6-absorption/eigenvectors.h5', 1)
+Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
+#Akcv, exc_energy = get_hdf5_exciton_info('6-absorption/eigenvectors.h5', 1)
 
 
 print("Max real value of Akcv: ", np.max(np.real(Akcv)))
@@ -193,7 +193,7 @@ iq = 0 # FIXME -> generalize for set of q points
 
 
 Displacements, Nirreps, Perts = get_patterns2(el_ph_dir, iq, Nmodes, Nat)
-elph_aux, elph_cond, elph_val = get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc)
+elph_aux, elph_cond, elph_val = get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc, Perts)
 #elph_cond, elph_val = filter_elph_coeffs(elph_aux, Ncbnds, Nvbnds, Nkpoints, Nmodes, Nval)
 
 ########## Calculating stuff ############
@@ -218,6 +218,9 @@ aux_offdiag = np.zeros(Shape, dtype=np.complex64)
 
 aux_cond_matrix, aux_val_matrix = aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_val, Edft_cond, Eqp_val, Eqp_cond, TOL_DEG)
 
+arq_RPA_data = open('RPA_matrix_elements.dat', 'w')
+arq_RPA_data.write('# mode ik ic1 ic2 iv1 iv2 F\n')
+
 for imode in range(Nmodes):
     for ik in range(Nkpoints):
         for ic1 in range(Ncbnds):
@@ -227,7 +230,9 @@ for imode in range(Nmodes):
 
                         temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
                         DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
+                        arq_RPA_data.write(f' {imode} {ik} {ic1} {iv1} {ik} {ic2} {iv2} {temp*Ry2eV/bohr2A}\n')
 
+arq_RPA_data.close()
 
 # # Compute diag elements - kinetic part
 # for imode in range(Nmodes):
@@ -292,7 +297,7 @@ for imode in range(Nmodes):
     Sum_DKinect[imode] = np.sum(DKinect[imode])
 
 
-# Convert to eV/A. Minus sign comes from F=-dV/du
+# Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 Sum_DKinect_diag = -Sum_DKinect_diag*Ry2eV/bohr2A
 Sum_DKinect = -Sum_DKinect*Ry2eV/bohr2A
 #Sum_DKernel = -Sum_DKernel*Ry2eV/bohr2A
