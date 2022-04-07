@@ -70,6 +70,10 @@ def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
 
 def get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds):
 
+    # When eigenvectors.h5 files are not available, must use this alternative here
+    # Have to use my modified version of summarize_eigenvectors code from BGW
+    # https://github.com/rafaeldgrande/utilities/blob/main/BGW/modified_summarize_eigenvectors.f90
+
     Akcv = np.zeros((Nkpoints, Ncbnds, Nvbnds), dtype=np.complex64)
 
     print('Reading exciton info from file', exciton_file)
@@ -115,6 +119,8 @@ def get_hdf5_exciton_info(exciton_file, iexc):
 
 def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
 
+    print('Reading displacement patterns file')
+
     Displacements = np.zeros((Nmodes, Nat, 3), dtype=np.complex64)
     imode = 0
     Perts = []
@@ -138,7 +144,6 @@ def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
         for ipert in range(Npert):
             #text_temp = root[0][irreps + 4][1][ipert + 2].text
             text_temp = root[0][irreps + 4][1 + ipert][0].text
-            print("Olha aqui!", text_temp, irreps, ipert)
             text_temp = text_temp.replace(",", " ")
             numbers_temp = np.fromstring(text_temp, sep='\n')
             # reading complex numbers -> A[::2] (A[1::2]) gives the first (second) collum
@@ -205,28 +210,13 @@ def get_patterns(el_ph_dir, iq, Nmodes, Nat):  # suitable for xml written from q
 
 def get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc):  # suitable for xml written from qe 6.7 
 
-    print('Reading elph coeficients g_ij = <i|dH/dr|j>\n')
+    print('\n\nReading elph coeficients g_ij = <i|dH/dr|j>\n')
 
     Nkpoints, Ncbnds, Nvbnds, Nval, Nmodes = params_calc
 
     Nbnds = Nvbnds + Ncbnds
     elph_cond = np.zeros((Nmodes, Nkpoints, Ncbnds, Ncbnds), dtype=np.complex64)
     elph_val = np.zeros((Nmodes, Nkpoints, Nvbnds, Nvbnds), dtype=np.complex64)
-
-    # How many bnds in xml files?
-    
-    el_ph_coeffs_file = el_ph_dir+'elph.'+str(iq + 1)+'.1.xml'
-
-    tree = ET.parse(el_ph_coeffs_file)
-    root = tree.getroot()
-    Nbnds_in_xml_file = int(root[1][1].text)
-
-    # para checagem
-    elph_aux = np.zeros((Nmodes, Nkpoints, Nbnds_in_xml_file, Nbnds_in_xml_file), dtype=np.complex64)
-
-    if Nbnds > Nbnds_in_xml_file:
-        print('WARNING! Number of bands in elph files is not enough!')
-        print('Setting missing elph coefficients to 0. '+ str(Nbnds - Nbnds_in_xml_file)+' bands are missing')
 
     imode = 0 # contador de modos
 
@@ -238,12 +228,37 @@ def get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc):  # suitable for xml 
         tree = ET.parse(el_ph_coeffs_file)
         root = tree.getroot()
 
-        Npert = len(root[1][2]) - 1
-        print('This file has '+str(Npert)+' modes')
+        # get tags in xml file (ex: NUMBER_OF_BANDS)
+        tags_in_xml_file = [elem.tag for elem in root.iter()]
+        # get text in xml file for each element. Those are the info we want to read
+        texts_in_xml_file = [elem.text for elem in root.iter()]
+
+
+        # How many bnds in xml files? Just need to check it once (assuming that user won't use files from different DFPT calculations here)
+        if i_irrep == 0:
+
+            Nbnds_index_in_tag = tags_in_xml_file.index('NUMBER_OF_BANDS')
+            Nbnds_in_xml_file = int(texts_in_xml_file[Nbnds_index_in_tag])
+            #Nbnds_in_xml_file = int(root[1][1].text)
+            print(f'There are {Nbnds_in_xml_file} bands in those elph files')
+
+            # para checagem
+            elph_aux = np.zeros((Nmodes, Nkpoints, Nbnds_in_xml_file, Nbnds_in_xml_file), dtype=np.complex64)
+
+            if Nbnds > Nbnds_in_xml_file:
+                print('WARNING! Number of bands in elph files is not enough!')
+                print('Setting missing elph coefficients to 0. '+ str(Nbnds - Nbnds_in_xml_file)+' bands are missing')
+
+
+        #Npert = len(root[1][2]) - 1
+        Npert = tags_in_xml_file.count('PARTIAL_ELPH')
+        print(f'Number of modes (perturbations) in this file: {Npert}')
 
         for ipert in range(Npert):
             for ik in range(Nkpoints):    
-                text_temp = root[1][2 + ik][ipert + 1].text
+                #text_temp = root[1][2 + ik][ipert + 1].text
+                # TODO still dumb for just one k point! later extend it to read more k points
+                text_temp = texts_in_xml_file[-Npert + ipert]
                 text_temp = text_temp.replace(",", " ")
                 numbers_temp = np.fromstring(text_temp, sep='\n')
                 # reading complex numbers -> A[::2] (A[1::2]) gives the first (second) collum
@@ -265,30 +280,14 @@ def get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc):  # suitable for xml 
                         icounter += 1
             imode += 1
 
+    # small report
+    print(f"\nMax real value of <c|dH|c'> (eV/A): {np.max(np.real(elph_cond))}")
+    print(f"Max imag value of <c|dH|c'> (eV/A): {np.max(np.imag(elph_cond))}")
+    print(f"Max real value of <v|dH|v'> (eV/A): {np.max(np.real(elph_val))}")
+    print(f"Max imag value of <v|dH|v'> (eV/A): {np.max(np.imag(elph_val))}")
+    
+    
     return elph_aux, elph_cond, elph_val
-
-
-def filter_elph_coeffs(elph_aux, Ncbnds, Nvbnds, Nkpoints, Nmodes, Nval):
-
-    elph_cond = np.zeros((Nmodes, Nkpoints, Ncbnds, Ncbnds), dtype=np.complex64)
-    elph_val = np.zeros((Nmodes, Nkpoints, Nvbnds, Nvbnds), dtype=np.complex64)
-
-    for imode in range(Nmodes):
-        for ik in range(Nkpoints):
-
-            for iv1 in range(Nvbnds):
-                ivp1 = (Nval - 1) - iv1
-                for iv2 in range(Nvbnds):
-                    ivp2 = (Nval - 1) - iv2
-                    elph_val[imode][ik][iv1][iv2] = elph_aux[imode][ik][ivp1][ivp2]
-
-            for ic1 in range(Ncbnds):
-                icp1 = Nval + ic1
-                for ic2 in range(Ncbnds):
-                    icp2 = Nval + ic2
-                    elph_cond[imode][ik][ic1][ic2] = elph_aux[imode][ik][icp1][icp2]
-
-    return elph_cond, elph_val
 
 
 def get_el_ph_coeffs(el_ph_dir, iq, Nirreps, Perts, Nmodes, Nkpoints, Ncbnds, Nvbnds, Nval):  # suitable for xml written from qe 6.7 
