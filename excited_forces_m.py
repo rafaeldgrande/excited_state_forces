@@ -19,6 +19,11 @@ def do_I_want_this_band(iband, Nval, N_c_or_v_bnds, c_or_v):
 
     return answer
 
+def indexes_x_in_list(what_i_want, list_i_get):
+    indexes = [i for i in range(len(list_i_get)) if list_i_get[i] == what_i_want]
+    return indexes
+
+
 def get_kernel(kernel_file):
 
     print('\nReading kernel matrix elements from ', kernel_file)
@@ -130,22 +135,43 @@ def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
     tree = ET.parse(patterns_file)
     root = tree.getroot()
 
+    tags_in_xml_file = [elem.tag for elem in root.iter()]
+    texts_in_xml_file = [elem.text for elem in root.iter()]
+
+    print(tags_in_xml_file)
+
     #Nirreps = int(root[0][3].text.split("\n")[1])
-    Nirreps = int(root[0][3].text)
+    #Nirreps = int(root[0][3].text)
+    Nirreps_index_in_tag = tags_in_xml_file.index('NUMBER_IRR_REP')
+    Nirreps = int(texts_in_xml_file[Nirreps_index_in_tag])
+    print(f'Nirreps = {Nirreps}')
 
     imode = 0
-    for irreps in range(Nirreps):
+
+    Npert_indexes_in_tag = indexes_x_in_list('NUMBER_OF_PERTURBATIONS', tags_in_xml_file)
+    Displacements_indexes_in_tag = indexes_x_in_list('DISPLACEMENT_PATTERN', tags_in_xml_file)
+    print(Displacements_indexes_in_tag)
+
+    idisp = -1   # counter of displacements
+
+    for irrep in range(Nirreps):
 
         # number of perturbations for this representation
         #n_pert = int(root[0][irreps + 4][0].text.split('\n')[1])
-        Npert = int(root[0][irreps + 4][0].text)
+        #Npert_index_in_tag = tags_in_xml_file.index()
+        Npert = int(texts_in_xml_file[Npert_indexes_in_tag[irrep]])
+        print('Npert =', Npert)
         Perts.append(Npert)
 
         for ipert in range(Npert):
+            idisp += 1
             #text_temp = root[0][irreps + 4][1][ipert + 2].text
-            text_temp = root[0][irreps + 4][1 + ipert][0].text
+            #text_temp = root[0][irrep + 4][1 + ipert][0].text
+            text_temp = texts_in_xml_file[Displacements_indexes_in_tag[idisp]]
             text_temp = text_temp.replace(",", " ")
+            
             numbers_temp = np.fromstring(text_temp, sep='\n')
+            
             # reading complex numbers -> A[::2] (A[1::2]) gives the first (second) collum
             temp_displacements = numbers_temp[::2] + 1.0j*numbers_temp[1::2]
 
