@@ -89,6 +89,29 @@ def get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds):
 
     return Akcv, exc_energy
 
+def get_hdf5_exciton_info(exciton_file, iexc):
+
+    print('Reading exciton info from file', exciton_file)
+
+    # Return the exciton energy and the eigenvec Acvk
+
+    # assuming calculations with TD approximation
+    # info about file at: http://manual.berkeleygw.org/3.0/eigenvectors_h5_spec/
+    # Also, just working for excitons with Q = 0
+
+    #TODO -> for now calculting exciton info for exciton with index iexc
+    # but later, make it calculate for and set of exciton indexes
+
+    f_hdf5 = h5py.File(exciton_file, 'r')
+
+    eigenvecs = f_hdf5['exciton_data/eigenvectors']
+    eigenvals = f_hdf5['exciton_data/eigenvalues']
+
+    Acvk = eigenvecs[0,iexc-1,:,:,:,:,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,:,1]
+    Omega = eigenvals[iexc]
+
+    return Acvk, Omega
+
 
 def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
 

@@ -150,20 +150,25 @@ Forces_modes          = np.zeros((Nmodes), dtype=np.complex64)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval)
 
 # Getting exciton info
-Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
+#Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
+Akcv, exc_energy = get_hdf5_exciton_info('6-absorption/eigenvectors.h5', 1)
 
-# Getting kernel info
-#Kx, Kd = get_kernel(kernel_file) 
 
-# Must have same units of Eqp and Edft -> eV
-#Kx = Kx * Ry2eV / Kernel_bgw_factor
-#Kd = Kd * Ry2eV / Kernel_bgw_factor
+print("Max real value of Akcv: ", np.max(np.real(Akcv)))
+print("Max imag value of Akcv: ", np.max(np.imag(Akcv)))
 
-# Printing exciton energies
+# # Getting kernel info
+# Kx, Kd = get_kernel(kernel_file) 
 
-#Mean_Kx, Mean_Kd, Mean_Ekin = 0.0, 0.0, 0.0
+# # Must have same units of Eqp and Edft -> eV
+# Kx = Kx * Ry2eV / Kernel_bgw_factor
+# Kd = Kd * Ry2eV / Kernel_bgw_factor
 
-#for ik in range(Nkpoints):
+# # Printing exciton energies
+
+# Mean_Kx, Mean_Kd, Mean_Ekin = 0.0, 0.0, 0.0
+
+# for ik in range(Nkpoints):
 #    for ic1 in range(Ncbnds):
 #        for iv1 in range(Nvbnds):
 #            Mean_Ekin += (Eqp_cond[ik, ic1] - Eqp_val[ik, iv1])*abs(Akcv[ik, ic1, iv1])**2
@@ -172,11 +177,11 @@ Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
 #                    Mean_Kx += np.conj(Akcv[ik, ic1, iv1]) * Kx[ik, ik, ic1, ic2, iv1, iv2] * Akcv[ik, ic2, iv2]
 #                    Mean_Kd += np.conj(Akcv[ik, ic1, iv1]) * Kd[ik, ik, ic1, ic2, iv1, iv2] * Akcv[ik, ic2, iv2]
 
-#print('Exciton energies (eV): ')
-#print('<Kx> = ', Mean_Kx)
-#print('<Kd> = ', Mean_Kd)
-#print('<KE> = ', Mean_Ekin)
-#print('Omega = ', exc_energy)
+# print('Exciton energies (eV): ')
+# print('<Kx> = ', Mean_Kx)
+# print('<Kd> = ', Mean_Kd)
+# print('<KE> = ', Mean_Ekin)
+# print('Omega = ', exc_energy)
 
 # get displacement patterns
 
@@ -191,12 +196,10 @@ Displacements, Nirreps, Perts = get_patterns2(el_ph_dir, iq, Nmodes, Nat)
 elph_aux, elph_cond, elph_val = get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc)
 #elph_cond, elph_val = filter_elph_coeffs(elph_aux, Ncbnds, Nvbnds, Nkpoints, Nmodes, Nval)
 
-print("Max real value of <c|dH|c'> (eV/A): ", np.max(np.real(elph_cond)))
-print("Max imag value of <c|dH|c'> (eV/A): ", np.max(np.imag(elph_cond)))
-print("Max real value of <v|dH|v'> (eV/A): ", np.max(np.real(elph_val)))
-print("Max imag value of <v|dH|v'> (eV/A): ", np.max(np.imag(elph_val)))
 ########## Calculating stuff ############
 
+print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
+print("    - Calculating RPA part")
 # Creating auxialiry quantities
 
 # Derivatives of diagonal kinect part
@@ -235,6 +238,7 @@ for imode in range(Nmodes):
 #     DKinect_offdiag[imode] = np.conj(Akcv)*aux_offdiag[imode]
 
 # Forces from Kernel derivatives
+# print("    - Calculating RPA part")
 
 # EDFT = Edft_val, Edft_cond
 # EQP = Eqp_val, Eqp_cond
@@ -272,9 +276,11 @@ for imode in range(Nmodes):
 #    if calc_IBL_way == True:
 #        Sum_DKernel_IBL[imode] = np.sum(DKernel_IBL[imode])
 
+print("Calculating sums")
+
 for imode in range(Nmodes):
 
-    sum_temp = 0.0 + 1.0j
+    sum_temp = 0.0 + 0.0j
     for ik in range(Nkpoints):
         for ic in range(Ncbnds):
             for iv in range(Nvbnds):
@@ -294,6 +300,8 @@ Sum_DKinect = -Sum_DKinect*Ry2eV/bohr2A
 #    Sum_DKernel_IBL = -Sum_DKernel_IBL*Ry2eV/bohr2A
 
 # Calculate forces cartesian basis
+
+print("Calculating forces in cartesian basis")
 
 F_cart_KE_IBL                       = np.zeros((Nat, 3), dtype=np.complex64)  # david thesis - diag + offdiag from kinect part
 F_cart_KE_David                     = np.zeros((Nat, 3), dtype=np.complex64)  # david thesis - diag + offdiag from kinect part + derivative of Kernel (corrected)
@@ -329,3 +337,6 @@ for iatom in range(Nat):
         arq_out.write(text+'\n')
 
 arq_out.close()
+
+
+print('\n\nCalculation finished!')
