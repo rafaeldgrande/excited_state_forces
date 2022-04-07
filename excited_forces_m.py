@@ -20,7 +20,20 @@ def do_I_want_this_band(iband, Nval, N_c_or_v_bnds, c_or_v):
     return answer
 
 def indexes_x_in_list(what_i_want, list_i_get):
-    indexes = [i for i in range(len(list_i_get)) if list_i_get[i] == what_i_want]
+
+    """
+    Returns the indexes of the value x in a list A
+    Ex: A = ['a', 'b', 'a', 'c', 'd', 'd']
+    indexes_x_in_list('a', A) returns [0, 2]
+    indexes_x_in_list('b', A) returns [1]
+    indexes_x_in_list('e', A) returns [] (empty list)
+    """
+
+    if list_i_get.count(what_i_want) > 0:
+        indexes = [i for i in range(len(list_i_get)) if list_i_get[i] == what_i_want]
+    else:
+        indexes = []
+
     return indexes
 
 
@@ -169,7 +182,7 @@ def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
             #text_temp = root[0][irrep + 4][1 + ipert][0].text
             text_temp = texts_in_xml_file[Displacements_indexes_in_tag[idisp]]
             text_temp = text_temp.replace(",", " ")
-            
+
             numbers_temp = np.fromstring(text_temp, sep='\n')
             
             # reading complex numbers -> A[::2] (A[1::2]) gives the first (second) collum
