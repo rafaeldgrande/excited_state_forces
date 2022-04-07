@@ -247,7 +247,7 @@ def get_patterns(el_ph_dir, iq, Nmodes, Nat):  # suitable for xml written from q
 
     return Displacements, Nirreps, Perts        
 
-def get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc):  # suitable for xml written from qe 6.7 
+def get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc, Perts):  # suitable for xml written from qe 6.7 
 
     print('\n\nReading elph coeficients g_ij = <i|dH/dr|j>\n')
 
@@ -289,23 +289,29 @@ def get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc):  # suitable for xml 
                 print('Setting missing elph coefficients to 0. '+ str(Nbnds - Nbnds_in_xml_file)+' bands are missing')
 
 
-        #Npert = len(root[1][2]) - 1
-        Npert = tags_in_xml_file.count('PARTIAL_ELPH')
+        Npert = Perts[i_irrep]
         print(f'Number of modes (perturbations) in this file: {Npert}')
 
-        for ipert in range(Npert):
-            for ik in range(Nkpoints):    
-                #text_temp = root[1][2 + ik][ipert + 1].text
-                # TODO still dumb for just one k point! later extend it to read more k points
-                text_temp = texts_in_xml_file[-Npert + ipert]
-                text_temp = text_temp.replace(",", " ")
-                numbers_temp = np.fromstring(text_temp, sep='\n')
-                # reading complex numbers -> A[::2] (A[1::2]) gives the first (second) collum
-                temp_elph = numbers_temp[::2] + 1.0j*numbers_temp[1::2]
+        # just appears one time for one k pointt. TODO -> later generalize for several k points!
+        elph_index_in_xml_file = indexes_x_in_list('PARTIAL_ELPH', tags_in_xml_file)[0] 
 
-                icounter = 0
+        for ik in range(Nkpoints):    
+            #text_temp = root[1][2 + ik][ipert + 1].text
+            # TODO still dumb for just one k point! later extend it to read more k points
+            text_temp = texts_in_xml_file[elph_index_in_xml_file]
+            print(text_temp.count(','))
+            text_temp = text_temp.replace(",", " ")
+            numbers_temp = np.fromstring(text_temp, sep='\n')
+            # reading complex numbers -> A[::2] (A[1::2]) gives the first (second) collum
+            temp_elph = numbers_temp[::2] + 1.0j*numbers_temp[1::2]
+            # size of this list is Npert*Nbnds*Nbnds. Must divide this data!
+
+            icounter = 0
+
+            for ipert in range(Npert):
                 for ibnd in range(Nbnds_in_xml_file):
                     for jbnd in range(Nbnds_in_xml_file):
+
                         elph_aux[imode, ik, ibnd - Nval, jbnd - Nval] = temp_elph[icounter]
 
                         if do_I_want_this_band(ibnd, Nval, Nvbnds, 'v') == True and do_I_want_this_band(jbnd, Nval, Nvbnds, 'v') == True:
@@ -315,16 +321,14 @@ def get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc):  # suitable for xml 
                         if do_I_want_this_band(ibnd, Nval, Ncbnds, 'c') == True and do_I_want_this_band(jbnd, Nval, Ncbnds, 'c') == True:
                             ibndp, jbndp = Nval - ibnd, Nval - jbnd
                             elph_cond[imode, ik, ibndp, jbndp] = temp_elph[icounter]
-
                         icounter += 1
-            imode += 1
+                imode += 1
 
     # small report
     print(f"\nMax real value of <c|dH|c'> (eV/A): {np.max(np.real(elph_cond))}")
     print(f"Max imag value of <c|dH|c'> (eV/A): {np.max(np.imag(elph_cond))}")
     print(f"Max real value of <v|dH|v'> (eV/A): {np.max(np.real(elph_val))}")
     print(f"Max imag value of <v|dH|v'> (eV/A): {np.max(np.imag(elph_val))}")
-    
     
     return elph_aux, elph_cond, elph_val
 
