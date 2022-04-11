@@ -330,6 +330,7 @@ def get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc, Perts):  # suitable f
     print(f"Max real value of <v|dH|v'> (eV/A): {np.max(np.real(elph_val))}")
     print(f"Max imag value of <v|dH|v'> (eV/A): {np.max(np.imag(elph_val))}")
     
+    
     return elph_aux, elph_cond, elph_val
 
 
@@ -565,8 +566,16 @@ def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_
         
     return aux_cond_matrix, aux_val_matrix
 
+def delta(i,j):
+    if i == j:
+        return 1.0
+    else:
+        return 0.0
+
 def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2):
 
     # calculate matrix element imode, ik, ic1, ic2, iv1, iv2
-    D_c1v1k_c2v2k = aux_cond_matrix[imode, ik, ic1, ic2] - aux_val_matrix[imode, ik, iv1, iv2]
+    D_c1v1k_c2v2k = aux_cond_matrix[imode, ik, ic1, ic2]*delta(iv1, iv2) - aux_val_matrix[imode, ik, iv1, iv2]*delta(ic1, ic2)
     return Akcv[ik, ic1, iv1] * np.conj(Akcv[ik, ic2, iv2]) * D_c1v1k_c2v2k
+
+
