@@ -230,7 +230,7 @@ for imode in range(Nmodes):
 
                         temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
                         DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
-                        arq_RPA_data.write(f' {imode} {ik} {ic1} {iv1} {ik} {ic2} {iv2} {temp*Ry2eV/bohr2A}\n')
+                        arq_RPA_data.write(f' {imode} {ik} {ic1} {ic2} {iv1} {iv2} {temp*Ry2eV/bohr2A}\n')
 
 arq_RPA_data.close()
 
