@@ -7,6 +7,11 @@ import h5py
 
 def do_I_want_this_band(iband, Nval, N_c_or_v_bnds, c_or_v):
 
+    """
+    Checks if a valence (conduction) band is 
+    a the one that we need.
+    """
+
     answer = False
 
     if c_or_v == 'v':  # let's check if it is a valence band
@@ -39,6 +44,10 @@ def indexes_x_in_list(what_i_want, list_i_get):
 
 def get_kernel(kernel_file):
 
+    """
+    Reads the kernel matrix elements from BSE calculations
+    """
+
     print('\nReading kernel matrix elements from ', kernel_file)
 
     # Kd = head (G=G'=0) + wing (G=0 or G'=0) + body (otherwise) - see https://doi.org/10.1016/j.cpc.2011.12.006
@@ -59,6 +68,12 @@ def get_kernel(kernel_file):
     return Kd, Kx
 
 def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
+
+    """Reads quasiparticle and dft energies results from sigma calculations
+
+    Returns:
+        _type_: Eqp_val, Eqp_cond, Edft_val, Edft_cond
+    """
 
     Eqp_val   = np.zeros((Nkpoints, Nvbnds), dtype=np.float64)
     Edft_val  = np.zeros((Nkpoints, Nvbnds), dtype=np.float64)
@@ -88,9 +103,11 @@ def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
 
 def get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds):
 
-    # When eigenvectors.h5 files are not available, must use this alternative here
-    # Have to use my modified version of summarize_eigenvectors code from BGW
-    # https://github.com/rafaeldgrande/utilities/blob/main/BGW/modified_summarize_eigenvectors.f90
+    """
+    When eigenvectors.h5 files are not available, must use this alternative here
+    Have to use my modified version of summarize_eigenvectors code from BGW
+    https://github.com/rafaeldgrande/utilities/blob/main/BGW/modified_summarize_eigenvectors.f90
+    """
 
     Akcv = np.zeros((Nkpoints, Ncbnds, Nvbnds), dtype=np.complex64)
 
@@ -113,16 +130,18 @@ def get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds):
 
 def get_hdf5_exciton_info(exciton_file, iexc):
 
+    """    
+    Return the exciton energy and the eigenvec coefficients Acvk
+
+    Assuming calculations with TD approximation
+    Info about file at: http://manual.berkeleygw.org/3.0/eigenvectors_h5_spec/
+    Also, just working for excitons with Q = 0
+
+    TODO -> for now calculting exciton info for exciton with index iexc
+    but later, make it calculate for and set of exciton indexes"""
+
+
     print('Reading exciton info from file', exciton_file)
-
-    # Return the exciton energy and the eigenvec Acvk
-
-    # assuming calculations with TD approximation
-    # info about file at: http://manual.berkeleygw.org/3.0/eigenvectors_h5_spec/
-    # Also, just working for excitons with Q = 0
-
-    #TODO -> for now calculting exciton info for exciton with index iexc
-    # but later, make it calculate for and set of exciton indexes
 
     f_hdf5 = h5py.File(exciton_file, 'r')
 
@@ -136,6 +155,10 @@ def get_hdf5_exciton_info(exciton_file, iexc):
 
 
 def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
+
+    """Reads displacements patterns from patterns.X.xml files, 
+    where X is the q vector for this displacement.
+    """
 
     print('Reading displacement patterns file')
 
@@ -153,8 +176,6 @@ def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
 
     print(tags_in_xml_file)
 
-    #Nirreps = int(root[0][3].text.split("\n")[1])
-    #Nirreps = int(root[0][3].text)
     Nirreps_index_in_tag = tags_in_xml_file.index('NUMBER_IRR_REP')
     Nirreps = int(texts_in_xml_file[Nirreps_index_in_tag])
     print(f'Nirreps = {Nirreps}')
@@ -169,17 +190,12 @@ def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
 
     for irrep in range(Nirreps):
 
-        # number of perturbations for this representation
-        #n_pert = int(root[0][irreps + 4][0].text.split('\n')[1])
-        #Npert_index_in_tag = tags_in_xml_file.index()
         Npert = int(texts_in_xml_file[Npert_indexes_in_tag[irrep]])
         print('Npert =', Npert)
         Perts.append(Npert)
 
         for ipert in range(Npert):
             idisp += 1
-            #text_temp = root[0][irreps + 4][1][ipert + 2].text
-            #text_temp = root[0][irrep + 4][1 + ipert][0].text
             text_temp = texts_in_xml_file[Displacements_indexes_in_tag[idisp]]
             text_temp = text_temp.replace(",", " ")
 
@@ -202,8 +218,8 @@ def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
 
 
 def get_patterns(el_ph_dir, iq, Nmodes, Nat):  # suitable for xml written from qe 6.7 
-    # total of pattern files is Nq and
-    # nomenclature is  patterns.iq.xml with 1 <= iq <= Nq
+
+    """Old function that reads displacement patterns. To be deleted later"""
 
     Displacements = np.zeros((Nmodes, Nat, 3), dtype=np.complex64)
     imode = 0
@@ -248,6 +264,39 @@ def get_patterns(el_ph_dir, iq, Nmodes, Nat):  # suitable for xml written from q
     return Displacements, Nirreps, Perts        
 
 def get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc, Perts):  # suitable for xml written from qe 6.7 
+
+    """Read elph coefficients from elph files. Has to organize them. Data in those files are printed as
+    
+    ...
+    -1.595702686385000E-001,-1.006139616066548E-016  # for bands 1 1 
+    -8.573884170996401E-009,-6.353890362313132E-009  # for bands 1 2 
+    -4.916126043766308E-002, 3.098379902211784E-003  # for bands 1 3
+    -8.573884179886859E-009, 6.353890313686664E-009  # for bands 2 1 
+    2.953855120010117E-001, 0.000000000000000E+000   # for bands 2 2 
+    ...
+
+    where i, j runs from 1 to (Ncbnds + Nvbnds)
+
+    Needs to translate to ic and iv. Exs:
+
+    i = 1,2,3,4,5,6,7
+
+    And Nval = 3, then
+
+    i   iv
+    1   3
+    2   2
+    3   1
+
+    i   ic
+    4   1
+    5   2
+    6   3
+    7   4
+
+    So iv = Nval - i + 1 and ic = i - Nval
+    
+    """
 
     print('\n\nReading elph coeficients g_ij = <i|dH/dr|j>\n')
 
@@ -330,16 +379,19 @@ def get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc, Perts):  # suitable f
     print(f"Max real value of <v|dH|v'> (eV/A): {np.max(np.real(elph_val))}")
     print(f"Max imag value of <v|dH|v'> (eV/A): {np.max(np.imag(elph_val))}")
     
-    
     return elph_aux, elph_cond, elph_val
 
 
 def get_el_ph_coeffs(el_ph_dir, iq, Nirreps, Perts, Nmodes, Nkpoints, Ncbnds, Nvbnds, Nval):  # suitable for xml written from qe 6.7 
+
+    """
+    Old -> to be deleted later
     # FIXME -> rewrite it to read .xml files using .xml modules in python
     # total of el_ph files is Nq*Nirreps and 
     # nomenclature is elph."iq"."i_irrep".xml with 
     # 1 <= iq <= Nq and 1 <= i_irrep <= Nirreps
     # Here I will read all irreps for a given iq
+    """
 
     Nbnds = Nvbnds + Ncbnds
 
@@ -442,6 +494,8 @@ def get_modes2cart_matrix(dyn_file, Nat, Nmodes):
 
 def calc_DKernel(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Nparams, TOL_DEG):
 
+    """Calculates derivatives of kernel matrix elements"""
+
     ik1, ik2, iv1, iv2, ic1, ic2, imode = indexes
 
     elph_cond, elph_val = ELPH
@@ -501,6 +555,8 @@ def calc_DKernel(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Nparams, TOL_DE
 
 def calculate_Fcvk(Ncbnds, Nvbnds, Akcv, Edft_cond, Edft_val, Eqp_cond, Eqp_val, elph_cond, elph_val, imode, ik, ic, iv, TOL_DEG):
 
+    """ calculate force matrix elements
+    Old -> to be deleted later"""
     Fcvk_offdiag = 0.0 + 1.0j*0.0
     Fcvk_diag = 0.0 + 1.0j*0.0
 
@@ -529,6 +585,11 @@ def calculate_Fcvk(Ncbnds, Nvbnds, Akcv, Edft_cond, Edft_val, Eqp_cond, Eqp_val,
 
 def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_val, Edft_cond, Eqp_val, Eqp_cond, TOL_DEG):
 
+    """ Calculates auxiliar matrix elements to be used later in the forces matrix elements.
+    Returns aux_cond_matrix, aux_val_matrix and
+    aux_cond_matrix[imode, ik, ic1, ic2] = elph_cond[imode, ik, ic1, ic2] * deltaEqp / deltaEdft (if ic1 != ic2)
+    aux_val_matrix[imode, ik, iv1, iv2]  = elph_val[imode, ik, iv1, iv2]  * deltaEqp / deltaEdft (if iv1 != iv2)
+    If ic1 == ic2 (iv1 == iv2), then the matrix elements are just the elph coefficients"""
     Shape_cond = (Nmodes, Nkpoints, Ncbnds, Ncbnds)
     aux_cond_matrix = np.zeros(Shape_cond, dtype=np.complex64)
 
@@ -567,12 +628,15 @@ def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_
     return aux_cond_matrix, aux_val_matrix
 
 def delta(i,j):
+    """Dirac delta - TODO: check if python has a builtin function that does that."""
     if i == j:
         return 1.0
     else:
         return 0.0
 
 def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2):
+
+    """Calculates excited state force matrix elements."""
 
     # calculate matrix element imode, ik, ic1, ic2, iv1, iv2
     D_c1v1k_c2v2k = aux_cond_matrix[imode, ik, ic1, ic2]*delta(iv1, iv2) - aux_val_matrix[imode, ik, iv1, iv2]*delta(ic1, ic2)
