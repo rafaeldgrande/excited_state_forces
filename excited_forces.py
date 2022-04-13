@@ -186,15 +186,10 @@ print("Max imag value of Akcv: ", np.max(np.imag(Akcv)))
 # get displacement patterns
 
 iq = 0 # FIXME -> generalize for set of q points
-#Displacements, Nirreps, Perts = get_patterns(el_ph_dir, iq, Nmodes, Nat)
-#elph_val, elph_cond, elph_aux = get_el_ph_coeffs(el_ph_dir, iq, Nirreps, Perts, Nmodes, Nkpoints, Ncbnds, Nvbnds, Nval)
 
-# print('Displacements: ', Displacements)
-
-
-Displacements, Nirreps, Perts = get_patterns2(el_ph_dir, iq, Nmodes, Nat)
-elph_aux, elph_cond, elph_val = get_el_ph_coeffs2(el_ph_dir, iq, Nirreps, params_calc, Perts)
-#elph_cond, elph_val = filter_elph_coeffs(elph_aux, Ncbnds, Nvbnds, Nkpoints, Nmodes, Nval)
+Displacements, Nirreps = get_patterns2(el_ph_dir, iq, Nmodes, Nat)
+elph = get_el_ph_coeffs(el_ph_dir, iq, Nirreps)
+elph_cond, elph_val = filter_elph_coeffs(elph, params_calc)
 
 ########## Calculating stuff ############
 
