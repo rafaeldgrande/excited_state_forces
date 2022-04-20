@@ -118,7 +118,8 @@ print('\n---------------------\n\n')
 
 params_calc = Nkpoints, Ncbnds, Nvbnds, Nval, Nmodes
 
-Calculate_Kernel = True
+just_RPA_diag = False
+Calculate_Kernel = False
 a = 10/bohr2A # FIXME: read it from input file or other source (maybe read volume instead)
 Vol = a**3
 Kernel_bgw_factor = Vol/(8*np.pi)
@@ -197,8 +198,6 @@ print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>
 print("    - Calculating RPA part")
 # Creating auxialiry quantities
 
-# Derivatives of diagonal kinect part
-
 aux_diag = np.zeros(Shape, dtype=np.complex64)  # <ck|dV/du_mode|ck> - <vk|dV/du_mode|vk>
 aux_offdiag = np.zeros(Shape, dtype=np.complex64)
 
@@ -210,26 +209,8 @@ arq_RPA_data = open(data_RPA_file, 'w')
 arq_RPA_data.write('# mode ik ic1 ic2 iv1 iv2 F conj(Akc1v1)*Akc2v2 auxMatcond(c1,c2) auxMatval(v1,v2)\n')
 arq_RPA_data.close()
 
-for imode in range(Nmodes):
-    for ik in range(Nkpoints):
-        for ic1 in range(Ncbnds):
-            for ic2 in range(Ncbnds):
-                for iv1 in range(Nvbnds):
-                    for iv2 in range(Nvbnds):
+DKinect = calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, data_RPA_file, just_RPA_diag)
 
-                        temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2, data_RPA_file)
-                        DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp                        
-#                        arq_RPA_data.write(f' {imode} {ik} {ic1} {ic2} {iv1} {iv2} {temp*Ry2eV/bohr2A}\n')
-
-arq_RPA_data.close()
-
-# # Compute diag elements - kinetic part
-# for imode in range(Nmodes):
-#     DKinect_diag[imode] = np.conj(Akcv)*aux_diag[imode]
-
-# # Compute offdiag elements - kinetic part 
-# for imode in range(Nmodes):
-#     DKinect_offdiag[imode] = np.conj(Akcv)*aux_offdiag[imode]
 
 # Forces from Kernel derivatives
 if Calculate_Kernel == True:
@@ -262,14 +243,6 @@ if Calculate_Kernel == True:
                                     DKernel[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK[0] * A_ket
                                     DKernel_IBL[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK[1] * A_ket
 
-
-# Sums
-# for imode in range(Nmodes):
-#     Sum_DKinect_diag[imode] = np.sum(DKinect_diag[imode])
-#     Sum_DKinect_offdiag[imode] = np.sum(DKinect_offdiag[imode])
-#    Sum_DKernel[imode] = np.sum(DKernel[imode])
-#    if calc_IBL_way == True:
-#        Sum_DKernel_IBL[imode] = np.sum(DKernel_IBL[imode])
 
 print("Calculating sums")
 

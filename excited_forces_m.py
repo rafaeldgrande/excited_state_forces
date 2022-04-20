@@ -584,3 +584,33 @@ def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, i
 
     return Dkin
 
+def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, data_RPA_file, just_RPA_diag):
+
+    start_time_func = time.clock_gettime(0)
+
+    Nkpoints, Ncbnds, Nvbnds, Nval, Nmodes = params_calc
+    Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
+    DKinect = np.zeros(Shape, dtype=np.complex64)
+
+    if just_RPA_diag == False:
+        for imode in range(Nmodes):
+            for ik in range(Nkpoints):
+                for ic1 in range(Ncbnds):
+                    for ic2 in range(Ncbnds):
+                        for iv1 in range(Nvbnds):
+                            for iv2 in range(Nvbnds):
+                                temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2, data_RPA_file)
+                                DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
+
+    else:
+        for imode in range(Nmodes):
+            for ik in range(Nkpoints):
+                for ic1 in range(Ncbnds):
+                    for iv1 in range(Nvbnds):
+                        temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1, data_RPA_file)
+                        DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
+
+    end_time_func = time.clock_gettime(0)
+    print(f'Time spent on calc_Dkinect_matrix function: {end_time_func - start_time_func} s')
+
+    return DKinect
