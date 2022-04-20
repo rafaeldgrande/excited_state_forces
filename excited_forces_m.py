@@ -3,7 +3,7 @@
 import numpy as np
 import xml.etree.ElementTree as ET
 import h5py
-
+import time
 
 def do_I_want_this_band(iband, Nval, N_c_or_v_bnds, c_or_v):
 
@@ -48,6 +48,7 @@ def get_kernel(kernel_file):
     Reads the kernel matrix elements from BSE calculations
     """
 
+    start_time_func = time.clock_gettime(0)
     print('\nReading kernel matrix elements from ', kernel_file)
 
     # Kd = head (G=G'=0) + wing (G=0 or G'=0) + body (otherwise) - see https://doi.org/10.1016/j.cpc.2011.12.006
@@ -65,6 +66,9 @@ def get_kernel(kernel_file):
 
     Kx = Exchange[:,:,:,:,:,:,0] + 1.0j*Exchange[:,:,:,:,:,:,1]
 
+    end_time_func = time.clock_gettime(0)
+    print(f'Time spent on get_kernel function: {end_time_func - start_time_func} s')
+
     return Kd, Kx
 
 def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
@@ -74,6 +78,8 @@ def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
     Returns:
         _type_: Eqp_val, Eqp_cond, Edft_val, Edft_cond
     """
+
+    start_time_func = time.clock_gettime(0)
 
     Eqp_val   = np.zeros((Nkpoints, Nvbnds), dtype=np.float64)
     Edft_val  = np.zeros((Nkpoints, Nvbnds), dtype=np.float64)
@@ -98,6 +104,9 @@ def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
                 iband = Nval - int(linha[1]) 
                 Edft_val[ik, iband] = float(linha[2])
                 Eqp_val[ik, iband] = float(linha[3])
+
+    end_time_func = time.clock_gettime(0)
+    print(f'Time spent on read_eqp_data function: {end_time_func - start_time_func} s')
 
     return Eqp_val, Eqp_cond, Edft_val, Edft_cond
 
@@ -397,6 +406,8 @@ def calc_DKernel(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Nparams, TOL_DE
 
     """Calculates derivatives of kernel matrix elements"""
 
+    start_time_func = time.clock_gettime(0)
+
     ik1, ik2, iv1, iv2, ic1, ic2, imode = indexes
 
     elph_cond, elph_val = ELPH
@@ -447,6 +458,8 @@ def calc_DKernel(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Nparams, TOL_DE
                 if calc_IBL_way == True:
                     DKelement_IBL += Kernel[ik1][ikp][ic1][icp][iv1][iv2]*elph_cond[imode][ikp][icp][ic2]/DeltaEqp
 
+    end_time_func = time.clock_gettime(0)
+    print(f'Time spent on calc_DKernel function: {end_time_func - start_time_func} s')
 
     if calc_IBL_way is True:
         return DKelement, DKelement_IBL
@@ -493,6 +506,8 @@ def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_
     aux_val_matrix[imode, ik, iv1, iv2]  = elph_val[imode, ik, iv1, iv2]  * deltaEqp / deltaEdft (if iv1 != iv2)
     If ic1 == ic2 (iv1 == iv2), then the matrix elements are just the elph coefficients"""
 
+    start_time_func = time.clock_gettime(0)
+
     Shape_cond = (Nmodes, Nkpoints, Ncbnds, Ncbnds)
     aux_cond_matrix = np.zeros(Shape_cond, dtype=np.complex64)
 
@@ -528,6 +543,9 @@ def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_
                         deltaEdft = Edft_val[ik, iv1] - Edft_val[ik, iv2]
                         aux_val_matrix[imode, ik, iv1, iv2] = elph * deltaEqp / deltaEdft
         
+    end_time_func = time.clock_gettime(0)
+    print(f'Time spent on aux_matrix_elem function: {end_time_func - start_time_func} s')
+
     return aux_cond_matrix, aux_val_matrix
 
 def delta(i,j):
@@ -537,12 +555,32 @@ def delta(i,j):
     else:
         return 0.0
 
-def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2):
+def dirac_delta_Edft(i,j, Edft, TOL_DEG):
+    if abs(Edft[0, i] - Edft[0, j]) > TOL_DEG:
+        return 1.0
+    else:
+        return 0.0
+
+
+def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2, data_RPA_file):
 
     """Calculates excited state force matrix elements."""
 
-    # calculate matrix element imode, ik, ic1, ic2, iv1, iv2
-    D_c1v1k_c2v2k = aux_cond_matrix[imode, ik, ic1, ic2]*delta(iv1, iv2) - aux_val_matrix[imode, ik, iv1, iv2]*delta(ic1, ic2)
-    return Akcv[ik, ic1, iv1] * np.conj(Akcv[ik, ic2, iv2]) * D_c1v1k_c2v2k
+    Ry2eV = 13.6056980659
+    bohr2A = 0.529177249
 
+    # calculate matrix element imode, ik, ic1, ic2, iv1, iv2
+    temp_cond = aux_cond_matrix[imode, ik, ic1, ic2]*delta(iv1, iv2)
+    temp_val = aux_val_matrix[imode, ik, iv1, iv2]*delta(ic1, ic2)
+
+    tempA = Akcv[ik, ic1, iv1] * np.conj(Akcv[ik, ic2, iv2])
+    Dkin = tempA * (temp_cond - temp_val)
+
+    # arq_RPA_data = open(data_RPA_file, 'a')
+    # arq_RPA_data.write(f'{imode} {ik} {ic1} {ic2} {iv1} {iv2} {Dkin} {tempA} {temp_cond} {temp_val} \n')
+    # arq_RPA_data.close()
+    
+    # print(f' {imode} {ik} {ic1} {ic2} {iv1} {iv2} {Dkin}')
+
+    return Dkin
 
