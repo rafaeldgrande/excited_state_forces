@@ -562,7 +562,7 @@ def dirac_delta_Edft(i,j, Edft, TOL_DEG):
         return 0.0
 
 
-def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2, data_RPA_file):
+def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2, report_RPA_data):
 
     """Calculates excited state force matrix elements."""
 
@@ -576,15 +576,14 @@ def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, i
     tempA = Akcv[ik, ic1, iv1] * np.conj(Akcv[ik, ic2, iv2])
     Dkin = tempA * (temp_cond - temp_val)
 
-    # arq_RPA_data = open(data_RPA_file, 'a')
-    # arq_RPA_data.write(f'{imode} {ik} {ic1} {ic2} {iv1} {iv2} {Dkin} {tempA} {temp_cond} {temp_val} \n')
-    # arq_RPA_data.close()
-    
-    # print(f' {imode} {ik} {ic1} {ic2} {iv1} {iv2} {Dkin}')
+    if report_RPA_data == True:
+        arq_RPA_data = open('RPA_matrix_elements.dat', 'a')
+        arq_RPA_data.write(f'{imode} {ik+1} {ic1+1} {ic2+1} {iv1+1} {iv2+1} {Dkin} {tempA} {temp_cond} {temp_val} \n')
+        arq_RPA_data.close()
 
     return Dkin
 
-def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, data_RPA_file, just_RPA_diag):
+def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, report_RPA_data, just_RPA_diag):
 
     start_time_func = time.clock_gettime(0)
 
@@ -599,7 +598,7 @@ def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, data
                     for ic2 in range(Ncbnds):
                         for iv1 in range(Nvbnds):
                             for iv2 in range(Nvbnds):
-                                temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2, data_RPA_file)
+                                temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2, report_RPA_data)
                                 DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
 
     else:
@@ -607,7 +606,7 @@ def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, data
             for ik in range(Nkpoints):
                 for ic1 in range(Ncbnds):
                     for iv1 in range(Nvbnds):
-                        temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1, data_RPA_file)
+                        temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1, report_RPA_data)
                         DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
 
     end_time_func = time.clock_gettime(0)

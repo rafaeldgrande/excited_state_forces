@@ -118,7 +118,8 @@ print('\n---------------------\n\n')
 
 params_calc = Nkpoints, Ncbnds, Nvbnds, Nval, Nmodes
 
-just_RPA_diag = False
+report_RPA_data = True
+just_RPA_diag = True
 Calculate_Kernel = False
 a = 10/bohr2A # FIXME: read it from input file or other source (maybe read volume instead)
 Vol = a**3
@@ -203,13 +204,12 @@ aux_offdiag = np.zeros(Shape, dtype=np.complex64)
 
 aux_cond_matrix, aux_val_matrix = aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_val, Edft_cond, Eqp_val, Eqp_cond, TOL_DEG)
 
+if report_RPA_data == True:
+    arq_RPA_data = open('RPA_matrix_elements.dat', 'w')
+    arq_RPA_data.write('# mode ik ic1 ic2 iv1 iv2 F conj(Akc1v1)*Akc2v2 auxMatcond(c1,c2) auxMatval(v1,v2)\n')
+    arq_RPA_data.close()
 
-data_RPA_file = 'RPA_matrix_elements.dat'
-arq_RPA_data = open(data_RPA_file, 'w')
-arq_RPA_data.write('# mode ik ic1 ic2 iv1 iv2 F conj(Akc1v1)*Akc2v2 auxMatcond(c1,c2) auxMatval(v1,v2)\n')
-arq_RPA_data.close()
-
-DKinect = calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, data_RPA_file, just_RPA_diag)
+DKinect = calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, report_RPA_data, just_RPA_diag)
 
 
 # Forces from Kernel derivatives
