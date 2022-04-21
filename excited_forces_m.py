@@ -577,11 +577,11 @@ def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, i
     Dkin = tempA * (temp_cond - temp_val)
 
     if report_RPA_data == True:
-        arq_RPA_data = open('RPA_matrix_elements.dat', 'a')
-        arq_RPA_data.write(f'{imode} {ik+1} {ic1+1} {ic2+1} {iv1+1} {iv2+1} {Dkin} {tempA} {temp_cond} {temp_val} \n')
-        arq_RPA_data.close()
-
-    return Dkin
+        temp_text = f'{imode+1} {ik+1} {ic1+1} {ic2+1} {iv1+1} {iv2+1} {Dkin} {tempA} {temp_cond} {temp_val} \n'
+        return Dkin, temp_text
+    
+    else:
+        return Dkin
 
 def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, report_RPA_data, just_RPA_diag):
 
@@ -591,7 +591,13 @@ def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, repo
     Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
     DKinect = np.zeros(Shape, dtype=np.complex64)
 
+    if report_RPA_data == True:
+        arq_RPA_data = open('RPA_matrix_elements.dat', 'w')
+        arq_RPA_data.write('# mode ik ic1 ic2 iv1 iv2 F conj(Akc1v1)*Akc2v2 auxMatcond(c1,c2) auxMatval(v1,v2)\n')
+        
+
     if just_RPA_diag == False:
+        print('Calculating diag and offdiag RPA force matrix elements')
         for imode in range(Nmodes):
             for ik in range(Nkpoints):
                 for ic1 in range(Ncbnds):
@@ -599,17 +605,31 @@ def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, repo
                         for iv1 in range(Nvbnds):
                             for iv2 in range(Nvbnds):
                                 temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2, report_RPA_data)
-                                DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
+                                if report_RPA_data == True:
+                                    DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp[0]
+                                    arq_RPA_data.write(temp[1])
+                                else:
+                                    DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
 
     else:
+        print('Calculating just diag RPA force matrix elements')
         for imode in range(Nmodes):
             for ik in range(Nkpoints):
                 for ic1 in range(Ncbnds):
                     for iv1 in range(Nvbnds):
                         temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1, report_RPA_data)
-                        DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
+                        if report_RPA_data == True:
+                            DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp[0]
+                            arq_RPA_data.write(temp[1])
+                        else:
+                            DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
+
+    if report_RPA_data == True:
+        print(f'RPA matrix elements written in file: RPA_matrix_elements.dat')
+        arq_RPA_data.close()
 
     end_time_func = time.clock_gettime(0)
     print(f'Time spent on calc_Dkinect_matrix function: {end_time_func - start_time_func} s')
+    
 
     return DKinect
