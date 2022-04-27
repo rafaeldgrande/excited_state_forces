@@ -43,8 +43,8 @@ calc_modes_basis = False
 calc_IBL_way = True
 write_DKernel = True
 report_RPA_data = True
-just_RPA_diag = True
-Calculate_Kernel = False
+just_RPA_diag = False
+Calculate_Kernel = True
 
 def read_input(input_file):
 
@@ -168,22 +168,24 @@ Kd = Kd * Ry2eV / Kernel_bgw_factor
 
 # # Printing exciton energies
 
-# Mean_Kx, Mean_Kd, Mean_Ekin = 0.0, 0.0, 0.0
+Mean_Kx, Mean_Kd, Mean_Ekin = 0.0, 0.0, 0.0
 
-# for ik in range(Nkpoints):
-#    for ic1 in range(Ncbnds):
-#        for iv1 in range(Nvbnds):
-#            Mean_Ekin += (Eqp_cond[ik, ic1] - Eqp_val[ik, iv1])*abs(Akcv[ik, ic1, iv1])**2
-#            for ic2 in range(Ncbnds):
-#                for iv2 in range(Nvbnds):
-#                    Mean_Kx += np.conj(Akcv[ik, ic1, iv1]) * Kx[ik, ik, ic1, ic2, iv1, iv2] * Akcv[ik, ic2, iv2]
-#                    Mean_Kd += np.conj(Akcv[ik, ic1, iv1]) * Kd[ik, ik, ic1, ic2, iv1, iv2] * Akcv[ik, ic2, iv2]
+for ik1 in range(Nkpoints):
+    for ic1 in range(Ncbnds):
+        for iv1 in range(Nvbnds):
+            Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*abs(Akcv[ik1, ic1, iv1])**2
+            for ik2 in range(Nkpoints):
+                for ic2 in range(Ncbnds):
+                    for iv2 in range(Nvbnds):
+                        Mean_Kx += np.conj(Akcv[ik1, ic1, iv1]) * Kx[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
+                        Mean_Kd += np.conj(Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
 
-# print('Exciton energies (eV): ')
-# print('<Kx> = ', Mean_Kx)
-# print('<Kd> = ', Mean_Kd)
-# print('<KE> = ', Mean_Ekin)
-# print('Omega = ', exc_energy)
+print('Exciton energies (eV): ')
+print('<Kx> = ', Mean_Kx)
+print('<Kd> = ', Mean_Kd)
+print('<KE> = ', Mean_Ekin)
+print('Omega = ', exc_energy)
+print('DIFF ', exc_energy - (Mean_Ekin + Mean_Kd + Mean_Kx))
 
 # get displacement patterns
 

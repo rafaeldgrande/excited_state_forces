@@ -181,24 +181,24 @@ def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
     tags_in_xml_file = [elem.tag for elem in root.iter()]
     texts_in_xml_file = [elem.text for elem in root.iter()]
 
-    print(tags_in_xml_file)
+    # print(tags_in_xml_file)
 
     Nirreps_index_in_tag = tags_in_xml_file.index('NUMBER_IRR_REP')
     Nirreps = int(texts_in_xml_file[Nirreps_index_in_tag])
-    print(f'Nirreps = {Nirreps}')
+    # print(f'Nirreps = {Nirreps}')
 
     imode = 0
 
     Npert_indexes_in_tag = indexes_x_in_list('NUMBER_OF_PERTURBATIONS', tags_in_xml_file)
     Displacements_indexes_in_tag = indexes_x_in_list('DISPLACEMENT_PATTERN', tags_in_xml_file)
-    print(Displacements_indexes_in_tag)
+    # print(Displacements_indexes_in_tag)
 
     idisp = -1   # counter of displacements
 
     for irrep in range(Nirreps):
 
         Npert = int(texts_in_xml_file[Npert_indexes_in_tag[irrep]])
-        print('Npert =', Npert)
+        # print('Npert =', Npert)
 
         for ipert in range(Npert):
             idisp += 1
@@ -406,7 +406,7 @@ def calc_DKernel(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Nparams, TOL_DE
 
     """Calculates derivatives of kernel matrix elements"""
 
-    start_time_func = time.clock_gettime(0)
+    # start_time_func = time.clock_gettime(0)
 
     ik1, ik2, iv1, iv2, ic1, ic2, imode = indexes
 
@@ -420,82 +420,65 @@ def calc_DKernel(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Nparams, TOL_DE
 
     DKelement = 0 + 0.0*1.0j
     
-    for ikp in range(Nkpoints):
+    # ik2, ik1, ic2, ic1, iv2, iv1
 
-        for ivp in range(Nvbnds):
 
-            DeltaEdft = Edft_val[ik1][iv1] - Edft_val[ikp][ivp]
+    for ivp in range(Nvbnds):
+
+        DeltaEdft = Edft_val[ik1, iv1] - Edft_val[ik1, ivp]
+        DeltaEqp = Eqp_val[ik1, iv1] - Eqp_val[ik1, ivp]
+
+        indexes_K = ik2, ik1, ic2, ic1, iv2, ivp
+        indexes_g = imode, ik1, ivp, iv1
+
+        if abs(DeltaEdft) > TOL_DEG:
+            DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
-                DeltaEqp = Eqp_val[ik1][iv1] - Eqp_val[ikp][ivp]
-            if abs(DeltaEdft) > TOL_DEG:
-                DKelement += Kernel[ikp][ik2][ic1][ic2][ivp][iv2]*elph_val[imode][ikp][ivp][iv1]/DeltaEdft
-                if calc_IBL_way == True:
-                    DKelement_IBL += Kernel[ikp][ik2][ic1][ic2][ivp][iv2]*elph_val[imode][ikp][ivp][iv1]/DeltaEqp
+                DKelement_IBL += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEqp
 
-            DeltaEdft = Edft_val[ik2][iv2] - Edft_val[ikp][ivp]
+        DeltaEdft = Edft_val[ik2, iv2] - Edft_val[ik2, ivp]
+        DeltaEqp = Eqp_val[ik2, iv2] - Eqp_val[ik2, ivp]
+
+        indexes_K = ik2, ik1, ic2, ic1, ivp, iv1
+        indexes_g = imode, ik2, iv2, ivp
+
+        if abs(DeltaEdft) > TOL_DEG:
+            DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
-                DeltaEqp = Eqp_val[ik2][iv2] - Eqp_val[ikp][ivp]
-            if abs(DeltaEdft) > TOL_DEG:
-                DKelement += Kernel[ik1][ikp][ic1][ic2][iv1][ivp]*elph_val[imode][ikp][iv1][ivp]/DeltaEdft
-                if calc_IBL_way == True:
-                    DKelement_IBL += Kernel[ik1][ikp][ic1][ic2][iv1][ivp]*elph_val[imode][ikp][iv1][ivp]/DeltaEqp
+                DKelement_IBL += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEqp
 
-        for icp in range(Ncbnds):
 
-            DeltaEdft = Edft_cond[ik1][ic1] - Edft_val[ikp][ivp]
+    for icp in range(Ncbnds):
+
+        DeltaEdft = Edft_cond[ik1, ic1] - Edft_cond[ik1, icp]
+        DeltaEqp = Eqp_cond[ik1, ic1] - Eqp_cond[ik1, icp]
+
+        indexes_K = ik2, ik1, ic2, icp, iv2, iv1
+        indexes_g = imode, ik1, icp, ic1
+
+        if abs(DeltaEdft) > TOL_DEG:
+            DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
-                DeltaEqp = Eqp_cond[ik1][ic1] - Eqp_val[ikp][ivp]
-            if abs(DeltaEdft) > TOL_DEG:
-                DKelement += Kernel[ikp][ik2][icp][ic2][iv1][iv2]*elph_cond[imode][ikp][ic1][icp]/DeltaEdft
-                if calc_IBL_way == True:
-                    DKelement_IBL += Kernel[ikp][ik2][icp][ic2][iv1][iv2]*elph_cond[imode][ikp][ic1][icp]/DeltaEqp
+                DKelement_IBL += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEqp
 
-            DeltaEdft = Edft_cond[ik2][ic2] - Edft_cond[ikp][icp]
+        DeltaEdft = Edft_cond[ik2, ic2] - Edft_cond[ik2, icp]
+        DeltaEqp = Eqp_cond[ik2, ic2] - Eqp_cond[ik2, icp]
+
+        indexes_K = ik2, ik1, icp, ic1, iv2, iv1
+        indexes_g = imode, ik2, ic2, icp
+
+        if abs(DeltaEdft) > TOL_DEG:
+            DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
-                DeltaEqp = Eqp_cond[ik2][ic2] - Eqp_cond[ikp][icp]
-            if abs(DeltaEdft) > TOL_DEG:
-                DKelement += Kernel[ik1][ikp][ic1][icp][iv1][iv2]*elph_cond[imode][ikp][icp][ic2]/DeltaEdft
-                if calc_IBL_way == True:
-                    DKelement_IBL += Kernel[ik1][ikp][ic1][icp][iv1][iv2]*elph_cond[imode][ikp][icp][ic2]/DeltaEqp
+                DKelement_IBL += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEqp
 
-    end_time_func = time.clock_gettime(0)
-    print(f'Time spent on calc_DKernel function: {end_time_func - start_time_func} s')
+    # end_time_func = time.clock_gettime(0)
+    # print(f'Time spent on calc_DKernel function: {end_time_func - start_time_func} s')
 
     if calc_IBL_way is True:
         return DKelement, DKelement_IBL
     else:
         return DKelement   
-
-
-def calculate_Fcvk(Ncbnds, Nvbnds, Akcv, Edft_cond, Edft_val, Eqp_cond, Eqp_val, elph_cond, elph_val, imode, ik, ic, iv, TOL_DEG):
-
-    """ calculate force matrix elements
-    Old -> to be deleted later"""
-
-    Fcvk_offdiag = 0.0 + 1.0j*0.0
-    Fcvk_diag = 0.0 + 1.0j*0.0
-
-    for icp in range(Ncbnds):
-        temp1 = elph_cond[imode, ik, icp, ic]*Akcv[ik, icp, iv]
-        #print('DeltaE ik, ic, icp', ik, ic, icp, abs(Edft_cond[ik, icp] - Edft_cond[ik, ic]))
-        if icp == ic:
-            Fcvk_diag += temp1
-        elif abs(Edft_cond[ik, icp] - Edft_cond[ik, ic]) > TOL_DEG:            
-            temp2 = (Eqp_cond[ik, icp] - Eqp_cond[ik, ic]) / (Edft_cond[ik, icp] - Edft_cond[ik, ic])
-            Fcvk_offdiag += temp1*temp2
-            #print('debug cond - icp, ic, iv,', icp, ic, iv, temp2*temp1)
-
-    for ivp in range(Nvbnds):
-        temp1 = elph_val[imode, ik, ivp, iv]*Akcv[ik, ic, ivp]
-        if ivp == iv:
-            Fcvk_diag -= temp1
-        elif abs(Edft_val[ik, ivp] - Edft_val[ik, iv]) > TOL_DEG:
-            temp2 = (Eqp_val[ik, ivp] - Eqp_val[ik, iv]) / (Edft_val[ik, ivp] - Edft_val[ik, iv])
-            Fcvk_offdiag -= temp1*temp2
-            #print('debug val - ivp, iv, ic,', ivp, iv, ic, temp2*temp1)
-    print('DeltaE ik, ic, iv', ik, ic, iv,Fcvk_diag, Fcvk_offdiag)
-    #print(ik, ic, iv, Fcvk_diag, Fcvk_offdiag)
-    return Fcvk_diag, Fcvk_offdiag
 
 
 def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_val, Edft_cond, Eqp_val, Eqp_cond, TOL_DEG):
@@ -523,7 +506,7 @@ def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_
                     elph = elph_cond[imode, ik, ic1, ic2]
 
                     if ic1 == ic2:
-                        aux_cond_matrix[imode][ik][ic1][ic2] = elph
+                        aux_cond_matrix[imode, ik, ic1, ic2] = elph
                     
                     elif abs(Edft_cond[ik, ic1] - Edft_cond[ik, ic2]) > TOL_DEG: 
                         deltaEqp = Eqp_cond[ik, ic1] - Eqp_cond[ik, ic2]
@@ -536,7 +519,7 @@ def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_
                     elph = elph_val[imode, ik, iv1, iv2]
 
                     if iv1 == iv2:
-                        aux_val_matrix[imode][ik][iv1][iv2] = elph
+                        aux_val_matrix[imode, ik, iv1, iv2] = elph
                     
                     elif abs(Edft_val[ik, iv1] - Edft_val[ik, iv2]) > TOL_DEG: 
                         deltaEqp = Eqp_val[ik, iv1] - Eqp_val[ik, iv2]
@@ -630,6 +613,5 @@ def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, repo
 
     end_time_func = time.clock_gettime(0)
     print(f'Time spent on calc_Dkinect_matrix function: {end_time_func - start_time_func} s')
-    
 
     return DKinect
