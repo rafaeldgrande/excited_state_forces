@@ -402,7 +402,7 @@ def get_modes2cart_matrix(dyn_file, Nat, Nmodes):
     arq.close()
     return modes2cart
 
-def calc_DKernel(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Nparams, TOL_DEG):
+def calc_DKernel_mat_elem(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Params, TOL_DEG):
 
     """Calculates derivatives of kernel matrix elements"""
 
@@ -411,7 +411,7 @@ def calc_DKernel(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Nparams, TOL_DE
     ik1, ik2, iv1, iv2, ic1, ic2, imode = indexes
 
     elph_cond, elph_val = ELPH
-    Ncbnds, Nvbnds, Nkpoints = Nparams
+    Ncbnds, Nvbnds, Nkpoints, Nmodes = Params
     Edft_val, Edft_cond = EDFT
 
     if calc_IBL_way == True:
@@ -479,6 +479,45 @@ def calc_DKernel(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Nparams, TOL_DE
         return DKelement, DKelement_IBL
     else:
         return DKelement   
+
+
+def calc_deriv_Kernel(KernelMat, calc_IBL_way, EDFT, EQP, ELPH, TOL_DEG, Params, Akcv):
+
+    print("    - Calculating Kernel part")
+
+    Ncbnds, Nvbnds, Nkpoints, Nmodes = Params
+
+    Shape2 = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
+    DKernel          = np.zeros(Shape2, dtype=np.complex64)
+    DKernel_IBL      = np.zeros(Shape2, dtype=np.complex64)
+
+    for imode in range(Nmodes):
+        for ik1 in range(Nkpoints):
+            for ic1 in range(Ncbnds):
+                for iv1 in range(Nvbnds):
+
+                    A_bra = np.conj(Akcv[ik1, ic1, iv1])
+
+                    for ik2 in range(Nkpoints):
+                        for ic2 in range(Ncbnds):
+                            for iv2 in range(Nvbnds):
+
+                                A_ket = Akcv[ik2, ic2, iv2]
+
+                                indexes = ik1, ik2, iv1, iv2, ic1, ic2, imode
+                                dK = calc_DKernel_mat_elem(indexes, KernelMat, calc_IBL_way, EDFT, EQP, ELPH, Params, TOL_DEG)
+
+                                if calc_IBL_way == False:
+                                    DKernel[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK * A_ket
+                                else:
+                                    DKernel[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK[0] * A_ket
+                                    DKernel_IBL[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK[1] * A_ket
+
+
+    if calc_IBL_way == False:
+        return DKernel
+    else:
+        return DKernel, DKernel_IBL
 
 
 def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_val, Edft_cond, Eqp_val, Eqp_cond, TOL_DEG):

@@ -134,8 +134,6 @@ DKinect          = np.zeros(Shape2, dtype=np.complex64)
 
 DKinect_diag     = np.zeros(Shape, dtype=np.complex64)
 DKinect_offdiag  = np.zeros(Shape, dtype=np.complex64)
-DKernel          = np.zeros(Shape2, dtype=np.complex64)
-DKernel_IBL      = np.zeros(Shape2, dtype=np.complex64)
 
 Sum_DKinect_diag            = np.zeros((Nmodes), dtype=np.complex64)
 Sum_DKinect                 = np.zeros((Nmodes), dtype=np.complex64)
@@ -163,8 +161,8 @@ print("Max imag value of Akcv: ", np.max(np.imag(Akcv)))
 Kx, Kd = get_kernel(kernel_file) 
 
 # # Must have same units of Eqp and Edft -> eV
-Kx = Kx * Ry2eV / Kernel_bgw_factor
-Kd = Kd * Ry2eV / Kernel_bgw_factor
+Kx = - Kx * Ry2eV / Kernel_bgw_factor
+Kd = - Kd * Ry2eV / Kernel_bgw_factor
 
 # # Printing exciton energies
 
@@ -211,35 +209,16 @@ DKinect = calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix
 
 # Forces from Kernel derivatives
 if Calculate_Kernel == True:
-    print("    - Calculating Kernel part")
 
     EDFT = Edft_val, Edft_cond
     EQP = Eqp_val, Eqp_cond
-    Nparams = Ncbnds, Nvbnds, Nkpoints
+    Params = Ncbnds, Nvbnds, Nkpoints, Nmodes
     ELPH = elph_cond, elph_val
 
-    for imode in range(Nmodes):
-        for ik1 in range(Nkpoints):
-            for ic1 in range(Ncbnds):
-                for iv1 in range(Nvbnds):
-
-                    A_bra = np.conj(Akcv[ik1, ic1, iv1])
-
-                    for ik2 in range(Nkpoints):
-                        for ic2 in range(Ncbnds):
-                            for iv2 in range(Nvbnds):
-
-                                A_ket = Akcv[ik2, ic2, iv2]
-
-                                indexes = ik1, ik2, iv1, iv2, ic1, ic2, imode
-                                dK = calc_DKernel(indexes, Kx + Kd, calc_IBL_way, EDFT, EQP, ELPH, Nparams, TOL_DEG)
-
-                                if calc_IBL_way == False:
-                                    DKernel[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK * A_ket
-                                else:
-                                    DKernel[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK[0] * A_ket
-                                    DKernel_IBL[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK[1] * A_ket
-
+    if calc_IBL_way == True:
+        DKernel, DKernel_IBL = calc_deriv_Kernel(Kx+Kd, calc_IBL_way, EDFT, EQP, ELPH, TOL_DEG, Params, Akcv)
+    else:
+        DKernel = calc_deriv_Kernel(Kx+Kd, calc_IBL_way, EDFT, EQP, ELPH, TOL_DEG, Params, Akcv)
 
 print("Calculating sums")
 
