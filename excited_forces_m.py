@@ -261,8 +261,24 @@ def read_elph_xml(elph_xml_file):
     print(f'Number of k points in this file {Nkpoints_in_xml_file}')
 
     # reading elph matrix elements. 
-    elph_mat_elems_index = tags_in_xml_file.index('PARTIAL_ELPH')
-    text_temp = texts_in_xml_file[elph_mat_elems_index]
+    # print('TAGS', tags_in_xml_file)
+
+    # QE 6.6 and 6.7 report this data in different forms - trying to make it suitable for both versions of QE
+    # TODO -> test in which version of QE it works and see what must be done
+
+    # Counting how many times tag 'PARTIAL_ELPH' appears
+
+    how_many_times_tag_ELPH = tags_in_xml_file.count('PARTIAL_ELPH')
+
+    if how_many_times_tag_ELPH == 1:
+        elph_mat_elems_index = tags_in_xml_file.index('PARTIAL_ELPH')
+        text_temp = texts_in_xml_file[elph_mat_elems_index]
+    else:
+        text_temp = ''
+        for i_tag in range(len(tags_in_xml_file)):
+            if tags_in_xml_file[i_tag] == 'PARTIAL_ELPH':
+                text_temp += texts_in_xml_file[i_tag]
+
     # this text is something like this
     # ...
     # 1.1,2.2
@@ -280,6 +296,7 @@ def read_elph_xml(elph_xml_file):
 
     # Now get degeneracy of this mode
     # Number of matrix elements = (Degeneracy of mode) * (Number of bands)**2 
+    # print('HELLLOOOO', len(temp_elph), Nbnds_in_xml_file)
     Ndeg = int(len(temp_elph) / Nbnds_in_xml_file**2)
     print(f'Number of modes in this file is {Ndeg}')
 
@@ -431,7 +448,7 @@ def calc_DKernel_mat_elem(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Params
         indexes_K = ik2, ik1, ic2, ic1, iv2, ivp
         indexes_g = imode, ik1, ivp, iv1
 
-        if abs(DeltaEdft) > TOL_DEG:
+        if abs(DeltaEqp) > TOL_DEG:
             DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
                 DKelement_IBL += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEqp
@@ -442,7 +459,7 @@ def calc_DKernel_mat_elem(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Params
         indexes_K = ik2, ik1, ic2, ic1, ivp, iv1
         indexes_g = imode, ik2, iv2, ivp
 
-        if abs(DeltaEdft) > TOL_DEG:
+        if abs(DeltaEqp) > TOL_DEG:
             DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
                 DKelement_IBL += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEqp
@@ -456,7 +473,7 @@ def calc_DKernel_mat_elem(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Params
         indexes_K = ik2, ik1, ic2, icp, iv2, iv1
         indexes_g = imode, ik1, icp, ic1
 
-        if abs(DeltaEdft) > TOL_DEG:
+        if abs(DeltaEqp) > TOL_DEG:
             DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
                 DKelement_IBL += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEqp
@@ -467,7 +484,7 @@ def calc_DKernel_mat_elem(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Params
         indexes_K = ik2, ik1, icp, ic1, iv2, iv1
         indexes_g = imode, ik2, ic2, icp
 
-        if abs(DeltaEdft) > TOL_DEG:
+        if abs(DeltaEqp) > TOL_DEG:
             DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
                 DKelement_IBL += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEqp
