@@ -150,8 +150,8 @@ Forces_modes          = np.zeros((Nmodes), dtype=np.complex64)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval)
 
 # Getting exciton info
-Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
-#Akcv, exc_energy = get_hdf5_exciton_info('6-absorption/eigenvectors.h5', 1)
+#Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
+Akcv, exc_energy = get_hdf5_exciton_info('7-absorption/eigenvectors.h5', 1)
 
 
 print("Max real value of Akcv: ", np.max(np.real(Akcv)))
@@ -161,8 +161,8 @@ print("Max imag value of Akcv: ", np.max(np.imag(Akcv)))
 Kx, Kd = get_kernel(kernel_file) 
 
 # # Must have same units of Eqp and Edft -> eV
-Kx = - Kx * Ry2eV / Kernel_bgw_factor
-Kd = - Kd * Ry2eV / Kernel_bgw_factor
+Kx =  - Kx * Ry2eV / Kernel_bgw_factor
+Kd =  - Kd * Ry2eV / Kernel_bgw_factor
 
 # # Printing exciton energies
 
@@ -261,8 +261,8 @@ for iatom in range(Nat):
     for imode in range(Nmodes):
         F_cart_KE_IBL[iatom] += Displacements[imode, iatom] * Sum_DKinect_diag[imode]
         F_cart_KE_David[iatom] += Displacements[imode, iatom] * Sum_DKinect[imode]
-        F_cart_Kernel_IBL[iatom] += Displacements[imode, iatom] * (Sum_DKernel_IBL[imode] + Sum_DKinect[imode])
-        F_cart_Kernel_IBL_correct[iatom] += Displacements[imode, iatom] * (Sum_DKernel[imode] + Sum_DKinect[imode])
+        F_cart_Kernel_IBL[iatom] += Displacements[imode, iatom] * (Sum_DKernel_IBL[imode] + Sum_DKinect_diag[imode])
+        F_cart_Kernel_IBL_correct[iatom] += Displacements[imode, iatom] * (Sum_DKernel[imode] + Sum_DKinect_diag[imode])
 
 #print('\n\n\n################# Forces (eV/A) in cartesian basis #####################')
 
@@ -271,8 +271,8 @@ DIRECTION = ['x', 'y', 'z']
 arq_out = open('forces_cart.out', 'w')
 
 print('\n\nForces (eV/ang)\n')
-print('# Atom  dir  KE_IBL KE_David Kernel_IBL Kernel_IBL_correct')
-arq_out.write('# Atom  dir  KE_IBL KE_David Kernel_IBL Kernel_IBL_correct\n')
+print('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel RPA_diag_newKernel')
+arq_out.write('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel RPA_diag_newKernel\n')
 
 for iatom in range(Nat):
     for idir in range(3):
