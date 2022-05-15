@@ -99,13 +99,13 @@ def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
             if iband_file > Nval: # it is a cond band
                 iband = iband_file - Nval 
                 if iband <= Ncbnds:
-                    print('Cond -> iband_file iband Nval', iband_file, iband, Nval)
+                    #print('Cond -> iband_file iband Nval', iband_file, iband, Nval)
                     Edft_cond[ik, iband - 1] = float(linha[2])
                     Eqp_cond[ik, iband - 1] = float(linha[3])
             else: # it is val band
                 iband = Nval - iband_file + 1
                 if iband <= Nvbnds:
-                    print('Val -> iband_file iband Nval', iband_file, iband, Nval)
+                    #print('Val -> iband_file iband Nval', iband_file, iband, Nval)
                     Edft_val[ik, iband - 1] = float(linha[2])
                     Eqp_val[ik, iband - 1] = float(linha[3])
 
