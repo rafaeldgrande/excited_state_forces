@@ -79,8 +79,6 @@ def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
         _type_: Eqp_val, Eqp_cond, Edft_val, Edft_cond
     """
 
-    start_time_func = time.clock_gettime(0)
-
     Eqp_val   = np.zeros((Nkpoints, Nvbnds), dtype=np.float64)
     Edft_val  = np.zeros((Nkpoints, Nvbnds), dtype=np.float64)
     Eqp_cond  = np.zeros((Nkpoints, Ncbnds), dtype=np.float64)
@@ -96,17 +94,20 @@ def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
         if linha[0] != '1':
             ik += 1
         else:
-            if Nval < int(linha[1]) <= Nval + Ncbnds:
-                iband = int(linha[1]) - Nval - 1
-                Edft_cond[ik, iband] = float(linha[2])
-                Eqp_cond[ik, iband] = float(linha[3])
-            if Nvbnds - Nval < int(linha[1]) <= Nval:
-                iband = Nval - int(linha[1]) 
-                Edft_val[ik, iband] = float(linha[2])
-                Eqp_val[ik, iband] = float(linha[3])
+            iband_file = int(linha[1])
 
-    end_time_func = time.clock_gettime(0)
-    print(f'Time spent on read_eqp_data function: {end_time_func - start_time_func} s')
+            if iband_file > Nval: # it is a cond band
+                iband = iband_file - Nval 
+                if iband <= Ncbnds:
+                    print('Cond -> iband_file iband Nval', iband_file, iband, Nval)
+                    Edft_cond[ik, iband - 1] = float(linha[2])
+                    Eqp_cond[ik, iband - 1] = float(linha[3])
+            else: # it is val band
+                iband = Nval - iband_file + 1
+                if iband <= Nvbnds:
+                    print('Val -> iband_file iband Nval', iband_file, iband, Nval)
+                    Edft_val[ik, iband - 1] = float(linha[2])
+                    Eqp_val[ik, iband - 1] = float(linha[3])
 
     return Eqp_val, Eqp_cond, Edft_val, Edft_cond
 
