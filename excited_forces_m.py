@@ -388,10 +388,10 @@ def filter_elph_coeffs(elph, params_calc):
             elph_val[imode, ik] = np.array([[temp[iv, jv] for iv in tuple_iteration] for jv in tuple_iteration])
 
     # small report
-    print(f"\nMax real value of <c|dH|c'> (eV/A): {np.max(np.real(elph_cond))}")
-    print(f"Max imag value of <c|dH|c'> (eV/A): {np.max(np.imag(elph_cond))}")
-    print(f"Max real value of <v|dH|v'> (eV/A): {np.max(np.real(elph_val))}")
-    print(f"Max imag value of <v|dH|v'> (eV/A): {np.max(np.imag(elph_val))}")
+    print(f"\nMax real value of <c|dH|c'> (Ry/bohr): {np.max(np.real(elph_cond))}")
+    print(f"Max imag value of <c|dH|c'> (Ry/bohr): {np.max(np.imag(elph_cond))}")
+    print(f"Max real value of <v|dH|v'> (Ry/bohr): {np.max(np.real(elph_val))}")
+    print(f"Max imag value of <v|dH|v'> (Ry/bohr): {np.max(np.imag(elph_val))}")
 
     return elph_cond, elph_val
 
