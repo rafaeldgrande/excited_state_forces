@@ -298,24 +298,28 @@ def read_elph_xml(elph_xml_file):
     # Now get degeneracy of this mode
     # Number of matrix elements = (Degeneracy of mode) * (Number of bands)**2 
     # print('HELLLOOOO', len(temp_elph), Nbnds_in_xml_file)
-    Ndeg = int(len(temp_elph) / Nbnds_in_xml_file**2)
+    Ndeg = int( len(temp_elph) / (Nbnds_in_xml_file**2 * Nkpoints_in_xml_file) )
+
+    # TODO -> lidar com caso onde tenha degenerescencia E mais de um ponto k
     print(f'Number of modes in this file is {Ndeg}')
 
     # Building elph matrix
     elph_aux = np.zeros((Ndeg, Nkpoints_in_xml_file, Nbnds_in_xml_file, Nbnds_in_xml_file), dtype=np.complex64)
 
     contador = 0
-    for ideg in range(Ndeg):
-        for ibnd in range(Nbnds_in_xml_file):
-            for jbnd in range(Nbnds_in_xml_file):
-                elph_aux[ideg, 0, ibnd, jbnd] = temp_elph[contador]
-                contador += 1
+    for ik in range(Nkpoints_in_xml_file):
+        for ideg in range(Ndeg):
+            for ibnd in range(Nbnds_in_xml_file):
+                for jbnd in range(Nbnds_in_xml_file):
+                    elph_aux[ideg, ik, ibnd, jbnd] = temp_elph[contador]
+                    contador += 1
 
     return elph_aux
 
 
 def get_el_ph_coeffs(el_ph_dir, iq, Nirreps):  # suitable for xml files written from qe 6.7 
 
+    print('HELLLLOOO' ,Nirreps)
     """ Reads all elph.iq.ipert.xml files and returns the electron-phonon coefficients
     elph[Nmodes, Nk, Nbnds_in_xml, Nbnds_in_xml] """
 
@@ -326,6 +330,7 @@ def get_el_ph_coeffs(el_ph_dir, iq, Nirreps):  # suitable for xml files written 
     for irrep in range(Nirreps):
         elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
         elph_aux = read_elph_xml(elph_xml_file)
+        print('Shape elph_aux', np.shape(elph_aux))
 
         for ideg in range(len(elph_aux)):
             elph.append(elph_aux[ideg])
