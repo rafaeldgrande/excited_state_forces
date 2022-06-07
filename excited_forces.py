@@ -31,6 +31,7 @@ Ncbnds = 1
 Nval = 1
 Nat = 1
 iexc = 1
+alat = 10 # FIXME: read it from input file or other source (maybe read volume instead)
 # files and paths to be opened 
 eqp_file = 'eqp1.dat'
 exciton_dir = './'
@@ -41,15 +42,16 @@ kernel_file = 'bsemat.h5'
 just_real = False
 calc_modes_basis = False
 calc_IBL_way = True
-write_DKernel = True
-report_RPA_data = True
+write_DKernel = False
+report_RPA_data = False
 just_RPA_diag = False
-Calculate_Kernel = True
+Calculate_Kernel = False
 
 def read_input(input_file):
 
     # getting necessary info
 
+    global alat
     global Nkpoints, Nvbnds, Ncbnds, Nval
     global Nat, iexc
     global eqp_file, exciton_dir, el_ph_dir
@@ -93,6 +95,8 @@ def read_input(input_file):
             if linha[0] == 'calc_IBL_way':
                 if linha[1] == 'True':
                     calc_IBL_way = True
+            if linha[0] == 'alat':
+                alat = float(linha[1])
 
     arq_in.close()
 
@@ -101,6 +105,10 @@ read_input('forces.inp')
 exciton_file = exciton_dir+'/Avck_'+str(iexc)
 
 Nmodes = Nat*3
+
+print(f'alat = {alat}')
+Vol = (alat/bohr2A)**3
+Kernel_bgw_factor = Vol/(8*np.pi)
 
 if Nvbnds > Nval:
     print('Warning! Nvbnds > Nval. Reseting Nvbnds to Nval')
@@ -121,10 +129,6 @@ print('\n---------------------\n\n')
 
 params_calc = Nkpoints, Ncbnds, Nvbnds, Nval, Nmodes
 
-a = 10/bohr2A # FIXME: read it from input file or other source (maybe read volume instead)
-Vol = a**3
-Kernel_bgw_factor = Vol/(8*np.pi)
-
 # Variables 
 
 Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds)
@@ -137,8 +141,10 @@ DKinect_offdiag  = np.zeros(Shape, dtype=np.complex64)
 
 Sum_DKinect_diag            = np.zeros((Nmodes), dtype=np.complex64)
 Sum_DKinect                 = np.zeros((Nmodes), dtype=np.complex64)
-Sum_DKernel            = np.zeros((Nmodes), dtype=np.complex64)
-Sum_DKernel_IBL        = np.zeros((Nmodes), dtype=np.complex64)
+
+if Calculate_Kernel == True:
+    Sum_DKernel            = np.zeros((Nmodes), dtype=np.complex64)
+    Sum_DKernel_IBL        = np.zeros((Nmodes), dtype=np.complex64)
 
 Forces_disp           = np.zeros((Nmodes), dtype=np.complex64)
 
@@ -150,40 +156,49 @@ Forces_modes          = np.zeros((Nmodes), dtype=np.complex64)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval)
 
 # Getting exciton info
-#Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
-Akcv, exc_energy = get_hdf5_exciton_info('7-absorption/eigenvectors.h5', 1)
+Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
+#Akcv, exc_energy = get_hdf5_exciton_info(exciton_dir+'/eigenvectors.h5', iexc)
 
 
 print("Max real value of Akcv: ", np.max(np.real(Akcv)))
 print("Max imag value of Akcv: ", np.max(np.imag(Akcv)))
 
-# # Getting kernel info
-Kx, Kd = get_kernel(kernel_file) 
+if Calculate_Kernel == True:
+    # # Getting kernel info
+    Kx, Kd = get_kernel(kernel_file) 
 
-# # Must have same units of Eqp and Edft -> eV
-Kx =  - Kx * Ry2eV / Kernel_bgw_factor
-Kd =  - Kd * Ry2eV / Kernel_bgw_factor
+    # # Must have same units of Eqp and Edft -> eV
+    Kx =  - Kx * Ry2eV / Kernel_bgw_factor
+    Kd =  - Kd * Ry2eV / Kernel_bgw_factor
+
 
 # # Printing exciton energies
 
 Mean_Kx, Mean_Kd, Mean_Ekin = 0.0, 0.0, 0.0
 
+
 for ik1 in range(Nkpoints):
     for ic1 in range(Ncbnds):
         for iv1 in range(Nvbnds):
-            Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*abs(Akcv[ik1, ic1, iv1])**2
-            for ik2 in range(Nkpoints):
-                for ic2 in range(Ncbnds):
-                    for iv2 in range(Nvbnds):
-                        Mean_Kx += np.conj(Akcv[ik1, ic1, iv1]) * Kx[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
-                        Mean_Kd += np.conj(Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
+            Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*Akcv[ik1, ic1, iv1]*np.conj(Akcv[ik1, ic1, iv1])
+
+if Calculate_Kernel == True:
+    for ik1 in range(Nkpoints):
+        for ic1 in range(Ncbnds):
+            for iv1 in range(Nvbnds):
+                for ik2 in range(Nkpoints):
+                    for ic2 in range(Ncbnds):
+                        for iv2 in range(Nvbnds):
+                            Mean_Kx += np.conj(Akcv[ik1, ic1, iv1]) * Kx[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
+                            Mean_Kd += np.conj(Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
 
 print('Exciton energies (eV): ')
-print('<Kx> = ', Mean_Kx)
-print('<Kd> = ', Mean_Kd)
 print('<KE> = ', Mean_Ekin)
 print('Omega = ', exc_energy)
-print('DIFF ', exc_energy - (Mean_Ekin + Mean_Kd + Mean_Kx))
+if Calculate_Kernel == True:
+    print('<Kx> = ', Mean_Kx)
+    print('<Kd> = ', Mean_Kd)
+    print('DIFF ', exc_energy - (Mean_Ekin + Mean_Kd + Mean_Kx))
 
 # get displacement patterns
 
@@ -251,11 +266,10 @@ if calc_IBL_way == True:
 
 print("Calculating forces in cartesian basis")
 
-F_cart_KE_IBL                       = np.zeros((Nat, 3), dtype=np.complex64)  # david thesis - diag + offdiag from kinect part
-F_cart_KE_David                     = np.zeros((Nat, 3), dtype=np.complex64)  # david thesis - diag + offdiag from kinect part + derivative of Kernel (corrected)
+F_cart_KE_IBL                       = np.zeros((Nat, 3), dtype=np.complex64)  # IBL just diag RPA
+F_cart_KE_David                     = np.zeros((Nat, 3), dtype=np.complex64)  # david thesis - diag + offdiag from kinect part
 F_cart_Kernel_IBL                   = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's paper 
-F_cart_Kernel_IBL_correct           = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's paper with dK = 0
-#F_cart_Kernel_IBL_correct_extended  = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's paper with new correct dK 
+F_cart_Kernel_IBL_correct           = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's with new kernel
 
 for iatom in range(Nat):
     for imode in range(Nmodes):
@@ -277,10 +291,10 @@ arq_out.write('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel RPA_diag_ne
 for iatom in range(Nat):
     for idir in range(3):
         text =  str(iatom+1)+' '+DIRECTION[idir]+' '
-        text += str(F_cart_KE_IBL[iatom][idir])+' '
-        text += str(F_cart_KE_David[iatom][idir])+' '
-        text += str(F_cart_Kernel_IBL[iatom][idir])+' '
-        text += str(F_cart_Kernel_IBL_correct[iatom][idir])
+        text += str(            F_cart_KE_IBL[iatom, idir])+' '
+        text += str(          F_cart_KE_David[iatom, idir])+' '
+        text += str(        F_cart_Kernel_IBL[iatom, idir])+' '
+        text += str(F_cart_Kernel_IBL_correct[iatom, idir])
         print(text)
         arq_out.write(text+'\n')
 
