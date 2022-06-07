@@ -250,17 +250,20 @@ for imode in range(Nmodes):
     # sum of off-diagonal part + sum of diagonal part
     Sum_DKinect[imode] = np.sum(DKinect[imode])
 
-    Sum_DKernel[imode] = np.sum(DKernel[imode])
-    if calc_IBL_way == True:
-        Sum_DKernel_IBL[imode] = np.sum(DKernel_IBL[imode])
+    if Calculate_Kernel == True:
+        Sum_DKernel[imode] = np.sum(DKernel[imode])
+        if calc_IBL_way == True:
+            Sum_DKernel_IBL[imode] = np.sum(DKernel_IBL[imode])
 
 
 # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 Sum_DKinect_diag = -Sum_DKinect_diag*Ry2eV/bohr2A
 Sum_DKinect = -Sum_DKinect*Ry2eV/bohr2A
-Sum_DKernel = -Sum_DKernel*Ry2eV/bohr2A
-if calc_IBL_way == True:
-    Sum_DKernel_IBL = -Sum_DKernel_IBL*Ry2eV/bohr2A
+
+if Calculate_Kernel == True:
+    Sum_DKernel = -Sum_DKernel*Ry2eV/bohr2A
+    if calc_IBL_way == True:
+        Sum_DKernel_IBL = -Sum_DKernel_IBL*Ry2eV/bohr2A
 
 # Calculate forces cartesian basis
 
@@ -268,15 +271,19 @@ print("Calculating forces in cartesian basis")
 
 F_cart_KE_IBL                       = np.zeros((Nat, 3), dtype=np.complex64)  # IBL just diag RPA
 F_cart_KE_David                     = np.zeros((Nat, 3), dtype=np.complex64)  # david thesis - diag + offdiag from kinect part
-F_cart_Kernel_IBL                   = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's paper 
-F_cart_Kernel_IBL_correct           = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's with new kernel
+
+if Calculate_Kernel == True:
+    F_cart_Kernel_IBL                   = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's paper 
+    F_cart_Kernel_IBL_correct           = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's with new kernel
 
 for iatom in range(Nat):
     for imode in range(Nmodes):
         F_cart_KE_IBL[iatom] += Displacements[imode, iatom] * Sum_DKinect_diag[imode]
         F_cart_KE_David[iatom] += Displacements[imode, iatom] * Sum_DKinect[imode]
-        F_cart_Kernel_IBL[iatom] += Displacements[imode, iatom] * (Sum_DKernel_IBL[imode] + Sum_DKinect_diag[imode])
-        F_cart_Kernel_IBL_correct[iatom] += Displacements[imode, iatom] * (Sum_DKernel[imode] + Sum_DKinect_diag[imode])
+
+        if Calculate_Kernel == True:
+            F_cart_Kernel_IBL[iatom] += Displacements[imode, iatom] * (Sum_DKernel_IBL[imode] + Sum_DKinect_diag[imode])
+            F_cart_Kernel_IBL_correct[iatom] += Displacements[imode, iatom] * (Sum_DKernel[imode] + Sum_DKinect_diag[imode])
 
 #print('\n\n\n################# Forces (eV/A) in cartesian basis #####################')
 
@@ -285,16 +292,22 @@ DIRECTION = ['x', 'y', 'z']
 arq_out = open('forces_cart.out', 'w')
 
 print('\n\nForces (eV/ang)\n')
-print('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel RPA_diag_newKernel')
-arq_out.write('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel RPA_diag_newKernel\n')
+
+if Calculate_Kernel == True:
+    print('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel RPA_diag_newKernel')
+    arq_out.write('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel RPA_diag_newKernel\n')
+else:
+    print('# Atom  dir  RPA_diag RPA_diag_offiag ')
+    arq_out.write('# Atom  dir  RPA_diag RPA_diag_offiag \n')
 
 for iatom in range(Nat):
     for idir in range(3):
         text =  str(iatom+1)+' '+DIRECTION[idir]+' '
         text += str(            F_cart_KE_IBL[iatom, idir])+' '
         text += str(          F_cart_KE_David[iatom, idir])+' '
-        text += str(        F_cart_Kernel_IBL[iatom, idir])+' '
-        text += str(F_cart_Kernel_IBL_correct[iatom, idir])
+        if Calculate_Kernel == True:
+            text += str(        F_cart_Kernel_IBL[iatom, idir])+' '
+            text += str(F_cart_Kernel_IBL_correct[iatom, idir])
         print(text)
         arq_out.write(text+'\n')
 
