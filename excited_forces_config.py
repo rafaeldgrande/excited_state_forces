@@ -1,4 +1,6 @@
 
+import numpy as np
+
 # File with variables used in excited_forces.py code
 # It reads input forces.inp file
 # If file not found or some parameter not find in file
@@ -95,3 +97,30 @@ def read_input(input_file):
     arq_in.close()
 
 read_input('forces.inp')
+
+# Trivial stuff to be calculated
+Nmodes = Nat*3
+
+Vol = (alat/bohr2A)**3
+Kernel_bgw_factor = Vol/(8*np.pi)
+
+
+# Warnings and reports
+
+
+if Nvbnds > Nval:
+    print('Warning! Nvbnds > Nval. Reseting Nvbnds to Nval')
+    Nvbnds = Nval
+
+
+print('\n---- Parameters -----\n')
+print('Number of atoms : ' + str(Nat))
+print('Number of modes (3*Nat) : ', Nmodes)
+print('Nvbnds = '+str(Nvbnds) + ', Ncbnds = '+str(Ncbnds))
+print('Valence band : ', Nval)
+print('Nkpts = '+str(Nkpoints))
+print('Exciton index to be read : '+str(iexc))
+print(f'alat = {alat}')
+if calc_IBL_way == True:
+    print('Calculating derivatives of Kernel using Ismail-Beigi and Louie\'s paper approach')
+print('\n---------------------\n\n')

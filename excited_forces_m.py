@@ -14,7 +14,7 @@ def report_time(start_time):
 
 
 
-def do_I_want_this_band(iband, Nval, N_c_or_v_bnds, c_or_v):
+def do_I_want_this_band(iband, N_c_or_v_bnds, c_or_v):
 
     """
     Checks if a valence (conduction) band is 
@@ -80,7 +80,7 @@ def get_kernel(kernel_file):
 
     return Kd, Kx
 
-def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
+def read_eqp_data(eqp_file):
 
     """Reads quasiparticle and dft energies results from sigma calculations
 
@@ -120,7 +120,7 @@ def read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval):
 
     return Eqp_val, Eqp_cond, Edft_val, Edft_cond
 
-def get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds):
+def get_exciton_info(exciton_file):
 
     """
     When eigenvectors.h5 files are not available, must use this alternative here
@@ -172,7 +172,7 @@ def get_hdf5_exciton_info(exciton_file, iexc):
     return Acvk, Omega
 
 
-def get_patterns2(el_ph_dir, iq, Nmodes, Nat):
+def get_patterns2(iq):
 
     """Reads displacements patterns from patterns.X.xml files, 
     where X is the q vector for this displacement.
@@ -326,9 +326,8 @@ def read_elph_xml(elph_xml_file):
     return elph_aux
 
 
-def get_el_ph_coeffs(el_ph_dir, iq, Nirreps):  # suitable for xml files written from qe 6.7 
+def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7 
 
-    print('HELLLLOOO' ,Nirreps)
     """ Reads all elph.iq.ipert.xml files and returns the electron-phonon coefficients
     elph[Nmodes, Nk, Nbnds_in_xml, Nbnds_in_xml] """
 
@@ -348,7 +347,7 @@ def get_el_ph_coeffs(el_ph_dir, iq, Nirreps):  # suitable for xml files written 
 
     return elph
 
-def filter_elph_coeffs(elph, params_calc):
+def filter_elph_coeffs(elph):
 
     """ Reads elph coefficients from DFPT calculations. Quantum Espresso calculates <i|dV/dx_mu|j> for 
     i, j = 1,2,3,...,Nbnds_in_xml, where Nbnds_in_xml = total of bands included in the scf calculation step before DFPT.
@@ -372,8 +371,6 @@ def filter_elph_coeffs(elph, params_calc):
     iv = Nval - iQE + 1
     ic = iQE - Nval
     """
-
-    Nkpoints, Ncbnds, Nvbnds, Nval, Nmodes = params_calc
 
     elph_cond = np.zeros((Nmodes, Nkpoints, Ncbnds, Ncbnds), dtype=np.complex64)
     elph_val = np.zeros((Nmodes, Nkpoints, Nvbnds, Nvbnds), dtype=np.complex64)
@@ -434,7 +431,7 @@ def get_modes2cart_matrix(dyn_file, Nat, Nmodes):
     arq.close()
     return modes2cart
 
-def calc_DKernel_mat_elem(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Params, TOL_DEG):
+def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH):
 
     """Calculates derivatives of kernel matrix elements"""
 
@@ -513,11 +510,9 @@ def calc_DKernel_mat_elem(indexes, Kernel, calc_IBL_way, EDFT, EQP, ELPH, Params
         return DKelement   
 
 
-def calc_deriv_Kernel(KernelMat, calc_IBL_way, EDFT, EQP, ELPH, TOL_DEG, Params, Akcv):
+def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv):
 
     print("    - Calculating Kernel part")
-
-    Ncbnds, Nvbnds, Nkpoints, Nmodes = Params
 
     Shape2 = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
     DKernel          = np.zeros(Shape2, dtype=np.complex64)
@@ -537,7 +532,7 @@ def calc_deriv_Kernel(KernelMat, calc_IBL_way, EDFT, EQP, ELPH, TOL_DEG, Params,
                                 A_ket = Akcv[ik2, ic2, iv2]
 
                                 indexes = ik1, ik2, iv1, iv2, ic1, ic2, imode
-                                dK = calc_DKernel_mat_elem(indexes, KernelMat, calc_IBL_way, EDFT, EQP, ELPH, Params, TOL_DEG)
+                                dK = calc_DKernel_mat_elem(indexes, KernelMat, EDFT, EQP, ELPH)
 
                                 if calc_IBL_way == False:
                                     DKernel[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK * A_ket
@@ -552,7 +547,7 @@ def calc_deriv_Kernel(KernelMat, calc_IBL_way, EDFT, EQP, ELPH, TOL_DEG, Params,
         return DKernel, DKernel_IBL
 
 
-def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_val, Edft_cond, Eqp_val, Eqp_cond, TOL_DEG):
+def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond):
 
     """ Calculates auxiliar matrix elements to be used later in the forces matrix elements.
     Returns aux_cond_matrix, aux_val_matrix and
@@ -616,12 +611,9 @@ def dirac_delta_Edft(i,j, Edft, TOL_DEG):
         return 0.0
 
 
-def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2, report_RPA_data):
+def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2):
 
     """Calculates excited state force matrix elements."""
-
-    Ry2eV = 13.6056980659
-    bohr2A = 0.529177249
 
     # calculate matrix element imode, ik, ic1, ic2, iv1, iv2
     temp_cond = aux_cond_matrix[imode, ik, ic1, ic2]*delta(iv1, iv2)
@@ -637,11 +629,10 @@ def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, i
     else:
         return Dkin
 
-def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, report_RPA_data, just_RPA_diag):
+def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix):
 
     start_time_func = time.clock_gettime(0)
 
-    Nkpoints, Ncbnds, Nvbnds, Nval, Nmodes = params_calc
     Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
     DKinect = np.zeros(Shape, dtype=np.complex64)
 
@@ -658,7 +649,7 @@ def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, repo
                     for ic2 in range(Ncbnds):
                         for iv1 in range(Nvbnds):
                             for iv2 in range(Nvbnds):
-                                temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2, report_RPA_data)
+                                temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
                                 if report_RPA_data == True:
                                     DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp[0]
                                     arq_RPA_data.write(temp[1])
@@ -671,7 +662,7 @@ def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, repo
             for ik in range(Nkpoints):
                 for ic1 in range(Ncbnds):
                     for iv1 in range(Nvbnds):
-                        temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1, report_RPA_data)
+                        temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1)
                         if report_RPA_data == True:
                             DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp[0]
                             arq_RPA_data.write(temp[1])

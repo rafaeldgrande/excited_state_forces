@@ -7,11 +7,6 @@
 # 2 - checar se termos nao diagonais incluidos aqui estao certos
 # 3 - Ler energias qp dos arquivos bandstructures.dat
 
-# Tabela de dados pra ser escrita
-# Diag = A, OffDiag = B (David Thesis)
-# DKernel = C (IBL original paper)
-# DModKernel = D (IBL original paper, after David's correction)
-# A | B | C | D | A + B + D | A + C
 
 import numpy as np
 import h5py
@@ -34,43 +29,14 @@ def report_ram():
 
 start_time = time.clock_gettime(0)
 
-
-exciton_file = exciton_dir+'/Avck_'+str(iexc)
-
-Nmodes = Nat*3
-
-print(f'alat = {alat}')
-Vol = (alat/bohr2A)**3
-Kernel_bgw_factor = Vol/(8*np.pi)
-
-if Nvbnds > Nval:
-    print('Warning! Nvbnds > Nval. Reseting Nvbnds to Nval')
-    Nvbnds = Nval
-
-
-print('\n---- Parameters -----\n')
-print('Number of atoms : ' + str(Nat))
-print('Number of modes (3*Nat) : ', Nmodes)
-print('Nvbnds = '+str(Nvbnds) + ', Ncbnds = '+str(Ncbnds))
-print('Valence band : ', Nval)
-print('Nkpts = '+str(Nkpoints))
-print('Exciton index to be read : '+str(iexc))
-if calc_IBL_way == True:
-    print('Calculating derivatives of Kernel using Ismail-Beigi and Louie\'s paper approach')
-print('\n---------------------\n\n')
-
-
-params_calc = Nkpoints, Ncbnds, Nvbnds, Nval, Nmodes
-
 # Variables 
+
+# TODO -> just create those matrices when they are necessary, then erase them when finished
 
 Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds)
 Shape2 = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
 
 DKinect          = np.zeros(Shape2, dtype=np.complex64) 
-
-DKinect_diag     = np.zeros(Shape, dtype=np.complex64)
-DKinect_offdiag  = np.zeros(Shape, dtype=np.complex64)
 
 Sum_DKinect_diag            = np.zeros((Nmodes), dtype=np.complex64)
 Sum_DKinect                 = np.zeros((Nmodes), dtype=np.complex64)
@@ -86,11 +52,13 @@ Forces_modes          = np.zeros((Nmodes), dtype=np.complex64)
 ############ Getting info from files #############
 
 # getting info from eqp.dat
-Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval)
+Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file)
 
 # Getting exciton info
+exciton_file = exciton_dir+'/Avck_'+str(iexc)
+
 if read_Akcv_trick == True:
-    Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
+    Akcv, exc_energy = get_exciton_info(exciton_file)
 else:
     Akcv, exc_energy = get_hdf5_exciton_info(exciton_dir+'/eigenvectors.h5', iexc)
 
@@ -139,9 +107,9 @@ if Calculate_Kernel == True:
 
 iq = 0 # FIXME -> generalize for set of q points
 
-Displacements, Nirreps = get_patterns2(el_ph_dir, iq, Nmodes, Nat)
-elph = get_el_ph_coeffs(el_ph_dir, iq, Nirreps)
-elph_cond, elph_val = filter_elph_coeffs(elph, params_calc)
+Displacements, Nirreps = get_patterns2(iq)
+elph = get_el_ph_coeffs(iq, Nirreps)
+elph_cond, elph_val = filter_elph_coeffs(elph)
 
 report_ram()
 
@@ -154,9 +122,9 @@ print("    - Calculating RPA part")
 aux_diag = np.zeros(Shape, dtype=np.complex64)  # <ck|dV/du_mode|ck> - <vk|dV/du_mode|vk>
 aux_offdiag = np.zeros(Shape, dtype=np.complex64)
 
-aux_cond_matrix, aux_val_matrix = aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_val, Edft_cond, Eqp_val, Eqp_cond, TOL_DEG)
+aux_cond_matrix, aux_val_matrix = aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond)
 
-DKinect = calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, report_RPA_data, just_RPA_diag)
+DKinect = calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix)
 
 
 # Forces from Kernel derivatives
@@ -164,13 +132,12 @@ if Calculate_Kernel == True:
 
     EDFT = Edft_val, Edft_cond
     EQP = Eqp_val, Eqp_cond
-    Params = Ncbnds, Nvbnds, Nkpoints, Nmodes
     ELPH = elph_cond, elph_val
 
     if calc_IBL_way == True:
-        DKernel, DKernel_IBL = calc_deriv_Kernel(Kx+Kd, calc_IBL_way, EDFT, EQP, ELPH, TOL_DEG, Params, Akcv)
+        DKernel, DKernel_IBL = calc_deriv_Kernel(Kx+Kd, EDFT, EQP, ELPH, Akcv)
     else:
-        DKernel = calc_deriv_Kernel(Kx+Kd, calc_IBL_way, EDFT, EQP, ELPH, TOL_DEG, Params, Akcv)
+        DKernel = calc_deriv_Kernel(Kx+Kd, EDFT, EQP, ELPH, Akcv)
 
 print("Calculating sums")
 
@@ -254,7 +221,7 @@ arq_out.close()
 end_time = time.clock_gettime(0)
 
 print('\n\nCalculation finished!')
-print(f'Total time: '++report_time(start_time))
+print(f'Total time: '+report_time(start_time))
 
 report_ram()
 
