@@ -18,6 +18,19 @@ import h5py
 from excited_forces_m import *
 import time
 
+import tracemalloc # teste de uso de ram
+tracemalloc.start()
+
+def report_ram():
+    temp_ram = tracemalloc.get_traced_memory()[0] / 1024**2
+    max_temp_ram = tracemalloc.get_traced_memory()[1] / 1024**2
+
+    print('\n\n############### REPORT RAM #################')
+    print(f'RAM (MB) used now: {temp_ram:.2f}')
+    print(f'Max RAM (MB) used until now: {max_temp_ram:.2f}')
+    print('############################################\n\n')
+
+
 start_time = time.clock_gettime(0)
 
 TOL_DEG = 1e-5
@@ -46,6 +59,7 @@ write_DKernel = False
 report_RPA_data = False
 just_RPA_diag = False
 Calculate_Kernel = False
+read_Akcv_trick = False
 
 def read_input(input_file):
 
@@ -156,8 +170,10 @@ Forces_modes          = np.zeros((Nmodes), dtype=np.complex64)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, Nkpoints, Nvbnds, Ncbnds, Nval)
 
 # Getting exciton info
-Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
-#Akcv, exc_energy = get_hdf5_exciton_info(exciton_dir+'/eigenvectors.h5', iexc)
+if read_Akcv_trick == True:
+    Akcv, exc_energy = get_exciton_info(exciton_file, Nkpoints, Nvbnds, Ncbnds)
+else:
+    Akcv, exc_energy = get_hdf5_exciton_info(exciton_dir+'/eigenvectors.h5', iexc)
 
 
 print("Max real value of Akcv: ", np.max(np.real(Akcv)))
@@ -208,6 +224,8 @@ Displacements, Nirreps = get_patterns2(el_ph_dir, iq, Nmodes, Nat)
 elph = get_el_ph_coeffs(el_ph_dir, iq, Nirreps)
 elph_cond, elph_val = filter_elph_coeffs(elph, params_calc)
 
+report_ram()
+
 ########## Calculating stuff ############
 
 print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
@@ -255,6 +273,7 @@ for imode in range(Nmodes):
         if calc_IBL_way == True:
             Sum_DKernel_IBL[imode] = np.sum(DKernel_IBL[imode])
 
+report_ram()
 
 # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 Sum_DKinect_diag = -Sum_DKinect_diag*Ry2eV/bohr2A
@@ -317,3 +336,8 @@ end_time = time.clock_gettime(0)
 
 print('\n\nCalculation finished!')
 print(f'Total time: {round(end_time - start_time, 1)} (s)')
+
+report_ram()
+
+# stopping the library
+tracemalloc.stop()
