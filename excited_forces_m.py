@@ -5,6 +5,15 @@ import xml.etree.ElementTree as ET
 import h5py
 import time
 
+from excited_forces_config import *
+
+def report_time(start_time):
+    end_time_func = time.clock_gettime(0)
+    text = f'{(end_time_func - start_time)/60:.2f} min'
+    return text
+
+
+
 def do_I_want_this_band(iband, Nval, N_c_or_v_bnds, c_or_v):
 
     """
@@ -67,7 +76,7 @@ def get_kernel(kernel_file):
     Kx = Exchange[:,:,:,:,:,:,0] + 1.0j*Exchange[:,:,:,:,:,:,1]
 
     end_time_func = time.clock_gettime(0)
-    print(f'Time spent on get_kernel function: {end_time_func - start_time_func} s')
+    print(f'Time spent on get_kernel function: '+report_time(start_time_func))
 
     return Kd, Kx
 
@@ -298,7 +307,7 @@ def read_elph_xml(elph_xml_file):
     # Now get degeneracy of this mode
     # Number of matrix elements = (Degeneracy of mode) * (Number of bands)**2 
     # print('HELLLOOOO', len(temp_elph), Nbnds_in_xml_file)
-    Ndeg = int( len(temp_elph) / (Nbnds_in_xml_file**2 * Nkpoints_in_xml_file) )
+    Ndeg = int( len(temp_elph) / (Nbnds_in_xml_file**2 * Nkpoints_in_xml_file))
 
     # TODO -> lidar com caso onde tenha degenerescencia E mais de um ponto k
     print(f'Number of modes in this file is {Ndeg}')
@@ -589,7 +598,7 @@ def aux_matrix_elem(Nmodes, Nkpoints, Ncbnds, Nvbnds, elph_cond, elph_val, Edft_
                         aux_val_matrix[imode, ik, iv1, iv2] = elph * deltaEqp / deltaEdft
         
     end_time_func = time.clock_gettime(0)
-    print(f'Time spent on aux_matrix_elem function: {end_time_func - start_time_func} s')
+    print(f'Time spent on aux_matrix_elem function: '+report_time(start_time_func))
 
     return aux_cond_matrix, aux_val_matrix
 
@@ -674,6 +683,6 @@ def calc_Dkinect_matrix(params_calc, Akcv, aux_cond_matrix, aux_val_matrix, repo
         arq_RPA_data.close()
 
     end_time_func = time.clock_gettime(0)
-    print(f'Time spent on calc_Dkinect_matrix function: {end_time_func - start_time_func} s')
+    print(f'Time spent on calc_Dkinect_matrix function: '+report_time(start_time_func))
 
     return DKinect
