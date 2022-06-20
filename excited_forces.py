@@ -11,6 +11,8 @@
 import numpy as np
 import h5py
 from excited_forces_m import *
+from qe_interface_m import *
+from bgw_interface_m import *
 from excited_forces_config import *
 import time
 
@@ -28,6 +30,9 @@ def report_ram():
 
 
 start_time = time.clock_gettime(0)
+
+import logging 
+logging.basicConfig(filename='<filename>.log', level=logging.INFO)
 
 # Variables 
 
