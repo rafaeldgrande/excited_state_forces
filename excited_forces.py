@@ -118,8 +118,6 @@ Displacements, Nirreps = get_patterns2(iq)
 elph = get_el_ph_coeffs(iq, Nirreps)
 elph_cond, elph_val = filter_elph_coeffs(elph)
 
-print('Displacements', Displacements)
-
 # report_ram()
 # print('DELETING ELPH')
 del elph
@@ -186,26 +184,24 @@ if Calculate_Kernel == True:
 
 # Warn if imag part is too big (>= 10^-6)
 
-if max(abs(np.imag(Sum_DKinect_diag))) >= 10^-6:
+if max(abs(np.imag(Sum_DKinect_diag))) >= 1e-6:
     print('WARNING: Imaginary part of kinectic diagonal forces >= 10^-6 eV/angs!')
 
-if max(abs(np.imag(Sum_DKinect))) >= 10^-6:
+if max(abs(np.imag(Sum_DKinect))) >= 1e-6:
     print('WARNING: Imaginary part of kinectic forces >= 10^-6 eV/angs!')
 
 if Calculate_Kernel == True:
-    if max(abs(np.imag(Sum_DKernel))) >= 10^-6:
+    if max(abs(np.imag(Sum_DKernel))) >= 1e-6:
         print('WARNING: Imaginary part of Kernel forces >= 10^-6 eV/angs!')
 
     if calc_IBL_way == True:
-        if max(abs(np.imag(Sum_DKernel_IBL))) >= 10^-6:
+        if max(abs(np.imag(Sum_DKernel_IBL))) >= 1e-6:
             print('WARNING: Imaginary part of Kernel (IBL) forces >= 10^-6 eV/angs!')
 
 # Show just real part of numbers (default)
 
 
-print('!!!!!!!show_imag_part', show_imag_part)
 if show_imag_part == False:
-    print('hello!')
     Sum_DKinect_diag = np.real(Sum_DKinect_diag)
     Sum_DKinect = np.real(Sum_DKinect)
 
@@ -263,7 +259,8 @@ for iatom in range(Nat):
         text += str(          F_cart_KE_David[iatom, idir])+' '
         if Calculate_Kernel == True:
             text += str(        F_cart_Kernel_IBL[iatom, idir])+' '
-            text += str(F_cart_Kernel_IBL_correct[iatom, idir])
+            if calc_IBL_way == True:
+                text += str(F_cart_Kernel_IBL_correct[iatom, idir])
         print(text)
         arq_out.write(text+'\n')
 
