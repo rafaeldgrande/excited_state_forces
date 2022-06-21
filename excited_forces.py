@@ -175,6 +175,34 @@ if Calculate_Kernel == True:
     if calc_IBL_way == True:
         Sum_DKernel_IBL = -Sum_DKernel_IBL*Ry2eV/bohr2A
 
+
+# Warn if imag part is too big (>= 10^-6)
+
+if abs(np.imag(Sum_DKinect_diag)) >= 10^-6:
+    print('WARNING: Imaginary part of kinectic diagonal forces >= 10^-6 eV/angs!')
+
+if abs(np.imag(Sum_DKinect)) >= 10^-6:
+    print('WARNING: Imaginary part of kinectic forces >= 10^-6 eV/angs!')
+
+if Calculate_Kernel == True:
+    if abs(np.imag(Sum_DKernel)) >= 10^-6:
+        print('WARNING: Imaginary part of Kernel forces >= 10^-6 eV/angs!')
+
+    if calc_IBL_way == True:
+        if abs(np.imag(Sum_DKernel_IBL)) >= 10^-6:
+            print('WARNING: Imaginary part of Kernel (IBL) forces >= 10^-6 eV/angs!')
+
+# Show just real part of numbers (default)
+
+if show_imag_part == 'False':
+    Sum_DKinect_diag = np.real(Sum_DKinect_diag)
+    Sum_DKinect = np.real(Sum_DKinect)
+
+    if Calculate_Kernel == True:
+        Sum_DKernel = np.real(Sum_DKernel)
+        if calc_IBL_way == True:
+            Sum_DKernel_IBL = np.real(Sum_DKernel_IBL)
+
 # Calculate forces cartesian basis
 
 print("Calculating forces in cartesian basis")
