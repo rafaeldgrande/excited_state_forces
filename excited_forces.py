@@ -108,6 +108,8 @@ if Calculate_Kernel == True:
     print('<Kd> = ', Mean_Kd)
     print('DIFF ', exc_energy - (Mean_Ekin + Mean_Kd + Mean_Kx))
 
+report_ram()
+
 # get displacement patterns
 
 iq = 0 # FIXME -> generalize for set of q points
@@ -116,6 +118,11 @@ Displacements, Nirreps = get_patterns2(iq)
 elph = get_el_ph_coeffs(iq, Nirreps)
 elph_cond, elph_val = filter_elph_coeffs(elph)
 
+print('Displacements', Displacements)
+
+# report_ram()
+# print('DELETING ELPH')
+del elph
 report_ram()
 
 ########## Calculating stuff ############
@@ -132,7 +139,7 @@ aux_cond_matrix, aux_val_matrix = aux_matrix_elem(elph_cond, elph_val, Eqp_val, 
 DKinect = calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix)
 
 
-# Forces from Kernel derivatives
+# Kernel derivatives
 if Calculate_Kernel == True:
 
     EDFT = Edft_val, Edft_cond
@@ -167,6 +174,7 @@ for imode in range(Nmodes):
 report_ram()
 
 # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
+
 Sum_DKinect_diag = -Sum_DKinect_diag*Ry2eV/bohr2A
 Sum_DKinect = -Sum_DKinect*Ry2eV/bohr2A
 
@@ -178,23 +186,26 @@ if Calculate_Kernel == True:
 
 # Warn if imag part is too big (>= 10^-6)
 
-if abs(np.imag(Sum_DKinect_diag)) >= 10^-6:
+if max(abs(np.imag(Sum_DKinect_diag))) >= 10^-6:
     print('WARNING: Imaginary part of kinectic diagonal forces >= 10^-6 eV/angs!')
 
-if abs(np.imag(Sum_DKinect)) >= 10^-6:
+if max(abs(np.imag(Sum_DKinect))) >= 10^-6:
     print('WARNING: Imaginary part of kinectic forces >= 10^-6 eV/angs!')
 
 if Calculate_Kernel == True:
-    if abs(np.imag(Sum_DKernel)) >= 10^-6:
+    if max(abs(np.imag(Sum_DKernel))) >= 10^-6:
         print('WARNING: Imaginary part of Kernel forces >= 10^-6 eV/angs!')
 
     if calc_IBL_way == True:
-        if abs(np.imag(Sum_DKernel_IBL)) >= 10^-6:
+        if max(abs(np.imag(Sum_DKernel_IBL))) >= 10^-6:
             print('WARNING: Imaginary part of Kernel (IBL) forces >= 10^-6 eV/angs!')
 
 # Show just real part of numbers (default)
 
-if show_imag_part == 'False':
+
+print('!!!!!!!show_imag_part', show_imag_part)
+if show_imag_part == False:
+    print('hello!')
     Sum_DKinect_diag = np.real(Sum_DKinect_diag)
     Sum_DKinect = np.real(Sum_DKinect)
 
@@ -207,12 +218,19 @@ if show_imag_part == 'False':
 
 print("Calculating forces in cartesian basis")
 
-F_cart_KE_IBL                       = np.zeros((Nat, 3), dtype=np.complex64)  # IBL just diag RPA
-F_cart_KE_David                     = np.zeros((Nat, 3), dtype=np.complex64)  # david thesis - diag + offdiag from kinect part
 
-if Calculate_Kernel == True:
-    F_cart_Kernel_IBL                   = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's paper 
-    F_cart_Kernel_IBL_correct           = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's with new kernel
+if show_imag_part == True:
+    F_cart_KE_IBL                       = np.zeros((Nat, 3), dtype=np.complex64)  # IBL just diag RPA
+    F_cart_KE_David                     = np.zeros((Nat, 3), dtype=np.complex64)  # david thesis - diag + offdiag from kinect part
+    if Calculate_Kernel == True:
+        F_cart_Kernel_IBL                   = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's paper 
+        F_cart_Kernel_IBL_correct           = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's with new kernel
+else:
+    F_cart_KE_IBL                       = np.zeros((Nat, 3))  # IBL just diag RPA
+    F_cart_KE_David                     = np.zeros((Nat, 3))  # david thesis - diag + offdiag from kinect part
+    if Calculate_Kernel == True:
+        F_cart_Kernel_IBL                   = np.zeros((Nat, 3))  # Ismail-Beigi and Louie's paper 
+        F_cart_Kernel_IBL_correct           = np.zeros((Nat, 3))  # Ismail-Beigi and Louie's with new kernel
 
 for iatom in range(Nat):
     for imode in range(Nmodes):
@@ -223,8 +241,8 @@ for iatom in range(Nat):
             F_cart_Kernel_IBL[iatom] += Displacements[imode, iatom] * (Sum_DKernel_IBL[imode] + Sum_DKinect_diag[imode])
             F_cart_Kernel_IBL_correct[iatom] += Displacements[imode, iatom] * (Sum_DKernel[imode] + Sum_DKinect_diag[imode])
 
-#print('\n\n\n################# Forces (eV/A) in cartesian basis #####################')
 
+# Reporting forces in cartesian basis 
 DIRECTION = ['x', 'y', 'z']
 
 arq_out = open('forces_cart.out', 'w')

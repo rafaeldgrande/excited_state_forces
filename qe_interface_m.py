@@ -6,6 +6,23 @@ import numpy as np
 
 from excited_forces_config import *
 
+def indexes_x_in_list(what_i_want, list_i_get):
+
+    """
+    Returns the indexes of the value x in a list A
+    Ex: A = ['a', 'b', 'a', 'c', 'd', 'd']
+    indexes_x_in_list('a', A) returns [0, 2]
+    indexes_x_in_list('b', A) returns [1]
+    indexes_x_in_list('e', A) returns [] (empty list)
+    """
+
+    if list_i_get.count(what_i_want) > 0:
+        indexes = [i for i in range(len(list_i_get)) if list_i_get[i] == what_i_want]
+    else:
+        indexes = []
+
+    return indexes
+
 
 def get_patterns2(iq):
 
@@ -15,7 +32,7 @@ def get_patterns2(iq):
 
     print('Reading displacement patterns file')
 
-    Displacements = np.zeros((Nmodes, Nat, 3), dtype=np.complex64)
+    Displacements = np.zeros((Nmodes, Nat, 3))
     imode = 0
     
     patterns_file = el_ph_dir+'patterns.'+str(iq + 1)+'.xml'
@@ -53,7 +70,9 @@ def get_patterns2(iq):
             numbers_temp = np.fromstring(text_temp, sep='\n')
             
             # reading complex numbers -> A[::2] (A[1::2]) gives the first (second) collum
-            temp_displacements = numbers_temp[::2] + 1.0j*numbers_temp[1::2]
+            #temp_displacements = numbers_temp[::2] + 1.0j*numbers_temp[1::2]
+            # displacements are real numbers, so just take the real part
+            temp_displacements = numbers_temp[::2] 
 
             icounter = 0
             for iat in range(Nat):
