@@ -114,8 +114,10 @@ iq = 0 # FIXME -> generalize for set of q points
 Displacements, Nirreps = get_patterns2(iq)
 elph = get_el_ph_coeffs(iq, Nirreps)
 
+print(Displacements)
+
 if acoutic_sum_rule == True:
-    elph = impose_ASR(elph)
+    elph = impose_ASR(elph, Displacements)
 
 elph_cond, elph_val = filter_elph_coeffs(elph)
 

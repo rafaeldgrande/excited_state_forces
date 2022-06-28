@@ -201,7 +201,7 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
 
     return elph
 
-def impose_ASR(elph):
+def impose_ASR(elph, Displacements):
 
     """Impose Acoustic Sum Rule on elph matrix elements
     Test for just CO until now: I know that first and second displacement
@@ -218,27 +218,41 @@ def impose_ASR(elph):
     mod_sum_report_offdiag = []
 
     shape_elph = np.shape(elph)
-    Nbnds = shape_elph[2]
+    Nbnds_in_xml = shape_elph[2]
 
-    for iband1 in range(Nbnds):
-        for iband2 in range(Nbnds):
-            sum_elph = elph[0, 0, iband1, iband2] + elph[1, 0, iband1, iband2]
+    for iband1 in range(Nbnds_in_xml):
+        for iband2 in range(Nbnds_in_xml):
+            # sum_elph = elph[0, 0, iband1, iband2] + elph[1, 0, iband1, iband2]
 
-            elph[0, 0, iband1, iband2] = elph[0, 0, iband1, iband2] - sum_elph / 2
-            elph[1, 0, iband1, iband2] = elph[1, 0, iband1, iband2] - sum_elph / 2
+            # elph[0, 0, iband1, iband2] = elph[0, 0, iband1, iband2] - sum_elph / 2
+            # elph[1, 0, iband1, iband2] = elph[1, 0, iband1, iband2] - sum_elph / 2
+
+            sum_elph = np.zeros((3), dtype=complex) # x, y, z
+
+            for i_mode in range(Nmodes):
+                for i_atom in range(Nat):
+                    sum_elph += elph[i_mode, 0, iband1, iband2] * Displacements[i_mode, i_atom]
+
+            for i_mode in range(Nmodes):
+                for i_atom in range(Nat):
+                    for i_dir in range(3):
+                        elph[i_mode, 0, iband1, iband2] = elph[i_mode, 0, iband1, iband2] - Displacements[i_mode, i_atom, i_dir] * sum_elph[i_dir] / Nat
+
 
             if iband1 == iband2:
-                mod_sum_report_diag.append(abs(sum_elph))
+                for i_dir in range(3):
+                    mod_sum_report_diag.append(abs(sum_elph[i_dir]))
             else:
-                mod_sum_report_offdiag.append(abs(sum_elph))
+                for i_dir in range(3):
+                    mod_sum_report_offdiag.append(abs(sum_elph[i_dir]))
 
     mean_val = np.mean(mod_sum_report_diag)
-    max_val  = max(mod_sum_report_diag)
+    max_val  = np.max(mod_sum_report_diag)
     print("Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
     print("Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
 
     mean_val = np.mean(mod_sum_report_offdiag)
-    max_val  = max(mod_sum_report_offdiag)
+    max_val  = np.max(mod_sum_report_offdiag)
     print("Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
     print("Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
 
