@@ -35,6 +35,8 @@ just_RPA_diag = False
 Calculate_Kernel = False
 read_Akcv_trick = False
 show_imag_part = False
+use_F_complex_conj = False
+acoutic_sum_rule = True
 
 def read_input(input_file):
 
@@ -47,6 +49,7 @@ def read_input(input_file):
     global dyn_file, kernel_file
     global calc_modes_basis
     global calc_IBL_way
+    global show_imag_part
 
     try:
         arq_in = open(input_file)
@@ -85,6 +88,8 @@ def read_input(input_file):
                         calc_IBL_way = True
                 elif linha[0] == 'alat':
                     alat = float(linha[1])
+                elif linha[0] == 'show_imag_part':
+                    show_imag_part = float(linha[1])                    
                 elif linha[0][0] != '#':
                     print('Parameters not recognized in the following line:\n')
                     print(line)

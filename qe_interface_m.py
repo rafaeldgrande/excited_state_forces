@@ -201,6 +201,49 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
 
     return elph
 
+def impose_ASR(elph):
+
+    """Impose Acoustic Sum Rule on elph matrix elements
+    Test for just CO until now: I know that first and second displacement
+    patterns are C and O movements in -z direction respectivelly.
+    In future I need to project <i|dH/dr_mu|j> in some direction to remove
+    the center of mass translation. Other alternative is to write everything
+    in eigenmodes basis, so acoustic modes when q goes to 0 have null el-ph coeffs.
+    
+    """
+
+    print('Applying acoustic sum rule. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
+
+    mod_sum_report_diag = []
+    mod_sum_report_offdiag = []
+
+    shape_elph = np.shape(elph)
+    Nbnds = shape_elph[2]
+
+    for iband1 in range(Nbnds):
+        for iband2 in range(Nbnds):
+            sum_elph = elph[0, 0, iband1, iband2] + elph[1, 0, iband1, iband2]
+
+            elph[0, 0, iband1, iband2] = elph[0, 0, iband1, iband2] - sum_elph / 2
+            elph[1, 0, iband1, iband2] = elph[1, 0, iband1, iband2] - sum_elph / 2
+
+            if iband1 == iband2:
+                mod_sum_report_diag.append(abs(sum_elph))
+            else:
+                mod_sum_report_offdiag.append(abs(sum_elph))
+
+    mean_val = np.mean(mod_sum_report_diag)
+    max_val  = max(mod_sum_report_diag)
+    print("Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
+    print("Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
+
+    mean_val = np.mean(mod_sum_report_offdiag)
+    max_val  = max(mod_sum_report_offdiag)
+    print("Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
+    print("Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
+
+    return elph
+
 def filter_elph_coeffs(elph):
 
     """ Reads elph coefficients from DFPT calculations. Quantum Espresso calculates <i|dV/dx_mu|j> for 
@@ -253,10 +296,11 @@ def filter_elph_coeffs(elph):
             elph_val[imode, ik] = np.array([[temp[iv, jv] for iv in tuple_iteration] for jv in tuple_iteration])
 
     # small report
-    print(f"\nMax real value of <c|dH|c'> (Ry/bohr): {np.max(np.real(elph_cond))}")
-    print(f"Max imag value of <c|dH|c'> (Ry/bohr): {np.max(np.imag(elph_cond))}")
-    print(f"Max real value of <v|dH|v'> (Ry/bohr): {np.max(np.real(elph_val))}")
-    print(f"Max imag value of <v|dH|v'> (Ry/bohr): {np.max(np.imag(elph_val))}")
+    print('\n')
+    print("Max real value of <c|dH|c'> (Ry/bohr): %.4f" %(np.max(np.real(elph_cond))))
+    print("Max imag value of <c|dH|c'> (Ry/bohr): %.4f" %(np.max(np.imag(elph_cond))))
+    print("Max real value of <v|dH|v'> (Ry/bohr): %.4f"  %(np.max(np.real(elph_val))))
+    print("Max imag value of <v|dH|v'> (Ry/bohr): %.4f"  %(np.max(np.imag(elph_val))))
 
     return elph_cond, elph_val
 

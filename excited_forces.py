@@ -31,9 +31,6 @@ def report_ram():
 
 start_time = time.clock_gettime(0)
 
-import logging 
-logging.basicConfig(filename='<filename>.log', level=logging.INFO)
-
 # Variables 
 
 # TODO -> just create those matrices when they are necessary, then erase them when finished
@@ -116,6 +113,10 @@ iq = 0 # FIXME -> generalize for set of q points
 
 Displacements, Nirreps = get_patterns2(iq)
 elph = get_el_ph_coeffs(iq, Nirreps)
+
+if acoutic_sum_rule == True:
+    elph = impose_ASR(elph)
+
 elph_cond, elph_val = filter_elph_coeffs(elph)
 
 # report_ram()
