@@ -115,7 +115,7 @@ def get_hdf5_exciton_info(exciton_file, iexc):
 
     Assuming calculations with TD approximation
     Info about file at: http://manual.berkeleygw.org/3.0/eigenvectors_h5_spec/
-    Also, just working for excitons with Q = 0
+    Also, just working for excitons with Q = 0 and one spin
 
     TODO -> for now calculting exciton info for exciton with index iexc
     but later, make it calculate for and set of exciton indexes"""
@@ -127,8 +127,8 @@ def get_hdf5_exciton_info(exciton_file, iexc):
     eigenvecs = f_hdf5['exciton_data/eigenvectors']
     eigenvals = f_hdf5['exciton_data/eigenvalues']
 
-    Acvk = eigenvecs[0,iexc-1,:,:,:,:,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,:,1]
-    Omega = eigenvals[iexc]
+    Acvk = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
+    Omega = eigenvals[iexc-1]
 
     return Acvk, Omega
 
