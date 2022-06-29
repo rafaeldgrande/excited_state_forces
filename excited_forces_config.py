@@ -30,13 +30,16 @@ kernel_file = 'bsemat.h5'
 calc_modes_basis = False
 calc_IBL_way = True
 write_DKernel = False
-report_RPA_data = False
+report_RPA_data = True
 just_RPA_diag = False
 Calculate_Kernel = False
 read_Akcv_trick = False
 show_imag_part = False
 use_F_complex_conj = False
 acoutic_sum_rule = True
+use_hermicity_F = True # Use the fact that F_cvc'v' = conj(F_c'v'cv)
+                       # Reduces the number of computed terms by about half
+        
 
 def read_input(input_file):
 
