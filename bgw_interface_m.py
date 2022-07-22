@@ -10,10 +10,17 @@ from excited_forces_config import *
 
 def read_eqp_data(eqp_file):
 
-    """Reads quasiparticle and dft energies results from sigma calculations
+    """Reads quasiparticle and dft energies results from sigma calculations.
+    
+    It is recommended to use the eqp.dat file from calculations using the
+    absorption.flavor.x code, as it is compatible with the Acvk coefficients
+    (same number of valence and conduction bands and same number of k points)
+
+    Parameters:
+    eqp_file (string)
 
     Returns:
-        _type_: Eqp_val, Eqp_cond, Edft_val, Edft_cond
+        arrays : Eqp_val, Eqp_cond, Edft_val, Edft_cond
     """
 
     Eqp_val   = np.zeros((Nkpoints, Nvbnds), dtype=np.float64)
