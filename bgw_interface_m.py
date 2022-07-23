@@ -125,7 +125,18 @@ def get_hdf5_exciton_info(exciton_file, iexc):
     Also, just working for excitons with Q = 0 and one spin
 
     TODO -> for now calculting exciton info for exciton with index iexc
-    but later, make it calculate for and set of exciton indexes"""
+    but later, make it calculate for and set of exciton indexes
+    
+    Parameters:
+    exciton_file = exciton file name (string). ex: eigenvecs.h5
+    iexc = Exciton index to be read
+    
+    Return:
+    Acvk = Exciton wavefunc coefficients. array Akcv[ik, ic, iv] with complex values
+    Omega = Exciton energy (BSE eigenvalue) in eV (float)
+    Ncbnds_eigenvecs = number of cond bands in this file (int)
+    Nvbnds_eigenvecs = number of val bands in this file (int)
+    """
 
     print('Reading exciton info from file', exciton_file)
 
@@ -134,8 +145,18 @@ def get_hdf5_exciton_info(exciton_file, iexc):
     eigenvecs = f_hdf5['exciton_data/eigenvectors']
     eigenvals = f_hdf5['exciton_data/eigenvalues']
 
+    #  (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
+    temp = np.shape(eigenvecs)
+    Nkpoints_eigenvecs = temp[2]
+    Ncbnds_eigenvecs = temp[3]
+    Nvbnds_eigenvecs = temp[4]
+
+    print(f'    Nkpoints in this file = {Nkpoints_eigenvecs}')
+    print(f'    Number of cond bands in this file = {Ncbnds_eigenvecs}')
+    print(f'    Number of val bands in this file = {Nvbnds_eigenvecs}')
+
     Acvk = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
     Omega = eigenvals[iexc-1]
 
-    return Acvk, Omega
+    return Acvk, Omega, Ncbnds_eigenvecs, Nvbnds_eigenvecs
 

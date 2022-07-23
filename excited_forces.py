@@ -53,20 +53,33 @@ Forces_modes          = np.zeros((Nmodes), dtype=np.complex64)
 
 ############ Getting info from files #############
 
-# getting info from eqp.dat
-Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file)
-
 # Getting exciton info
 exciton_file = exciton_dir+'/Avck_'+str(iexc)
 
 if read_Akcv_trick == True:
     Akcv, exc_energy = get_exciton_info(exciton_file)
 else:
-    Akcv, exc_energy = get_hdf5_exciton_info(exciton_dir+'/eigenvectors.h5', iexc)
+    Akcv, exc_energy, Ncbnds_eigenvecs, Nvbnds_eigenvecs = get_hdf5_exciton_info(exciton_dir+'/eigenvectors.h5', iexc)
 
 
 print("Max real value of Akcv: ", np.max(np.real(Akcv)))
 print("Max imag value of Akcv: ", np.max(np.imag(Akcv)))
+
+# deciding if gonna use all bands in eigenvecs.h5 file or not
+
+if Ncbnds <= 0 or Ncbnds > Ncbnds_eigenvecs:
+    print(f'Ncbnds = {Ncbnds} from input file')
+    print(f'Now we make Ncbnds = {Ncbnds_eigenvecs} (value from eigenvecs file')
+    Ncbnds = Ncbnds_eigenvecs
+
+if Nvbnds <= 0 or Nvbnds > Nvbnds_eigenvecs:
+    print(f'Nvbnds = {Nvbnds} from input file')
+    print(f'Now we make Ncbnds = {Nvbnds_eigenvecs} (value from eigenvecs file')
+    Ncbnds = Nvbnds_eigenvecs
+
+
+# getting info from eqp.dat
+Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file)
 
 if Calculate_Kernel == True:
     # # Getting kernel info
@@ -114,8 +127,6 @@ iq = 0 # FIXME -> generalize for set of q points
 Displacements, Nirreps = get_patterns2(iq)
 elph = get_el_ph_coeffs(iq, Nirreps)
 
-print(Displacements)
-
 if acoutic_sum_rule == True:
     elph = impose_ASR(elph, Displacements)
 
@@ -137,6 +148,7 @@ aux_offdiag = np.zeros(Shape, dtype=np.complex64)
 
 aux_cond_matrix, aux_val_matrix = aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond)
 
+# Calculating matrix elements F_cvkc'v'k'
 DKinect = calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix)
 
 
