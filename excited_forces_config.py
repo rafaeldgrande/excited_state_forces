@@ -27,16 +27,16 @@ el_ph_dir = './'
 kernel_file = 'bsemat.h5'
 
 # conditionals
-calc_modes_basis = False
-calc_IBL_way = True
-write_DKernel = False
-report_RPA_data = True
-just_RPA_diag = False
-Calculate_Kernel = False
-read_Akcv_trick = False
-show_imag_part = False
-use_F_complex_conj = False
-acoutic_sum_rule = True
+calc_modes_basis = False    # not being used yet 
+calc_IBL_way = True         # I should comment latter
+write_DKernel = False       # not being used 
+report_RPA_data = True      # report Fcvkc'v'k' matrix elements.
+just_RPA_diag = False       # If true doesn't calculate forces a la David
+Calculate_Kernel = False    # Dont change. We dont know how to work with kernel yet
+read_Akcv_trick = False     # If false, read eigenvectors.h5 file, when BGW is compiled with hdf5. If true read Acvk{iexc} that is an output of my modified summarize_eigenvectors.f90 file
+show_imag_part = False      # Show imaginary part of excited state force . It should be very close to 0 
+use_F_complex_conj = False  # In development. don't change
+acoutic_sum_rule = True     # Makes the excited state forces to sum to zero (obey Newton's third law), by making sum of elph matrix elems to 0. May want to set this variable to true
 use_hermicity_F = True # Use the fact that F_cvc'v' = conj(F_c'v'cv)
                        # Reduces the number of computed terms by about half
         
