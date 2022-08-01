@@ -8,6 +8,25 @@
 # 3 - Ler energias qp dos arquivos bandstructures.dat
 
 
+
+# FIRST MESSAGE
+
+from datetime import datetime
+
+# datetime object containing current date and time
+now = datetime.now()
+
+# dd/mm/YY H:M:S
+dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+print("\n\nExecution date: ", dt_string)
+
+print('\n\n*************************************************************')
+print('Excited state forces code')
+print('Developed by Rafael Del Grande and David Strubbe')
+print('Contact: rdelgrande@ucmerced.edu')
+print('*************************************************************')
+
+
 import numpy as np
 import h5py
 from excited_forces_m import *
@@ -31,12 +50,52 @@ def report_ram():
 
 start_time = time.clock_gettime(0)
 
-# Variables 
+############ Getting info from files #############
+
+# Getting exciton info
+exciton_file = exciton_dir+'/Avck_'+str(iexc)
+
+if read_Akcv_trick == True:
+    Akcv, exc_energy = get_exciton_info(exciton_file)
+else:
+    Akcv, exc_energy, Ncbnds_eigenvecs, Nvbnds_eigenvecs = get_hdf5_exciton_info(exciton_dir+'/eigenvectors.h5', iexc)
+
+print("    Max real value of Akcv: ", np.max(np.real(Akcv)))
+print("    Max imag value of Akcv: ", np.max(np.imag(Akcv)))
+print('\n\n')
+
+# deciding if gonna use all bands in eigenvecs.h5 file or not
+
+# if Ncbnds <= 0 or Ncbnds > Ncbnds_eigenvecs:
+#     print(f'Ncbnds = {Ncbnds} from input file')
+#     print(f'Now we make Ncbnds = {Ncbnds_eigenvecs} (value from eigenvecs file)')
+#     Ncbnds = Ncbnds_eigenvecs
+
+# if Nvbnds <= 0 or Nvbnds > Nvbnds_eigenvecs:
+#     print(f'Nvbnds = {Nvbnds} from input file')
+#     print(f'Now we make Nvbnds = {Nvbnds_eigenvecs} (value from eigenvecs file)')
+#     Nvbnds = Nvbnds_eigenvecs
+
+# print(Ncbnds, Nvbnds)
+
+# getting info from eqp.dat
+Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file)
+
+if Calculate_Kernel == True:
+    # # Getting kernel info
+    Kx, Kd = get_kernel(kernel_file) 
+
+    # # Must have same units of Eqp and Edft -> eV
+    Kx =  - Kx * Ry2eV / Kernel_bgw_factor
+    Kd =  - Kd * Ry2eV / Kernel_bgw_factor
+
 
 # TODO -> just create those matrices when they are necessary, then erase them when finished
 
 Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds)
 Shape2 = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
+
+print('SHAPE', Shape)
 
 DKinect          = np.zeros(Shape2, dtype=np.complex64) 
 
@@ -50,44 +109,6 @@ if Calculate_Kernel == True:
 Forces_disp           = np.zeros((Nmodes), dtype=np.complex64)
 
 Forces_modes          = np.zeros((Nmodes), dtype=np.complex64)
-
-############ Getting info from files #############
-
-# Getting exciton info
-exciton_file = exciton_dir+'/Avck_'+str(iexc)
-
-if read_Akcv_trick == True:
-    Akcv, exc_energy = get_exciton_info(exciton_file)
-else:
-    Akcv, exc_energy, Ncbnds_eigenvecs, Nvbnds_eigenvecs = get_hdf5_exciton_info(exciton_dir+'/eigenvectors.h5', iexc)
-
-
-print("Max real value of Akcv: ", np.max(np.real(Akcv)))
-print("Max imag value of Akcv: ", np.max(np.imag(Akcv)))
-
-# deciding if gonna use all bands in eigenvecs.h5 file or not
-
-if Ncbnds <= 0 or Ncbnds > Ncbnds_eigenvecs:
-    print(f'Ncbnds = {Ncbnds} from input file')
-    print(f'Now we make Ncbnds = {Ncbnds_eigenvecs} (value from eigenvecs file')
-    Ncbnds = Ncbnds_eigenvecs
-
-if Nvbnds <= 0 or Nvbnds > Nvbnds_eigenvecs:
-    print(f'Nvbnds = {Nvbnds} from input file')
-    print(f'Now we make Ncbnds = {Nvbnds_eigenvecs} (value from eigenvecs file')
-    Ncbnds = Nvbnds_eigenvecs
-
-
-# getting info from eqp.dat
-Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file)
-
-if Calculate_Kernel == True:
-    # # Getting kernel info
-    Kx, Kd = get_kernel(kernel_file) 
-
-    # # Must have same units of Eqp and Edft -> eV
-    Kx =  - Kx * Ry2eV / Kernel_bgw_factor
-    Kd =  - Kd * Ry2eV / Kernel_bgw_factor
 
 
 # # Printing exciton energies
@@ -128,6 +149,7 @@ Displacements, Nirreps = get_patterns2(iq)
 elph = get_el_ph_coeffs(iq, Nirreps)
 
 if acoutic_sum_rule == True:
+    print('\n\n')
     elph = impose_ASR(elph, Displacements)
 
 elph_cond, elph_val = filter_elph_coeffs(elph)
