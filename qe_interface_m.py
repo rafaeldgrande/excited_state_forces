@@ -130,7 +130,10 @@ def read_elph_xml(elph_xml_file):
         if tags_in_xml_file[i_tag] == 'PARTIAL_ELPH':
             Kpoints_in_elph_file.append(texts_in_xml_file[i_tag])
 
-    arq_kpoints = open('Kpoints_in_elph_file_'+elph_xml_file, 'w')
+    irrep_name = elph_xml_file.split('.')[-2]  # recovering the irrep name
+    # elph_xml_file = something.xxx.yyy.xml -> the above line returns yyy
+
+    arq_kpoints = open('Kpoints_in_elph_file_'+irrep_name, 'w')
     for ik in range(len(Kpoints_in_elph_file)):
         arq_kpoints.write(Kpoints_in_elph_file[ik]+'\n')
     arq_kpoints.close()
