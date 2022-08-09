@@ -1,4 +1,5 @@
 
+from tkinter import image_names
 import h5py
 import time
 import numpy as np
@@ -142,33 +143,78 @@ def get_hdf5_exciton_info(exciton_file, iexc):
 
     f_hdf5 = h5py.File(exciton_file, 'r')
 
-    eigenvecs = f_hdf5['exciton_data/eigenvectors']
-    eigenvals = f_hdf5['exciton_data/eigenvalues']
+    alat = f_hdf5['/mf_header/crystal/alat'][()]            # lattice parameter in bohr
+    cell_vol = f_hdf5['/mf_header/crystal/celvol'][()]      # unit cell vol in bohr**3
+    cell_vecs = f_hdf5['/mf_header/crystal/avec'][()]       # lattice vectors (in units of alat)
+    atomic_pos = f_hdf5['/mf_header/crystal/apos'][()]      # in cartesian coordinates, in units of alat - important for visualization
+    Nat = f_hdf5['/mf_header/crystal/nat'][()]              # Number of atoms
 
-    #  (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
-    temp = np.shape(eigenvecs)
-    Nkpoints_eigenvecs = temp[2]
-    Ncbnds_eigenvecs = temp[3]
-    Nvbnds_eigenvecs = temp[4]
+    # Bands used to build BSE hamiltonian
+    Nvbnds = f_hdf5['/exciton_header/params/nv'][()]  # Assuming TDA
+    Ncbnds = f_hdf5['/exciton_header/params/nc'][()]
 
-    print(f'    Nkpoints in this file = {Nkpoints_eigenvecs}')
-    print(f'    Number of cond bands in this file = {Ncbnds_eigenvecs}')
-    print(f'    Number of val bands in this file = {Nvbnds_eigenvecs}')
+    # K points in the fine grid
+    Kpoints_bse = f_hdf5['/exciton_header/kpoints/kpts'][()] 
+    Nkpoints = f_hdf5['/exciton_header/kpoints/nk'][()]
 
-    Acvk = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
+
+################################################
+    ''''Getting Nval as norm of IFMAX
+    In eigenvectors.h5 file, there is the IFMAX 
+    the labels the highest occupied band in file. 
+    For a semiconductor, IFMAX = Nval, independently of 
+    the number of k points. I am assuming I am working with a semiconductor.
+    In future I'll change it to be more general, but I need to change equations in theory
+    to include occupations.'''
+
+    ifmax_list = f_hdf5['/mf_header/kpoints/ifmax'][()][0] # ignoring spin degree of freedom!
+    
+    ifmax_values = []
+    for ik in range(Nkpoints):
+        if ifmax_values.count(ifmax_list[ik]) == 0:
+            ifmax_values.append(ifmax_list[ik])
+    
+    Nval = min(ifmax_values)
+
+    if len(ifmax_values) == 1:
+        print(f' ---------> ifmax through k points is just one value ({ifmax_values[0]})')
+    else:
+        print('######################################################\n')
+        print(f'WARNING! ifmax changes through k points! It means that the system is metallic, and we STILL did not implement it.')
+        print('I will work with it as a semiconductor by setting the valence band to be min(ifmax) = {Nval}')
+        print('######################################################\n')
+
+################################################
+    
+    eigenvecs = f_hdf5['exciton_data/eigenvectors'][()]          # (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
+    eigenvals = f_hdf5['exciton_data/eigenvalues'][()] 
+
+
+    print(f'Parameters from {exciton_file} :')
+
+    print(f'    Total of atoms        = {Nat}')
+    print(f'         Total of modes (3*Nat) = {3*Nat}')
+    print(f'    Nkpoints              = {Nkpoints}')
+    print(f'    Number of cond bands  = {Ncbnds}')
+    print(f'    Number of val bands   = {Nvbnds}')
+
+    Akcv = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
     Omega = eigenvals[iexc-1]
 
 
     # writing k points info to file - DEBUG
 
-    arq_kpoints = open('Kpoints_eigenvecs_file', 'w')
-    Kpoints_exciton = f_hdf5['/exciton_header/kpoints/kpts']
+    if log_k_points == True:
 
-    for ik in range(len(Kpoints_exciton)):
-        kx, ky, kz = Kpoints_exciton[ik]
-        arq_kpoints.write(f'{kx}   {ky}   {kz}\n')
+        print('Writing k points in eigenvecs in Kpoints_eigenvecs_file')
 
-    arq_kpoints.close()
+        arq_kpoints = open('Kpoints_eigenvecs_file', 'w')
 
-    return Acvk, Omega, Ncbnds_eigenvecs, Nvbnds_eigenvecs
+        for ik in range(len(Kpoints_bse)):
+            kx, ky, kz = Kpoints_bse[ik]
+            arq_kpoints.write(f'{kx}   {ky}   {kz}\n')
+
+        arq_kpoints.close()
+
+    return Akcv, Omega, Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints
 

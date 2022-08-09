@@ -42,7 +42,7 @@ def report_ram():
     temp_ram = tracemalloc.get_traced_memory()[0] / 1024**2
     max_temp_ram = tracemalloc.get_traced_memory()[1] / 1024**2
 
-    print('\n\n############### REPORT RAM #################')
+    print('\n\n############### RAM REPORT #################')
     print(f'RAM used now: {temp_ram:.2f} MB')
     print(f'Max RAM used until now: {max_temp_ram:.2f} MB')
     print('############################################\n\n')
@@ -53,12 +53,11 @@ start_time = time.clock_gettime(0)
 ############ Getting info from files #############
 
 # Getting exciton info
-exciton_file = exciton_dir+'/Avck_'+str(iexc)
 
 if read_Akcv_trick == True:
     Akcv, exc_energy = get_exciton_info(exciton_file)
 else:
-    Akcv, exc_energy, Ncbnds_eigenvecs, Nvbnds_eigenvecs = get_hdf5_exciton_info(exciton_dir+'/eigenvectors.h5', iexc)
+    Akcv, Omega, Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints = get_hdf5_exciton_info(exciton_file, iexc)
 
 print("    Max real value of Akcv: ", np.max(np.real(Akcv)))
 print("    Max imag value of Akcv: ", np.max(np.imag(Akcv)))
@@ -133,11 +132,11 @@ if Calculate_Kernel == True:
 
 print('Exciton energies (eV): ')
 print('<KE> = ', Mean_Ekin)
-print('Omega = ', exc_energy)
+print('Omega = ', Omega)
 if Calculate_Kernel == True:
     print('<Kx> = ', Mean_Kx)
     print('<Kd> = ', Mean_Kd)
-    print('DIFF ', exc_energy - (Mean_Ekin + Mean_Kd + Mean_Kx))
+    print('DIFF ', Omega - (Mean_Ekin + Mean_Kd + Mean_Kx))
 
 report_ram()
 

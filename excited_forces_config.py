@@ -22,7 +22,7 @@ iexc = 1
 alat = 10 # FIXME: read it from input file or other source (maybe read volume instead)
 # files and paths to be opened 
 eqp_file = 'eqp1.dat'
-exciton_dir = './'
+exciton_file = 'eigenvectors.h5'
 el_ph_dir = './'
 kernel_file = 'bsemat.h5'
 
@@ -30,7 +30,7 @@ kernel_file = 'bsemat.h5'
 calc_modes_basis = False    # not being used yet 
 calc_IBL_way = True         # I should comment latter
 write_DKernel = False       # not being used 
-report_RPA_data = True      # report Fcvkc'v'k' matrix elements.
+report_RPA_data = False      # report Fcvkc'v'k' matrix elements.
 just_RPA_diag = False       # If true doesn't calculate forces a la David
 Calculate_Kernel = False    # Dont change. We dont know how to work with kernel yet
 read_Akcv_trick = False     # If false, read eigenvectors.h5 file, when BGW is compiled with hdf5. If true read Acvk{iexc} that is an output of my modified summarize_eigenvectors.f90 file
@@ -39,7 +39,7 @@ use_F_complex_conj = False  # In development. don't change
 acoutic_sum_rule = True     # Makes the excited state forces to sum to zero (obey Newton's third law), by making sum of elph matrix elems to 0. May want to set this variable to true
 use_hermicity_F = True # Use the fact that F_cvc'v' = conj(F_c'v'cv)
                        # Reduces the number of computed terms by about half
-        
+log_k_points = True          # Write k points used in BSE and DFPT calculations
 
 def read_input(input_file):
 
@@ -48,7 +48,7 @@ def read_input(input_file):
     global alat
     global Nkpoints, Nvbnds, Ncbnds, Nval
     global Nat, iexc
-    global eqp_file, exciton_dir, el_ph_dir
+    global eqp_file, exciton_file, el_ph_dir
     global dyn_file, kernel_file
     global calc_modes_basis
     global calc_IBL_way
@@ -75,8 +75,8 @@ def read_input(input_file):
                     iexc = int(linha[1])
                 elif linha[0] == 'eqp_file':
                     eqp_file = linha[1]
-                elif linha[0] == 'exciton_dir':
-                    exciton_dir = linha[1]
+                elif linha[0] == 'exciton_file':
+                    exciton_file = linha[1]
                 elif linha[0] == 'el_ph_dir':
                     el_ph_dir = linha[1]
                 elif linha[0] == 'dyn_file':
