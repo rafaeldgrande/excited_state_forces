@@ -158,5 +158,17 @@ def get_hdf5_exciton_info(exciton_file, iexc):
     Acvk = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
     Omega = eigenvals[iexc-1]
 
+
+    # writing k points info to file - DEBUG
+
+    arq_kpoints = open('Kpoints_eigenvecs_file', 'w')
+    Kpoints_exciton = f_hdf5['/exciton_header/kpoints/kpts']
+
+    for ik in range(len(Kpoints_exciton)):
+        kx, ky, kz = Kpoints_exciton[ik]
+        arq_kpoints.write(f'{kx}   {ky}   {kz}\n')
+
+    arq_kpoints.close()
+
     return Acvk, Omega, Ncbnds_eigenvecs, Nvbnds_eigenvecs
 
