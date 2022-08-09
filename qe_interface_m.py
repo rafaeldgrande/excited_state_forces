@@ -124,6 +124,18 @@ def read_elph_xml(elph_xml_file):
     Nkpoints_in_xml_file = int(texts_in_xml_file[Nkpoints_index_in_tag])
     print(f'Number of k points in this file {Nkpoints_in_xml_file}')
 
+    # Getting list of k points
+    Kpoints_in_elph_file = []
+    for i_tag in range(len(tags_in_xml_file)):
+        if tags_in_xml_file[i_tag] == 'PARTIAL_ELPH':
+            Kpoints_in_elph_file.append(texts_in_xml_file[i_tag])
+
+    arq_kpoints = open('Kpoints_in_elph_file_'+elph_xml_file, 'w')
+    for ik in range(len(Kpoints_in_elph_file)):
+        arq_kpoints.write(Kpoints_in_elph_file[ik]+'\n')
+    arq_kpoints.close()
+
+
     # reading elph matrix elements. 
     # print('TAGS', tags_in_xml_file)
 
@@ -216,6 +228,8 @@ def impose_ASR(elph, Displacements):
 
     mod_sum_report_diag = []
     mod_sum_report_offdiag = []
+    mod_sum_report_diag_afterASR = []
+    mod_sum_report_offdiag_afterASR = []    
 
     shape_elph = np.shape(elph)
     Nbnds_in_xml = shape_elph[2]
@@ -238,23 +252,40 @@ def impose_ASR(elph, Displacements):
                     for i_dir in range(3):
                         elph[i_mode, 0, iband1, iband2] = elph[i_mode, 0, iband1, iband2] - Displacements[i_mode, i_atom, i_dir] * sum_elph[i_dir] / Nat
 
+            sum_elph_afterASR = np.zeros((3), dtype=complex) # x, y, z
+
+            for i_mode in range(Nmodes):
+                for i_atom in range(Nat):
+                    sum_elph_afterASR += elph[i_mode, 0, iband1, iband2] * Displacements[i_mode, i_atom]
+
 
             if iband1 == iband2:
                 for i_dir in range(3):
                     mod_sum_report_diag.append(abs(sum_elph[i_dir]))
+                    mod_sum_report_diag_afterASR.append(abs(sum_elph_afterASR[i_dir]))
             else:
                 for i_dir in range(3):
                     mod_sum_report_offdiag.append(abs(sum_elph[i_dir]))
+                    mod_sum_report_offdiag_afterASR.append(abs(sum_elph_afterASR[i_dir]))
 
     mean_val = np.mean(mod_sum_report_diag)
     max_val  = np.max(mod_sum_report_diag)
+    mean_val_afterASR = np.mean(mod_sum_report_diag_afterASR)
+    max_val_afterASR  = np.max(mod_sum_report_diag_afterASR)
     print("Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
     print("Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
+    print("Mean diag |g_ii| after ASR %.10f" %(mean_val_afterASR), ' Ry/bohr')
+    print("Max diag  |g_ii| after ASR %.10f" %(max_val_afterASR), ' Ry/bohr')
+
 
     mean_val = np.mean(mod_sum_report_offdiag)
     max_val  = np.max(mod_sum_report_offdiag)
+    mean_val_afterASR = np.mean(mod_sum_report_offdiag_afterASR)
+    max_val_afterASR  = np.max(mod_sum_report_offdiag_afterASR)
     print("Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
     print("Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
+    print("Mean offdiag |g_ij| after ASR %.10f" %(mean_val_afterASR), ' Ry/bohr')
+    print("Max offdiag  |g_ij| after ASR %.10f" %(max_val_afterASR), ' Ry/bohr')
 
     return elph
 
