@@ -127,7 +127,7 @@ def read_elph_xml(elph_xml_file):
     # Getting list of k points
     Kpoints_in_elph_file = []
     for i_tag in range(len(tags_in_xml_file)):
-        if tags_in_xml_file[i_tag] == 'PARTIAL_ELPH':
+        if tags_in_xml_file[i_tag] == 'COORDINATES_XK':
             Kpoints_in_elph_file.append(texts_in_xml_file[i_tag])
 
     irrep_name = elph_xml_file.split('.')[-2]  # recovering the irrep name
