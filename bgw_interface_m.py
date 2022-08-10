@@ -142,6 +142,8 @@ def get_exciton_info(exciton_file, iexc):
     Omega = Exciton energy (BSE eigenvalue) in eV (float)
     """
 
+    print('Reading exciton info from file', exciton_file)
+
     f_hdf5 = h5py.File(exciton_file, 'r')
     
     eigenvecs = f_hdf5['exciton_data/eigenvectors'][()]          # (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
@@ -160,7 +162,7 @@ def get_exciton_info(exciton_file, iexc):
 
 def get_params_from_eigenvecs_file(exciton_file):
 
-    print('Reading exciton info from file', exciton_file)
+    print('Reading parameters info from file', exciton_file)
 
     f_hdf5 = h5py.File(exciton_file, 'r')
 
@@ -224,12 +226,12 @@ def get_params_from_eigenvecs_file(exciton_file):
 
     print(f'\nParameters from {exciton_file} :')
 
-    print(f'    Total of atoms        = {Nat}')
-    print(f'         Total of modes (3*Nat) = {3*Nat}')
-    print(f'    Nkpoints              = {Nkpoints}')
-    print(f'    Number of cond bands  = {Ncbnds}')
-    print(f'    Number of val bands   = {Nvbnds}')
-    print(f'    Valence band          = {Nval}')
+    print(f'    Total of atoms             = {Nat}')
+    print(f'    Total of modes vib (3*Nat) = {3*Nat}')
+    print(f'    Nkpoints                   = {Nkpoints}')
+    print(f'    Number of cond bands       = {Ncbnds}')
+    print(f'    Number of val bands        = {Nvbnds}')
+    print(f'    Valence band               = {Nval}')
 
 
     return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval

@@ -30,8 +30,6 @@ def get_patterns2(iq, MF_params):
     where X is the q vector for this displacement.
     """
 
-    print('Reading displacement patterns file')
-
     Nat    = MF_params.Nat
     Nmodes = MF_params.Nmodes
 
@@ -39,6 +37,7 @@ def get_patterns2(iq, MF_params):
     imode = 0
     
     patterns_file = el_ph_dir+'patterns.'+str(iq + 1)+'.xml'
+    print('\n\nReading displacement patterns file ', patterns_file)
     
     tree = ET.parse(patterns_file)
     root = tree.getroot()
@@ -85,6 +84,8 @@ def get_patterns2(iq, MF_params):
 
             imode += 1
 
+    print('Number of irreducible representations = ', Nirreps)
+
     return Displacements, Nirreps
 
 
@@ -105,7 +106,7 @@ def read_elph_xml(elph_xml_file):
             - Nbnds_in_xml_file is the number of bands in the file 
     """
 
-    print('Reading file ', elph_xml_file)
+    print('    Reading file ', elph_xml_file)
 
     tree = ET.parse(elph_xml_file)
     root = tree.getroot()
@@ -120,12 +121,12 @@ def read_elph_xml(elph_xml_file):
     # reading number of bands in xml file
     Nbnds_index_in_tag = tags_in_xml_file.index('NUMBER_OF_BANDS')
     Nbnds_in_xml_file = int(texts_in_xml_file[Nbnds_index_in_tag])
-    print(f'Number of bands in this file {Nbnds_in_xml_file}')
+    print(f'        Number of bands in this file {Nbnds_in_xml_file}')
 
     # reading number of k points in xml file
     Nkpoints_index_in_tag = tags_in_xml_file.index('NUMBER_OF_K')
     Nkpoints_in_xml_file = int(texts_in_xml_file[Nkpoints_index_in_tag])
-    print(f'Number of k points in this file {Nkpoints_in_xml_file}')
+    print(f'        Number of k points in this file {Nkpoints_in_xml_file}')
 
     # Getting list of k points
     Kpoints_in_elph_file = []
@@ -184,7 +185,7 @@ def read_elph_xml(elph_xml_file):
     Ndeg = int( len(temp_elph) / (Nbnds_in_xml_file**2 * Nkpoints_in_xml_file))
 
     # TODO -> lidar com caso onde tenha degenerescencia E mais de um ponto k
-    print(f'Number of modes in this file is {Ndeg}')
+    print(f'        Number of modes in this file is {Ndeg}')
 
     # Building elph matrix
     elph_aux = np.zeros((Ndeg, Nkpoints_in_xml_file, Nbnds_in_xml_file, Nbnds_in_xml_file), dtype=np.complex64)
@@ -212,7 +213,7 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
     for irrep in range(Nirreps):
         elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
         elph_aux = read_elph_xml(elph_xml_file)
-        print('Shape elph_aux', np.shape(elph_aux))
+        # print('Shape elph_aux', np.shape(elph_aux))
 
         for ideg in range(len(elph_aux)):
             elph.append(elph_aux[ideg])
@@ -235,7 +236,7 @@ def impose_ASR(elph, Displacements, MF_params):
     print('Applying acoustic sum rule. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
 
     Nmodes = MF_params.Nmodes
-    Nat = MF_params.Nat
+    Nat    = MF_params.Nat
 
     mod_sum_report_diag = []
     mod_sum_report_offdiag = []
@@ -283,20 +284,20 @@ def impose_ASR(elph, Displacements, MF_params):
     max_val  = np.max(mod_sum_report_diag)
     mean_val_afterASR = np.mean(mod_sum_report_diag_afterASR)
     max_val_afterASR  = np.max(mod_sum_report_diag_afterASR)
-    print("Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
-    print("Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
-    print("Mean diag |g_ii| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
-    print("Max diag  |g_ii| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
+    print("    Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
+    print("    Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
+    print("    Mean diag |g_ii| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
+    print("    Max diag  |g_ii| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
 
 
     mean_val = np.mean(mod_sum_report_offdiag)
     max_val  = np.max(mod_sum_report_offdiag)
     mean_val_afterASR = np.mean(mod_sum_report_offdiag_afterASR)
     max_val_afterASR  = np.max(mod_sum_report_offdiag_afterASR)
-    print("Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
-    print("Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
-    print("Mean offdiag |g_ij| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
-    print("Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
+    print("    Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
+    print("    Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
+    print("    Mean offdiag |g_ij| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
+    print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
 
     return elph
 
