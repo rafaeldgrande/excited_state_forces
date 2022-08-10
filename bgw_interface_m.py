@@ -24,10 +24,15 @@ def read_eqp_data(eqp_file, BSE_params):
         arrays : Eqp_val, Eqp_cond, Edft_val, Edft_cond
     """
 
-    Eqp_val   = np.zeros((BSE_params.Nkpoints_BSE, BSE_params.Nvbnds), dtype=np.float64)
-    Edft_val  = np.zeros((BSE_params.Nkpoints_BSE, BSE_params.Nvbnds), dtype=np.float64)
-    Eqp_cond  = np.zeros((BSE_params.Nkpoints_BSE, BSE_params.Ncbnds), dtype=np.float64)
-    Edft_cond = np.zeros((BSE_params.Nkpoints_BSE, BSE_params.Ncbnds), dtype=np.float64)
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds   = BSE_params.Ncbnds
+    Nvbnds   = BSE_params.Nvbnds
+    Nval     = BSE_params.Nval
+
+    Eqp_val   = np.zeros((Nkpoints, Nvbnds), dtype=float)
+    Edft_val  = np.zeros((Nkpoints, Nvbnds), dtype=float)
+    Eqp_cond  = np.zeros((Nkpoints, Ncbnds), dtype=float)
+    Edft_cond = np.zeros((Nkpoints, Ncbnds), dtype=float)
 
     print('Reading QP energies from eqp.dat file: ', eqp_file)
     arq = open(eqp_file)
@@ -41,15 +46,15 @@ def read_eqp_data(eqp_file, BSE_params):
         else:
             iband_file = int(linha[1])
 
-            if iband_file > BSE_params.Nval: # it is a cond band
-                iband = iband_file - BSE_params.Nval 
-                if iband <= BSE_params.Ncbnds:
+            if iband_file > Nval: # it is a cond band
+                iband = iband_file - Nval 
+                if iband <= Ncbnds:
                     #print('Cond -> iband_file iband Nval', iband_file, iband, Nval)
                     Edft_cond[ik, iband - 1] = float(linha[2])
                     Eqp_cond[ik, iband - 1] = float(linha[3])
             else: # it is val band
-                iband = BSE_params.Nval - iband_file + 1
-                if iband <= BSE_params.Nvbnds:
+                iband = Nval - iband_file + 1
+                if iband <= Nvbnds:
                     #print('Val -> iband_file iband Nval', iband_file, iband, Nval)
                     Edft_val[ik, iband - 1] = float(linha[2])
                     Eqp_val[ik, iband - 1] = float(linha[3])

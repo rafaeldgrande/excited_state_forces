@@ -32,7 +32,10 @@ def get_patterns2(iq, MF_params):
 
     print('Reading displacement patterns file')
 
-    Displacements = np.zeros((MF_params.Nmodes, MF_params.Nat, 3))
+    Nat    = MF_params.Nat
+    Nmodes = MF_params.Nmodes
+
+    Displacements = np.zeros((Nmodes, Nat, 3))
     imode = 0
     
     patterns_file = el_ph_dir+'patterns.'+str(iq + 1)+'.xml'
@@ -75,7 +78,7 @@ def get_patterns2(iq, MF_params):
             temp_displacements = numbers_temp[::2] 
 
             icounter = 0
-            for iat in range(MF_params.Nat):
+            for iat in range(Nat):
                 for idir in range(3):
                     Displacements[imode, iat, idir] = temp_displacements[icounter]
                     icounter += 1
