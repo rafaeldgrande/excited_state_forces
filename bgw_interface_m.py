@@ -121,7 +121,7 @@ def get_exciton_info(exciton_file):
 
     return Akcv, exc_energy
 
-def get_hdf5_exciton_info(exciton_file, iexc):
+def get_exciton_info(exciton_file, iexc):
 
     """    
     Return the exciton energy and the eigenvec coefficients Acvk
@@ -137,12 +137,28 @@ def get_hdf5_exciton_info(exciton_file, iexc):
     exciton_file = exciton file name (string). ex: eigenvecs.h5
     iexc = Exciton index to be read
     
-    Return:
+    Returns:
     Acvk = Exciton wavefunc coefficients. array Akcv[ik, ic, iv] with complex values
     Omega = Exciton energy (BSE eigenvalue) in eV (float)
-    Ncbnds_eigenvecs = number of cond bands in this file (int)
-    Nvbnds_eigenvecs = number of val bands in this file (int)
     """
+
+    f_hdf5 = h5py.File(exciton_file, 'r')
+    
+    eigenvecs = f_hdf5['exciton_data/eigenvectors'][()]          # (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
+    eigenvals = f_hdf5['exciton_data/eigenvalues'][()] 
+
+
+    Akcv = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
+    Omega = eigenvals[iexc-1]
+
+    print("    Max real value of Akcv: ", np.max(np.real(Akcv)))
+    print("    Max imag value of Akcv: ", np.max(np.imag(Akcv)))
+    print('\n\n')
+
+    return Akcv, Omega
+
+
+def get_params_from_eigenvecs_file(exciton_file):
 
     print('Reading exciton info from file', exciton_file)
 
@@ -163,7 +179,7 @@ def get_hdf5_exciton_info(exciton_file, iexc):
     Nkpoints = f_hdf5['/exciton_header/kpoints/nk'][()]
 
 
-################################################
+################################################################################################
     ''''Getting Nval as norm of IFMAX
     In eigenvectors.h5 file, there is the IFMAX 
     the labels the highest occupied band in file. 
@@ -188,25 +204,7 @@ def get_hdf5_exciton_info(exciton_file, iexc):
         print(f'WARNING! ifmax changes through k points! It means that the system is metallic, and we STILL did not implement it.')
         print('I will work with it as a semiconductor by setting the valence band to be min(ifmax) = {Nval}')
         print('######################################################\n')
-
-################################################
-    
-    eigenvecs = f_hdf5['exciton_data/eigenvectors'][()]          # (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
-    eigenvals = f_hdf5['exciton_data/eigenvalues'][()] 
-
-
-    print(f'Parameters from {exciton_file} :')
-
-    print(f'    Total of atoms        = {Nat}')
-    print(f'         Total of modes (3*Nat) = {3*Nat}')
-    print(f'    Nkpoints              = {Nkpoints}')
-    print(f'    Number of cond bands  = {Ncbnds}')
-    print(f'    Number of val bands   = {Nvbnds}')
-    print(f'    Valence band          = {Nval}')
-
-    Akcv = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
-    Omega = eigenvals[iexc-1]
-
+################################################################################################
 
     # writing k points info to file - DEBUG
 
@@ -222,5 +220,16 @@ def get_hdf5_exciton_info(exciton_file, iexc):
 
         arq_kpoints.close()
 
-    return Akcv, Omega, Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval
+    # Reporting info from this file
 
+    print(f'\nParameters from {exciton_file} :')
+
+    print(f'    Total of atoms        = {Nat}')
+    print(f'         Total of modes (3*Nat) = {3*Nat}')
+    print(f'    Nkpoints              = {Nkpoints}')
+    print(f'    Number of cond bands  = {Ncbnds}')
+    print(f'    Number of val bands   = {Nvbnds}')
+    print(f'    Valence band          = {Nval}')
+
+
+    return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval

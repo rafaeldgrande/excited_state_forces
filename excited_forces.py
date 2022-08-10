@@ -48,8 +48,8 @@ def report_ram():
 
 start_time = time.clock_gettime(0)
 
-############ Getting info from files #############
 
+# Classes 
 class Parameters_BSE:
 
     def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval):
@@ -77,19 +77,17 @@ class Parameters_ELPH:
         self.Kpoints_DFPT  = Kpoints_DFPT
 
 
-# Getting exciton info and BSE and MF parameters
+# Getting BSE and MF parameters
+# Reading eigenvecs.h5 file
 
-Akcv, Omega, Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval = get_hdf5_exciton_info(exciton_file, iexc)
+Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval = get_params_from_eigenvecs_file(exciton_file)
+Nmodes = 3 * Nat
 
 BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval)
 MF_params  = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
 
-Nmodes = 3 * Nat
-
-
-print("    Max real value of Akcv: ", np.max(np.real(Akcv)))
-print("    Max imag value of Akcv: ", np.max(np.imag(Akcv)))
-print('\n\n')
+# Getting exciton info
+Akcv, Omega = get_exciton_info(exciton_file, iexc)
 
 # getting info from eqp.dat
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
@@ -125,23 +123,23 @@ report_ram()
 
 # TODO -> just create those matrices when they are necessary, then erase them when finished
 
-Shape = (MF_params.Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
-Shape2 = (MF_params.Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds, Nkpoints_BSE, Ncbnds, Nvbnds)
+Shape = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
+Shape2 = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds, Nkpoints_BSE, Ncbnds, Nvbnds)
 
 print('SHAPE', Shape)
 
 DKinect          = np.zeros(Shape2, dtype=np.complex64) 
 
-Sum_DKinect_diag            = np.zeros((MF_params.Nmodes), dtype=np.complex64)
-Sum_DKinect                 = np.zeros((MF_params.Nmodes), dtype=np.complex64)
+Sum_DKinect_diag            = np.zeros((Nmodes), dtype=np.complex64)
+Sum_DKinect                 = np.zeros((Nmodes), dtype=np.complex64)
 
 if Calculate_Kernel == True:
-    Sum_DKernel            = np.zeros((MF_params.Nmodes), dtype=np.complex64)
-    Sum_DKernel_IBL        = np.zeros((MF_params.Nmodes), dtype=np.complex64)
+    Sum_DKernel            = np.zeros((Nmodes), dtype=np.complex64)
+    Sum_DKernel_IBL        = np.zeros((Nmodes), dtype=np.complex64)
 
-Forces_disp           = np.zeros((MF_params.Nmodes), dtype=np.complex64)
+Forces_disp           = np.zeros((Nmodes), dtype=np.complex64)
 
-Forces_modes          = np.zeros((MF_params.Nmodes), dtype=np.complex64)
+Forces_modes          = np.zeros((Nmodes), dtype=np.complex64)
 
 
 Mean_Kx, Mean_Kd, Mean_Ekin = 0.0, 0.0, 0.0
