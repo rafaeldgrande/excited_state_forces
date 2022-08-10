@@ -1,18 +1,7 @@
 
-#!/usr/bin/env python
-
-
-# TODO
-# 1 - checar derivadas do kernel
-# 2 - checar se termos nao diagonais incluidos aqui estao certos
-# 3 - Ler energias qp dos arquivos bandstructures.dat
-
-
-
 # FIRST MESSAGE
 
 from datetime import datetime
-
 # datetime object containing current date and time
 now = datetime.now()
 
@@ -27,16 +16,25 @@ print('Contact: rdelgrande@ucmerced.edu')
 print('*************************************************************')
 
 
+# Importing modules
 import numpy as np
-import h5py
+import time
+import tracemalloc # track ram usage
+tracemalloc.start()
+
+
+# My modules
 from excited_forces_m import *
 from qe_interface_m import *
 from bgw_interface_m import *
 from excited_forces_config import *
-import time
 
-import tracemalloc # teste de uso de ram
-tracemalloc.start()
+
+# Report functions
+def report_time(start_time):
+    end_time_func = time.clock_gettime(0)
+    text = f'{(end_time_func - start_time)/60:.2f} min'
+    return text
 
 def report_ram():
     temp_ram = tracemalloc.get_traced_memory()[0] / 1024**2

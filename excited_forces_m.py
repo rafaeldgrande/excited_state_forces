@@ -11,21 +11,13 @@
 import numpy as np
 import xml.etree.ElementTree as ET
 import h5py
-import time
 
 from excited_forces_config import *
-
-def report_time(start_time):
-    end_time_func = time.clock_gettime(0)
-    text = f'{(end_time_func - start_time)/60:.2f} min'
-    return text
 
 
 def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH):
 
     """Calculates derivatives of kernel matrix elements"""
-
-    # start_time_func = time.clock_gettime(0)
 
     ik1, ik2, iv1, iv2, ic1, ic2, imode = indexes
 
@@ -91,9 +83,6 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH):
             if calc_IBL_way == True:
                 DKelement_IBL += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEqp
 
-    # end_time_func = time.clock_gettime(0)
-    # print(f'Time spent on calc_DKernel function: {end_time_func - start_time_func} s')
-
     if calc_IBL_way is True:
         return DKelement, DKelement_IBL
     else:
@@ -150,8 +139,6 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
     Ncbnds   = BSE_params.Ncbnds
     Nvbnds   = BSE_params.Nvbnds
 
-    # start_time_func = time.clock_gettime(0)
-
     Shape_cond = (Nmodes, Nkpoints, Ncbnds, Ncbnds)
     aux_cond_matrix = np.zeros(Shape_cond, dtype=np.complex64)
 
@@ -186,9 +173,6 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
                         deltaEqp = Eqp_val[ik, iv1] - Eqp_val[ik, iv2]
                         deltaEdft = Edft_val[ik, iv1] - Edft_val[ik, iv2]
                         aux_val_matrix[imode, ik, iv1, iv2] = elph * deltaEqp / deltaEdft
-        
-    # end_time_func = time.clock_gettime(0)
-    # print(f'Time spent on aux_matrix_elem function: '+report_time(start_time_func))
 
     return aux_cond_matrix, aux_val_matrix
 
@@ -226,8 +210,6 @@ def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, i
     return Dkin
 
 def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params):
-
-    # start_time_func = time.clock_gettime(0)
 
     Nmodes   = MF_params.Nmodes
     Nkpoints = BSE_params.Nkpoints_BSE
