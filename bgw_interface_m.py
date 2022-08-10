@@ -166,11 +166,12 @@ def get_params_from_eigenvecs_file(exciton_file):
 
     f_hdf5 = h5py.File(exciton_file, 'r')
 
-    alat = f_hdf5['/mf_header/crystal/alat'][()]            # lattice parameter in bohr
-    cell_vol = f_hdf5['/mf_header/crystal/celvol'][()]      # unit cell vol in bohr**3
-    cell_vecs = f_hdf5['/mf_header/crystal/avec'][()]       # lattice vectors (in units of alat)
-    atomic_pos = f_hdf5['/mf_header/crystal/apos'][()]      # in cartesian coordinates, in units of alat - important for visualization
-    Nat = f_hdf5['/mf_header/crystal/nat'][()]              # Number of atoms
+    alat          = f_hdf5['/mf_header/crystal/alat'][()]            # lattice parameter in bohr
+    cell_vol      = f_hdf5['/mf_header/crystal/celvol'][()]      # unit cell vol in bohr**3
+    cell_vecs     = f_hdf5['/mf_header/crystal/avec'][()]       # lattice vectors (in units of alat)
+    rec_cell_vecs = f_hdf5['/mf_header/crystal/bvec'][()]
+    atomic_pos    = f_hdf5['/mf_header/crystal/apos'][()]      # in cartesian coordinates, in units of alat - important for visualization
+    Nat           = f_hdf5['/mf_header/crystal/nat'][()]              # Number of atoms
 
     # Bands used to build BSE hamiltonian
     Nvbnds = f_hdf5['/exciton_header/params/nv'][()]  # Assuming TDA
@@ -234,4 +235,4 @@ def get_params_from_eigenvecs_file(exciton_file):
     print(f'    Valence band               = {Nval}')
 
 
-    return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval
+    return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval, rec_cell_vecs

@@ -80,11 +80,16 @@ class Parameters_ELPH:
 # Getting BSE and MF parameters
 # Reading eigenvecs.h5 file
 
-Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval = get_params_from_eigenvecs_file(exciton_file)
+Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_eigenvecs_file(exciton_file)
 Nmodes = 3 * Nat
 
 BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval)
 MF_params  = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
+
+print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+print('Reciprocal lattice vectors!')
+print(rec_cell_vecs)
+print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
 # Getting exciton info
 Akcv, Omega = get_exciton_info(exciton_file, iexc)
@@ -121,8 +126,8 @@ if Calculate_Kernel == True:
                             Mean_Kd += np.conj(Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
 
 print('Exciton energies (eV): ')
-print('    <KE>          = ', Mean_Ekin)
 print('    Omega         = ', Omega)
+print('    <KE>          = ', Mean_Ekin)
 print('    Omega - <KE>  = ', Omega - Mean_Ekin)
 if Calculate_Kernel == True:
     print('    <Kx> = ', Mean_Kx)
