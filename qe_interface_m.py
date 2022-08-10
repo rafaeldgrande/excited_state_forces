@@ -132,7 +132,12 @@ def read_elph_xml(elph_xml_file):
     Kpoints_in_elph_file = []
     for i_tag in range(len(tags_in_xml_file)):
         if tags_in_xml_file[i_tag] == 'COORDINATES_XK':
-            Kpoints_in_elph_file.append(texts_in_xml_file[i_tag])
+            temp_text = texts_in_xml_file[i_tag].split('\n')[1]
+            kx_temp = float(temp_text.split()[0])
+            ky_temp = float(temp_text.split()[1])
+            kz_temp = float(temp_text.split()[2])
+            k_temp  = np.array([kx_temp, ky_temp, kz_temp])
+            Kpoints_in_elph_file.append(k_temp)
 
     if log_k_points == True:
 
@@ -141,7 +146,8 @@ def read_elph_xml(elph_xml_file):
 
         arq_kpoints = open('Kpoints_in_elph_file_'+irrep_name, 'w')
         for ik in range(len(Kpoints_in_elph_file)):
-            arq_kpoints.write(Kpoints_in_elph_file[ik])
+            kx, ky, kz = Kpoints_in_elph_file[ik]
+            arq_kpoints.write(f'{kx}  {ky}  {kz}  \n')
         arq_kpoints.close()
 
 
@@ -198,7 +204,7 @@ def read_elph_xml(elph_xml_file):
                     elph_aux[ideg, ik, ibnd, jbnd] = temp_elph[contador]
                     contador += 1
 
-    return elph_aux
+    return elph_aux, np.array(Kpoints_in_elph_file)
 
 
 def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7 
@@ -212,7 +218,7 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
 
     for irrep in range(Nirreps):
         elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
-        elph_aux = read_elph_xml(elph_xml_file)
+        elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)
         # print('Shape elph_aux', np.shape(elph_aux))
 
         for ideg in range(len(elph_aux)):
@@ -220,7 +226,7 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
 
     elph = np.array(elph)
 
-    return elph
+    return elph, Kpoints_in_elph_file
 
 def impose_ASR(elph, Displacements, MF_params):
 

@@ -136,7 +136,7 @@ iq = 0 # FIXME -> generalize for set of q points
 Displacements, Nirreps = get_patterns2(iq, MF_params)
 
     # get elph coefficients from .xml files
-elph = get_el_ph_coeffs(iq, Nirreps)
+elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps)
 
     # apply acoustic sum rule
 if acoutic_sum_rule == True:
