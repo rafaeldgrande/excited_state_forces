@@ -137,13 +137,18 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv):
         return DKernel, DKernel_IBL
 
 
-def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond):
+def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params):
 
     """ Calculates auxiliar matrix elements to be used later in the forces matrix elements.
     Returns aux_cond_matrix, aux_val_matrix and
     aux_cond_matrix[imode, ik, ic1, ic2] = elph_cond[imode, ik, ic1, ic2] * deltaEqp / deltaEdft (if ic1 != ic2)
     aux_val_matrix[imode, ik, iv1, iv2]  = elph_val[imode, ik, iv1, iv2]  * deltaEqp / deltaEdft (if iv1 != iv2)
     If ic1 == ic2 (iv1 == iv2), then the matrix elements are just the elph coefficients"""
+
+    Nmodes   = MF_params.Nmodes
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds   = BSE_params.Ncbnds
+    Nvbnds   = BSE_params.Nvbnds
 
     # start_time_func = time.clock_gettime(0)
 
@@ -220,9 +225,14 @@ def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, i
     
     return Dkin
 
-def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix):
+def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params):
 
     # start_time_func = time.clock_gettime(0)
+
+    Nmodes   = MF_params.Nmodes
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds   = BSE_params.Ncbnds
+    Nvbnds   = BSE_params.Nvbnds
 
     Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
     DKinect = np.zeros(Shape, dtype=np.complex64)

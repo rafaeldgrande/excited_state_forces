@@ -24,7 +24,7 @@ def indexes_x_in_list(what_i_want, list_i_get):
     return indexes
 
 
-def get_patterns2(iq):
+def get_patterns2(iq, MF_params):
 
     """Reads displacements patterns from patterns.X.xml files, 
     where X is the q vector for this displacement.
@@ -32,7 +32,7 @@ def get_patterns2(iq):
 
     print('Reading displacement patterns file')
 
-    Displacements = np.zeros((Nmodes, Nat, 3))
+    Displacements = np.zeros((MF_params.Nmodes, MF_params.Nat, 3))
     imode = 0
     
     patterns_file = el_ph_dir+'patterns.'+str(iq + 1)+'.xml'
@@ -75,7 +75,7 @@ def get_patterns2(iq):
             temp_displacements = numbers_temp[::2] 
 
             icounter = 0
-            for iat in range(Nat):
+            for iat in range(MF_params.Nat):
                 for idir in range(3):
                     Displacements[imode, iat, idir] = temp_displacements[icounter]
                     icounter += 1
@@ -130,13 +130,15 @@ def read_elph_xml(elph_xml_file):
         if tags_in_xml_file[i_tag] == 'COORDINATES_XK':
             Kpoints_in_elph_file.append(texts_in_xml_file[i_tag])
 
-    irrep_name = elph_xml_file.split('.')[-2]  # recovering the irrep name
-    # elph_xml_file = something.xxx.yyy.xml -> the above line returns yyy
+    if log_k_points == True:
 
-    arq_kpoints = open('Kpoints_in_elph_file_'+irrep_name, 'w')
-    for ik in range(len(Kpoints_in_elph_file)):
-        arq_kpoints.write(Kpoints_in_elph_file[ik]+'\n')
-    arq_kpoints.close()
+        irrep_name = elph_xml_file.split('.')[-2]  # recovering the irrep name
+        # elph_xml_file = something.xxx.yyy.xml -> the above line returns yyy
+
+        arq_kpoints = open('Kpoints_in_elph_file_'+irrep_name, 'w')
+        for ik in range(len(Kpoints_in_elph_file)):
+            arq_kpoints.write(Kpoints_in_elph_file[ik])
+        arq_kpoints.close()
 
 
     # reading elph matrix elements. 
@@ -216,7 +218,7 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
 
     return elph
 
-def impose_ASR(elph, Displacements):
+def impose_ASR(elph, Displacements, MF_params):
 
     """Impose Acoustic Sum Rule on elph matrix elements
     Test for just CO until now: I know that first and second displacement
@@ -228,6 +230,9 @@ def impose_ASR(elph, Displacements):
     """
 
     print('Applying acoustic sum rule. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
+
+    Nmodes = MF_params.Nmodes
+    Nat = MF_params.Nat
 
     mod_sum_report_diag = []
     mod_sum_report_offdiag = []
@@ -277,8 +282,8 @@ def impose_ASR(elph, Displacements):
     max_val_afterASR  = np.max(mod_sum_report_diag_afterASR)
     print("Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
     print("Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
-    print("Mean diag |g_ii| after ASR %.10f" %(mean_val_afterASR), ' Ry/bohr')
-    print("Max diag  |g_ii| after ASR %.10f" %(max_val_afterASR), ' Ry/bohr')
+    print("Mean diag |g_ii| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
+    print("Max diag  |g_ii| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
 
 
     mean_val = np.mean(mod_sum_report_offdiag)
@@ -287,12 +292,12 @@ def impose_ASR(elph, Displacements):
     max_val_afterASR  = np.max(mod_sum_report_offdiag_afterASR)
     print("Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
     print("Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
-    print("Mean offdiag |g_ij| after ASR %.10f" %(mean_val_afterASR), ' Ry/bohr')
-    print("Max offdiag  |g_ij| after ASR %.10f" %(max_val_afterASR), ' Ry/bohr')
+    print("Mean offdiag |g_ij| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
+    print("Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
 
     return elph
 
-def filter_elph_coeffs(elph):
+def filter_elph_coeffs(elph, MF_params, BSE_params):
 
     """ Reads elph coefficients from DFPT calculations. Quantum Espresso calculates <i|dV/dx_mu|j> for 
     i, j = 1,2,3,...,Nbnds_in_xml, where Nbnds_in_xml = total of bands included in the scf calculation step before DFPT.
@@ -316,6 +321,13 @@ def filter_elph_coeffs(elph):
     iv = Nval - iQE + 1
     ic = iQE - Nval
     """
+
+    Nmodes   = MF_params.Nmodes
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds   = BSE_params.Ncbnds
+    Nvbnds   = BSE_params.Nvbnds
+    Nvbnds   = BSE_params.Nvbnds
+    Nval     = BSE_params.Nval
 
     elph_cond = np.zeros((Nmodes, Nkpoints, Ncbnds, Ncbnds), dtype=np.complex64)
     elph_val = np.zeros((Nmodes, Nkpoints, Nvbnds, Nvbnds), dtype=np.complex64)

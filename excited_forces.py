@@ -52,33 +52,49 @@ start_time = time.clock_gettime(0)
 
 ############ Getting info from files #############
 
-# Getting exciton info
+class Parameters_BSE:
 
-if read_Akcv_trick == True:
-    Akcv, exc_energy = get_exciton_info(exciton_file)
-else:
-    Akcv, Omega, Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints = get_hdf5_exciton_info(exciton_file, iexc)
+    def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval):
+        self.Nkpoints_BSE   = Nkpoints_BSE
+        self.Kpoints_BSE    = Kpoints_BSE
+        self.Ncbnds         = Ncbnds
+        self.Nvbnds         = Nvbnds
+        self.Nval           = Nval
+
+class Parameters_MF:
+
+    def __init__(self, Nat, atomic_pos, cell_vecs, cell_vol, alat):
+        self.Nat         = Nat
+        self.atomic_pos  = atomic_pos
+        self.cell_vecs   = cell_vecs
+        self.cell_vol    = cell_vol
+        self.alat        = alat
+        self.Nmodes      = 3 * Nat
+    
+
+class Parameters_ELPH:
+
+    def __init__(self, Nkpoints_DPFT, Kpoints_DFPT):
+        self.Nkpoints_DFPT = Nkpoints_DPFT
+        self.Kpoints_DFPT  = Kpoints_DFPT
+
+
+# Getting exciton info and BSE and MF parameters
+
+Akcv, Omega, Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval = get_hdf5_exciton_info(exciton_file, iexc)
+
+BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval)
+MF_params  = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
+
+Nmodes = 3 * Nat
+
 
 print("    Max real value of Akcv: ", np.max(np.real(Akcv)))
 print("    Max imag value of Akcv: ", np.max(np.imag(Akcv)))
 print('\n\n')
 
-# deciding if gonna use all bands in eigenvecs.h5 file or not
-
-# if Ncbnds <= 0 or Ncbnds > Ncbnds_eigenvecs:
-#     print(f'Ncbnds = {Ncbnds} from input file')
-#     print(f'Now we make Ncbnds = {Ncbnds_eigenvecs} (value from eigenvecs file)')
-#     Ncbnds = Ncbnds_eigenvecs
-
-# if Nvbnds <= 0 or Nvbnds > Nvbnds_eigenvecs:
-#     print(f'Nvbnds = {Nvbnds} from input file')
-#     print(f'Now we make Nvbnds = {Nvbnds_eigenvecs} (value from eigenvecs file)')
-#     Nvbnds = Nvbnds_eigenvecs
-
-# print(Ncbnds, Nvbnds)
-
 # getting info from eqp.dat
-Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file)
+Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
 
 if Calculate_Kernel == True:
     # # Getting kernel info
@@ -89,42 +105,60 @@ if Calculate_Kernel == True:
     Kd =  - Kd * Ry2eV / Kernel_bgw_factor
 
 
+# get displacement patterns
+
+iq = 0 # FIXME -> generalize for set of q points
+
+Displacements, Nirreps = get_patterns2(iq, MF_params)
+elph = get_el_ph_coeffs(iq, Nirreps)
+
+if acoutic_sum_rule == True:
+    print('\n\n')
+    elph = impose_ASR(elph, Displacements, MF_params)
+
+elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
+
+# report_ram()
+# print('DELETING ELPH')
+del elph
+report_ram()
+
+# # Printing exciton energies
+
 # TODO -> just create those matrices when they are necessary, then erase them when finished
 
-Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds)
-Shape2 = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
+Shape = (MF_params.Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
+Shape2 = (MF_params.Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds, Nkpoints_BSE, Ncbnds, Nvbnds)
 
 print('SHAPE', Shape)
 
 DKinect          = np.zeros(Shape2, dtype=np.complex64) 
 
-Sum_DKinect_diag            = np.zeros((Nmodes), dtype=np.complex64)
-Sum_DKinect                 = np.zeros((Nmodes), dtype=np.complex64)
+Sum_DKinect_diag            = np.zeros((MF_params.Nmodes), dtype=np.complex64)
+Sum_DKinect                 = np.zeros((MF_params.Nmodes), dtype=np.complex64)
 
 if Calculate_Kernel == True:
-    Sum_DKernel            = np.zeros((Nmodes), dtype=np.complex64)
-    Sum_DKernel_IBL        = np.zeros((Nmodes), dtype=np.complex64)
+    Sum_DKernel            = np.zeros((MF_params.Nmodes), dtype=np.complex64)
+    Sum_DKernel_IBL        = np.zeros((MF_params.Nmodes), dtype=np.complex64)
 
-Forces_disp           = np.zeros((Nmodes), dtype=np.complex64)
+Forces_disp           = np.zeros((MF_params.Nmodes), dtype=np.complex64)
 
-Forces_modes          = np.zeros((Nmodes), dtype=np.complex64)
+Forces_modes          = np.zeros((MF_params.Nmodes), dtype=np.complex64)
 
-
-# # Printing exciton energies
 
 Mean_Kx, Mean_Kd, Mean_Ekin = 0.0, 0.0, 0.0
 
 
-for ik1 in range(Nkpoints):
+for ik1 in range(Nkpoints_BSE):
     for ic1 in range(Ncbnds):
         for iv1 in range(Nvbnds):
             Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*Akcv[ik1, ic1, iv1]*np.conj(Akcv[ik1, ic1, iv1])
 
 if Calculate_Kernel == True:
-    for ik1 in range(Nkpoints):
+    for ik1 in range(Nkpoints_BSE):
         for ic1 in range(Ncbnds):
             for iv1 in range(Nvbnds):
-                for ik2 in range(Nkpoints):
+                for ik2 in range(Nkpoints_BSE):
                     for ic2 in range(Ncbnds):
                         for iv2 in range(Nvbnds):
                             Mean_Kx += np.conj(Akcv[ik1, ic1, iv1]) * Kx[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
@@ -140,24 +174,6 @@ if Calculate_Kernel == True:
 
 report_ram()
 
-# get displacement patterns
-
-iq = 0 # FIXME -> generalize for set of q points
-
-Displacements, Nirreps = get_patterns2(iq)
-elph = get_el_ph_coeffs(iq, Nirreps)
-
-if acoutic_sum_rule == True:
-    print('\n\n')
-    elph = impose_ASR(elph, Displacements)
-
-elph_cond, elph_val = filter_elph_coeffs(elph)
-
-# report_ram()
-# print('DELETING ELPH')
-del elph
-report_ram()
-
 ########## Calculating stuff ############
 
 print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
@@ -167,11 +183,10 @@ print("    - Calculating RPA part")
 aux_diag = np.zeros(Shape, dtype=np.complex64)  # <ck|dV/du_mode|ck> - <vk|dV/du_mode|vk>
 aux_offdiag = np.zeros(Shape, dtype=np.complex64)
 
-aux_cond_matrix, aux_val_matrix = aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond)
+aux_cond_matrix, aux_val_matrix = aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params)
 
 # Calculating matrix elements F_cvkc'v'k'
-DKinect = calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix)
-
+DKinect = calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params)
 
 # Kernel derivatives
 if Calculate_Kernel == True:
@@ -190,7 +205,7 @@ print("Calculating sums")
 for imode in range(Nmodes):
 
     sum_temp = 0.0 + 0.0j
-    for ik in range(Nkpoints):
+    for ik in range(Nkpoints_BSE):
         for ic in range(Ncbnds):
             for iv in range(Nvbnds):
                 sum_temp += DKinect[imode, ik, ic, iv, ik, ic, iv]

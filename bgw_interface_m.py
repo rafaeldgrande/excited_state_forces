@@ -9,7 +9,7 @@ from excited_forces_config import *
 
 ################ GW related functions #####################
 
-def read_eqp_data(eqp_file):
+def read_eqp_data(eqp_file, BSE_params):
 
     """Reads quasiparticle and dft energies results from sigma calculations.
     
@@ -24,10 +24,10 @@ def read_eqp_data(eqp_file):
         arrays : Eqp_val, Eqp_cond, Edft_val, Edft_cond
     """
 
-    Eqp_val   = np.zeros((Nkpoints, Nvbnds), dtype=np.float64)
-    Edft_val  = np.zeros((Nkpoints, Nvbnds), dtype=np.float64)
-    Eqp_cond  = np.zeros((Nkpoints, Ncbnds), dtype=np.float64)
-    Edft_cond = np.zeros((Nkpoints, Ncbnds), dtype=np.float64)
+    Eqp_val   = np.zeros((BSE_params.Nkpoints_BSE, BSE_params.Nvbnds), dtype=np.float64)
+    Edft_val  = np.zeros((BSE_params.Nkpoints_BSE, BSE_params.Nvbnds), dtype=np.float64)
+    Eqp_cond  = np.zeros((BSE_params.Nkpoints_BSE, BSE_params.Ncbnds), dtype=np.float64)
+    Edft_cond = np.zeros((BSE_params.Nkpoints_BSE, BSE_params.Ncbnds), dtype=np.float64)
 
     print('Reading QP energies from eqp.dat file: ', eqp_file)
     arq = open(eqp_file)
@@ -41,15 +41,15 @@ def read_eqp_data(eqp_file):
         else:
             iband_file = int(linha[1])
 
-            if iband_file > Nval: # it is a cond band
-                iband = iband_file - Nval 
-                if iband <= Ncbnds:
+            if iband_file > BSE_params.Nval: # it is a cond band
+                iband = iband_file - BSE_params.Nval 
+                if iband <= BSE_params.Ncbnds:
                     #print('Cond -> iband_file iband Nval', iband_file, iband, Nval)
                     Edft_cond[ik, iband - 1] = float(linha[2])
                     Eqp_cond[ik, iband - 1] = float(linha[3])
             else: # it is val band
-                iband = Nval - iband_file + 1
-                if iband <= Nvbnds:
+                iband = BSE_params.Nval - iband_file + 1
+                if iband <= BSE_params.Nvbnds:
                     #print('Val -> iband_file iband Nval', iband_file, iband, Nval)
                     Edft_val[ik, iband - 1] = float(linha[2])
                     Eqp_val[ik, iband - 1] = float(linha[3])
@@ -197,6 +197,7 @@ def get_hdf5_exciton_info(exciton_file, iexc):
     print(f'    Nkpoints              = {Nkpoints}')
     print(f'    Number of cond bands  = {Ncbnds}')
     print(f'    Number of val bands   = {Nvbnds}')
+    print(f'    Valence band          = {Nval}')
 
     Akcv = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
     Omega = eigenvals[iexc-1]
@@ -216,5 +217,5 @@ def get_hdf5_exciton_info(exciton_file, iexc):
 
         arq_kpoints.close()
 
-    return Akcv, Omega, Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints
+    return Akcv, Omega, Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval
 
