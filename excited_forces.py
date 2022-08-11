@@ -86,11 +86,6 @@ Nmodes = 3 * Nat
 BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval)
 MF_params  = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
 
-print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-print('Reciprocal lattice vectors!')
-print(rec_cell_vecs)
-print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-
 # Getting exciton info
 Akcv, Omega = get_exciton_info(exciton_file, iexc)
 
@@ -155,6 +150,85 @@ elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
 # print('DELETING ELPH')
 del elph
 report_ram()
+
+
+# Checking kpoints from DFPT and BSE calculations
+# The kpoints in eigenvecs.h5 are not in the same order in the 
+# input for the fine grid calculation. 
+# The k points in BSE are reported in reciprocal lattice vectors basis
+# and in DFPT those k points are reported in cartersian basis in units 
+# of reciprocal lattice
+
+# First let's put all k points from BSE grid in the first Brillouin zone
+
+def correct_a(a):
+    if a < 0:
+        return a + 1
+    elif a > 1:
+        return a - 1
+    else:
+        return a
+
+def find_kpoint(kpoint, K_list):
+    index_in_matrix = -1
+    for index in range(len(K_list)):
+        if np.array_equal(kpoint, K_list[index]):
+            index_in_matrix = index
+    return index_in_matrix
+
+ikBSE_to_ikDFPT = []
+# This list shows which k point from BSE corresponds to which 
+# point from DFPT calculation. 
+# ikBSE_to_ikDFPT[ikBSE] = ikDFPT
+# Means that the k point from eigenvectors.h5 with index ikBSE corresponds to 
+# the k point with index ikDFPT from DFPT calculation
+
+for ik in range(Nkpoints_BSE):
+
+    # getting vectors from eigenvectors.h5 file in cartesian basis
+    a1, a2, a3 = Kpoints_BSE[ik]
+
+    # putting the vector in the first Brillouin zone
+    a1 = correct_a(a1)
+    a2 = correct_a(a2)
+    a3 = correct_a(a3)
+
+    # vector in cartesian basis
+    vec_eigvecs = a1 * rec_cell_vecs[0] + a2 * rec_cell_vecs[1] + a3 * rec_cell_vecs[2]
+
+    found_or_not = find_kpoint(vec_eigvecs, Kpoints_in_elph_file)
+    # if found the vec_eigvecs in the Kpoints_in_elph_file, then returns 
+    # the index in the Kpoints_in_elph_file. 
+    # if did not find it, then returns -1
+
+    # the conversion list from one to another
+    ikBSE_to_ikDFPT.append(found_or_not)
+
+# Now checking if everything is ok with ikBSE_to_ikDFPT list
+
+# CHecking if any kpoint is missing
+flag_missing_kpoints = False
+
+if ikBSE_to_ikDFPT.count(-1) > 0:
+
+    flag_missing_kpoints - True
+
+    print('WARNING! Some k points from eigenvecs file were not found in the grid used in the DFPT calculation!')
+    print('The missing k points in DFPT are (in reciprocal lattice basis):')
+    for ik in range(Nkpoints):
+        if ikBSE_to_ikDFPT[ik] == -1:
+            print(Kpoints_BSE[ik])
+        
+
+# Checking if any kpoint is reported more than once
+
+for ikBSE in range(Nkpoints):
+    how_many_times = Kpoints_BSE.count(Kpoints_BSE[ikBSE])
+    if how_many_times > 1:
+        print(f'WARNING! This k point appear more than once: {Kpoints_BSE[ikBSE}])
+    
+
+
 
 
 # TODO -> just create those matrices when they are necessary, then erase them when finished
