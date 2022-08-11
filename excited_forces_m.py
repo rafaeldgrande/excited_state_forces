@@ -126,7 +126,7 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv):
         return DKernel, DKernel_IBL
 
 
-def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params):
+def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT):
 
     """ Calculates auxiliar matrix elements to be used later in the forces matrix elements.
     Returns aux_cond_matrix, aux_val_matrix and
@@ -145,13 +145,18 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
     Shape_val = (Nmodes, Nkpoints, Nvbnds, Nvbnds)
     aux_val_matrix = np.zeros(Shape_val, dtype=np.complex64)
 
+
     for imode in range(Nmodes):
         for ik in range(Nkpoints):
+
+            ik_dfpt =  ikBSE_to_ikDFPT[ik]
+            # remember that order of k points in DFPT file 
+            # is not always equal to the order in the eigenvecs file
 
             for ic1 in range(Ncbnds):
                 for ic2 in range(Ncbnds):
 
-                    elph = elph_cond[imode, ik, ic1, ic2]
+                    elph = elph_cond[imode, ik_dfpt, ic1, ic2]
 
                     if ic1 == ic2:
                         aux_cond_matrix[imode, ik, ic1, ic2] = elph
@@ -164,7 +169,7 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
             for iv1 in range(Nvbnds):
                 for iv2 in range(Nvbnds):
 
-                    elph = elph_val[imode, ik, iv1, iv2]
+                    elph = elph_val[imode, ik_dfpt, iv1, iv2]
 
                     if iv1 == iv2:
                         aux_val_matrix[imode, ik, iv1, iv2] = elph
@@ -238,9 +243,6 @@ def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_pa
 
         print('Calculating diag and offdiag RPA force matrix elements')
 
-
-        # I know that this block works. Just trying something new
-
         if use_hermicity_F == False:
             for imode in range(Nmodes):
                 for ik in range(Nkpoints):
@@ -281,9 +283,5 @@ def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_pa
 
     if report_RPA_data == True:
         print(f'RPA matrix elements written in file: RPA_matrix_elements.dat')
-        # arq_RPA_data.close()
-
-    # end_time_func = time.clock_gettime(0)
-    # print(f'Time spent on calc_Dkinect_matrix function: '+report_time(start_time_func))
 
     return DKinect

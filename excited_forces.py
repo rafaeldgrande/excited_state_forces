@@ -227,14 +227,14 @@ if ikBSE_to_ikDFPT.count(-1) > 0:
 
 for ikBSE in range(Nkpoints_BSE):
     how_many_times = 0  
-    for ikBSE2 in range(Nkpoint_BSE):
+    for ikBSE2 in range(Nkpoints_BSE):
         if np.linalg.norm(Kpoints_BSE[ikBSE] - Kpoints_BSE[ikBSE2]) <= TOL_DEG:
             how_many_times += 1
     if how_many_times > 1:
         print(f'WARNING!    This k point appear more than once: {Kpoints_BSE[ikBSE]} ')
         flag_repeated_kpoints = True
 
-if flag_missing_k_points == False and flag_repeated_kpoints == False:
+if flag_missing_kpoints == False and flag_repeated_kpoints == False:
     print('Found no problem for k points from both DFPT and BSE calculations')
     
 
