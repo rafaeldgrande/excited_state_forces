@@ -159,6 +159,10 @@ report_ram()
 # and in DFPT those k points are reported in cartersian basis in units 
 # of reciprocal lattice
 
+# It SEEMS that the order of k points in the eqp.dat (produced by the absorption code)
+# is the same than the order of k points in the eigenvecs file
+# Maybe it would be necessary to check it later!
+
 # First let's put all k points from BSE grid in the first Brillouin zone
 
 print('Checking if kpoints of DFPT and BSE agree with each other')
@@ -263,7 +267,7 @@ print("    - Calculating RPA part")
 aux_diag = np.zeros(Shape, dtype=np.complex64)  # <ck|dV/du_mode|ck> - <vk|dV/du_mode|vk>
 aux_offdiag = np.zeros(Shape, dtype=np.complex64)
 
-aux_cond_matrix, aux_val_matrix = aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params)
+aux_cond_matrix, aux_val_matrix = aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
 
 # Calculating matrix elements F_cvkc'v'k'
 DKinect = calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params)
