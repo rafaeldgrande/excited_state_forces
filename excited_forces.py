@@ -161,6 +161,8 @@ report_ram()
 
 # First let's put all k points from BSE grid in the first Brillouin zone
 
+print('Checking if kpoints of DFPT and BSE agree with each other')
+
 def correct_a(a):
     if a < 0:
         return a + 1
@@ -208,10 +210,11 @@ for ik in range(Nkpoints_BSE):
 
 # CHecking if any kpoint is missing
 flag_missing_kpoints = False
+flag_repeated_kpoints = False
 
 if ikBSE_to_ikDFPT.count(-1) > 0:
 
-    flag_missing_kpoints - True
+    flag_missing_kpoints = True
 
     print('WARNING! Some k points from eigenvecs file were not found in the grid used in the DFPT calculation!')
     print('The missing k points in DFPT are (in reciprocal lattice basis):')
@@ -222,12 +225,18 @@ if ikBSE_to_ikDFPT.count(-1) > 0:
 
 # Checking if any kpoint is reported more than once
 
-for ikBSE in range(Nkpoints):
-    how_many_times = Kpoints_BSE.count(Kpoints_BSE[ikBSE])
+for ikBSE in range(Nkpoints_BSE):
+    how_many_times = 0  
+    for ikBSE2 in range(Nkpoint_BSE):
+        if np.linalg.norm(Kpoints_BSE[ikBSE] - Kpoints_BSE[ikBSE2]) <= TOL_DEG:
+            how_many_times += 1
     if how_many_times > 1:
-        print(f'WARNING! This k point appear more than once: {Kpoints_BSE[ikBSE}])
-    
+        print(f'WARNING!    This k point appear more than once: {Kpoints_BSE[ikBSE]} ')
+        flag_repeated_kpoints = True
 
+if flag_missing_k_points == False and flag_repeated_kpoints == False:
+    print('Found no problem for k points from both DFPT and BSE calculations')
+    
 
 
 
