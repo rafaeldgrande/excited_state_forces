@@ -22,18 +22,32 @@ kernel_file = 'bsemat.h5'
 
 # conditionals
 calc_modes_basis = False    # not being used yet 
-calc_IBL_way = True         # I should comment latter
-write_DKernel = False       # not being used 
-report_RPA_data = False      # report Fcvkc'v'k' matrix elements.
-just_RPA_diag = False       # If true doesn't calculate forces a la David
+
+calc_IBL_way = True         # I should comment later
+write_DKernel = False       # not being used  yet
 Calculate_Kernel = False    # Dont change. We dont know how to work with kernel yet
+
+just_RPA_diag = False       # If true doesn't calculate forces a la David
+report_RPA_data = False     # report Fcvkc'v'k' matrix elements.
+
 read_Akcv_trick = False     # If false, read eigenvectors.h5 file, when BGW is compiled with hdf5. If true read Acvk{iexc} that is an output of my modified summarize_eigenvectors.f90 file
+
 show_imag_part = False      # Show imaginary part of excited state force . It should be very close to 0 
-use_F_complex_conj = False  # In development. don't change
+
 acoutic_sum_rule = True     # Makes the excited state forces to sum to zero (obey Newton's third law), by making sum of elph matrix elems to 0. May want to set this variable to true
-use_hermicity_F = True # Use the fact that F_cvc'v' = conj(F_c'v'cv)
-                       # Reduces the number of computed terms by about half
+use_hermicity_F = True      # Use the fact that F_cvc'v' = conj(F_c'v'cv)
+                            # Reduces the number of computed terms by about half
+
 log_k_points = True          # Write k points used in BSE and DFPT calculations
+
+
+def true_or_false(text, default_value):
+    if text.lower() == 'true':
+        return True
+    elif text.lower() == 'false':
+        return False
+    else:
+        return default_value
 
 def read_input(input_file):
 
@@ -56,6 +70,9 @@ def read_input(input_file):
         for line in arq_in:
             linha = line.split()
             if len(linha) >= 2:
+
+######## parameters and files ######################
+
                 if linha[0] == 'iexc':
                     iexc = int(linha[1])
                 elif linha[0] == 'eqp_file':
@@ -68,14 +85,33 @@ def read_input(input_file):
                     dyn_file = linha[1]
                 elif linha[0] == 'kernel_file':
                     kernel_file = linha[1]
+######### conditionals #############################
+
                 elif linha[0] == 'calc_modes_basis':
-                    if linha[1] == 'True':
-                        calc_modes_basis = True
+                    calc_modes_basis = true_or_false(linha[1], calc_modes_basis)
                 elif linha[0] == 'calc_IBL_way':
-                    if linha[1] == 'True':
-                        calc_IBL_way = True
+                    calc_IBL_way = true_or_false(linha[1], calc_IBL_way)
+                elif linha[0] == 'Calculate_Kernel':
+                    Calculate_Kernel = true_or_false(linha[1], Calculate_Kernel)                    
+                elif linha[0] == 'write_DKernel':
+                    write_DKernel = true_or_false(linha[1], write_DKernel)
+                elif linha[0] == 'just_RPA_diag':
+                    just_RPA_diag = true_or_false(linha[1], just_RPA_diag)
+                elif linha[0] == 'report_RPA_data':
+                    report_RPA_data = true_or_false(linha[1], report_RPA_data)
+                elif linha[0] == 'read_Akcv_trick':
+                    read_Akcv_trick = true_or_false(linha[1], read_Akcv_trick)
                 elif linha[0] == 'show_imag_part':
-                    show_imag_part = float(linha[1])                    
+                    show_imag_part = true_or_false(linha[1], show_imag_part)
+                elif linha[0] == 'acoutic_sum_rule':
+                    acoutic_sum_rule = true_or_false(linha[1], acoutic_sum_rule)
+                elif linha[0] == 'use_hermicity_F':
+                    use_hermicity_F = true_or_false(linha[1], use_hermicity_F) 
+                elif linha[0] == 'log_k_points':
+                    log_k_points = true_or_false(linha[1], log_k_points)
+
+########## did not recognize this line #############
+
                 elif linha[0][0] != '#':
                     print('Parameters not recognized in the following line:\n')
                     print(line)
