@@ -121,11 +121,19 @@ def read_input(input_file):
 
     
 
+print('Reading input file')
 read_input('forces.inp')
+print('\n------------------------------------------------\n\n')
 
 
-print('\n---- Parameters -----\n')
+
 print('Exciton index to be read : '+str(iexc))
+print(f'Eqp data file : {eqp_file}')
+print(f'Exciton file : {exciton_file}')
+print(f'Elph directory : {el_ph_dir}')
+
+print(f'Using Acoustic Sum Rule for elph coeffs : {acoutic_sum_rule}')
+print(f'Using "hermicity" in forces calculations : {use_hermicity_F}')
+
 if calc_IBL_way == True:
     print('Calculating derivatives of Kernel using Ismail-Beigi and Louie\'s paper approach')
-print('\n---------------------\n\n')
