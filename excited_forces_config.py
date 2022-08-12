@@ -53,20 +53,27 @@ def read_input(input_file):
 
     # getting necessary info
 
-    global alat
-    # global Nkpoints, Nvbnds, Ncbnds, Nval
-    # global Nat
     global iexc
     global eqp_file, exciton_file, el_ph_dir
     global dyn_file, kernel_file
     global calc_modes_basis
-    global calc_IBL_way
+    global calc_IBL_way, write_DKernel, Calculate_Kernel
+    global just_RPA_diag, report_RPA_data
     global show_imag_part
+    global read_Akcv_trick
+    global acoutic_sum_rule, use_hermicity_F
+    global log_k_points
 
     try:
         arq_in = open(input_file)
         print(f'Reading input file {input_file}')
+        did_I_find_the_file = True
+    except:
+        did_I_find_the_file = False
+        print(f'WARNING! - Input file {input_file} not found!')
+        print('Using default values for configuration')
 
+    if did_I_find_the_file == True:
         for line in arq_in:
             linha = line.split()
             if len(linha) >= 2:
@@ -116,16 +123,11 @@ def read_input(input_file):
                     print('Parameters not recognized in the following line:\n')
                     print(line)
         arq_in.close()
-    except:
-        print(f'File {input_file} not found')
 
     
 
-print('Reading input file')
 read_input('forces.inp')
-print('\n------------------------------------------------\n\n')
-
-
+print('\n--------------------Configurations----------------------------\n\n')
 
 print('Exciton index to be read : '+str(iexc))
 print(f'Eqp data file : {eqp_file}')
@@ -137,3 +139,6 @@ print(f'Using "hermicity" in forces calculations : {use_hermicity_F}')
 
 if calc_IBL_way == True:
     print('Calculating derivatives of Kernel using Ismail-Beigi and Louie\'s paper approach')
+
+
+print('\n-------------------------------------------------------------\n\n')
