@@ -221,6 +221,7 @@ if ikBSE_to_ikDFPT.count(-1) > 0:
     flag_missing_kpoints = True
 
     print('WARNING! Some k points from eigenvecs file were not found in the grid used in the DFPT calculation!')
+    print(f'Total number of missing k points {ikBSE_to_ikDFPT.count(-1)}')
     print('The missing k points in DFPT are (in reciprocal lattice basis):')
     for ik in range(Nkpoints_BSE):
         if ikBSE_to_ikDFPT[ik] == -1:
@@ -240,9 +241,6 @@ for ikBSE in range(Nkpoints_BSE):
 
 if flag_missing_kpoints == False and flag_repeated_kpoints == False:
     print('Found no problem for k points from both DFPT and BSE calculations')
-    
-
-
 
 # TODO -> just create those matrices when they are necessary, then erase them when finished
 

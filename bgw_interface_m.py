@@ -232,7 +232,18 @@ def get_params_from_eigenvecs_file(exciton_file):
     print(f'    Nkpoints                   = {Nkpoints}')
     print(f'    Number of cond bands       = {Ncbnds}')
     print(f'    Number of val bands        = {Nvbnds}')
-    print(f'    Valence band               = {Nval}')
+    print(f'    Valence band index         = {Nval}')
+    print('\n')
+    print(f'    Lattice parameter (a.u.)   = {alat}')
+    print(f'    Lattice vectors (in lattice parameter units): ')
+    print(f'          a1 = ({cell_vecs[0, 0]}, {cell_vecs[0, 1]}, {cell_vecs[0, 2]})')
+    print(f'          a2 = ({cell_vecs[1, 0]}, {cell_vecs[1, 1]}, {cell_vecs[1, 2]})')
+    print(f'          a3 = ({cell_vecs[2, 0]}, {cell_vecs[2, 1]}, {cell_vecs[2, 2]})')
+    print(f'    Reciprocal lattice vectors (2 * pi / lattice parameter):')
+    print(f'          b1 = ({rec_cell_vecs[0, 0]}, {rec_cell_vecs[0, 1]}, {rec_cell_vecs[0, 2]})')
+    print(f'          b2 = ({rec_cell_vecs[1, 0]}, {rec_cell_vecs[1, 1]}, {rec_cell_vecs[1, 2]})')
+    print(f'          b3 = ({rec_cell_vecs[2, 0]}, {rec_cell_vecs[2, 1]}, {rec_cell_vecs[2, 2]})')
+    print(f'\n\n')
 
 
     return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval, rec_cell_vecs
