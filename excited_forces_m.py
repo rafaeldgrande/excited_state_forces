@@ -150,34 +150,38 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
         for ik in range(Nkpoints):
 
             ik_dfpt =  ikBSE_to_ikDFPT[ik]
+
+            if ik_dfpt != -1:
             # remember that order of k points in DFPT file 
             # is not always equal to the order in the eigenvecs file
+            # -1 means that the code did not find the corresponce 
+            # between the 2 kgrids
 
-            for ic1 in range(Ncbnds):
-                for ic2 in range(Ncbnds):
+                for ic1 in range(Ncbnds):
+                    for ic2 in range(Ncbnds):
 
-                    elph = elph_cond[imode, ik_dfpt, ic1, ic2]
+                        elph = elph_cond[imode, ik_dfpt, ic1, ic2]
 
-                    if ic1 == ic2:
-                        aux_cond_matrix[imode, ik, ic1, ic2] = elph
-                    
-                    elif abs(Edft_cond[ik, ic1] - Edft_cond[ik, ic2]) > TOL_DEG: 
-                        deltaEqp = Eqp_cond[ik, ic1] - Eqp_cond[ik, ic2]
-                        deltaEdft = Edft_cond[ik, ic1] - Edft_cond[ik, ic2]
-                        aux_cond_matrix[imode, ik, ic1, ic2] = elph * deltaEqp / deltaEdft
+                        if ic1 == ic2:
+                            aux_cond_matrix[imode, ik, ic1, ic2] = elph
+                        
+                        elif abs(Edft_cond[ik, ic1] - Edft_cond[ik, ic2]) > TOL_DEG: 
+                            deltaEqp = Eqp_cond[ik, ic1] - Eqp_cond[ik, ic2]
+                            deltaEdft = Edft_cond[ik, ic1] - Edft_cond[ik, ic2]
+                            aux_cond_matrix[imode, ik, ic1, ic2] = elph * deltaEqp / deltaEdft
 
-            for iv1 in range(Nvbnds):
-                for iv2 in range(Nvbnds):
+                for iv1 in range(Nvbnds):
+                    for iv2 in range(Nvbnds):
 
-                    elph = elph_val[imode, ik_dfpt, iv1, iv2]
+                        elph = elph_val[imode, ik_dfpt, iv1, iv2]
 
-                    if iv1 == iv2:
-                        aux_val_matrix[imode, ik, iv1, iv2] = elph
-                    
-                    elif abs(Edft_val[ik, iv1] - Edft_val[ik, iv2]) > TOL_DEG: 
-                        deltaEqp = Eqp_val[ik, iv1] - Eqp_val[ik, iv2]
-                        deltaEdft = Edft_val[ik, iv1] - Edft_val[ik, iv2]
-                        aux_val_matrix[imode, ik, iv1, iv2] = elph * deltaEqp / deltaEdft
+                        if iv1 == iv2:
+                            aux_val_matrix[imode, ik, iv1, iv2] = elph
+                        
+                        elif abs(Edft_val[ik, iv1] - Edft_val[ik, iv2]) > TOL_DEG: 
+                            deltaEqp = Eqp_val[ik, iv1] - Eqp_val[ik, iv2]
+                            deltaEdft = Edft_val[ik, iv1] - Edft_val[ik, iv2]
+                            aux_val_matrix[imode, ik, iv1, iv2] = elph * deltaEqp / deltaEdft
 
     return aux_cond_matrix, aux_val_matrix
 
