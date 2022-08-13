@@ -222,7 +222,7 @@ if ikBSE_to_ikDFPT.count(-1) > 0:
 
     print('WARNING! Some k points from eigenvecs file were not found in the grid used in the DFPT calculation!')
     print('The missing k points in DFPT are (in reciprocal lattice basis):')
-    for ik in range(Nkpoints):
+    for ik in range(Nkpoints_BSE):
         if ikBSE_to_ikDFPT[ik] == -1:
             print(Kpoints_BSE[ik])
         
