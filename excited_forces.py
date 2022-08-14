@@ -178,7 +178,8 @@ def correct_a(a):
 def find_kpoint(kpoint, K_list):
     index_in_matrix = -1
     for index in range(len(K_list)):
-        if np.array_equal(kpoint, K_list[index]):
+        # if np.array_equal(kpoint, K_list[index]):
+        if np.linalg.norm(kpoint - K_list[index]) <= TOL_DEG:
             index_in_matrix = index
     return index_in_matrix
 
