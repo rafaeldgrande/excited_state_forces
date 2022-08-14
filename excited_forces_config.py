@@ -7,10 +7,16 @@ import numpy as np
 # then the code uses (dumb) default values
 
 
-
+# Conventions
 TOL_DEG = 1e-5  # tolerance to see if two energy values are degenerate
-Ry2eV = 13.6056980659
-bohr2A = 0.529177249
+
+# Conversion factors
+from scipy.constants import physical_constants
+Ry2eV = physical_constants["Rydberg constant times hc in eV"][0]
+bohr2A = physical_constants["Bohr radius"][0]*1e10
+
+# Ry2eV = 13.6056980659
+# bohr2A = 0.529177249
 
 # Dumb default parameters
 iexc = 1
