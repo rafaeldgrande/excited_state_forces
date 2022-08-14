@@ -8,7 +8,7 @@ import numpy as np
 
 
 # Conventions
-TOL_DEG = 1e-5  # tolerance to see if two energy values are degenerate
+TOL_DEG = 1e-5  # tolerance to see if two energy values are degenerate  ----------
 
 # Conversion factors
 from scipy.constants import physical_constants
