@@ -94,13 +94,7 @@ Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
 
 # Getting kernel info from bsemat.h5 file
 if Calculate_Kernel == True:
-    # # Getting kernel info
-    Kx, Kd = get_kernel(kernel_file) 
-
-    # # Must have same units of Eqp and Edft -> eV
-    Kx =  - Kx * Ry2eV / Kernel_bgw_factor
-    Kd =  - Kd * Ry2eV / Kernel_bgw_factor
-
+    Kx, Kd = get_kernel(kernel_file, factor_head)  
 
 # Reporting expected energies
 Mean_Kx, Mean_Kd, Mean_Ekin = 0.0, 0.0, 0.0
@@ -263,9 +257,6 @@ print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>
 print("    - Calculating RPA part")
 # Creating auxialiry quantities
 
-aux_diag = np.zeros(Shape, dtype=np.complex64)  # <ck|dV/du_mode|ck> - <vk|dV/du_mode|vk>
-aux_offdiag = np.zeros(Shape, dtype=np.complex64)
-
 aux_cond_matrix, aux_val_matrix = aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
 
 # Calculating matrix elements F_cvkc'v'k'
@@ -273,8 +264,8 @@ DKinect = calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, 
 
 
 if Calculate_Kernel == True:
-    Sum_DKernel            = np.zeros((Nmodes), dtype=complex)
-    Sum_DKernel_IBL        = np.zeros((Nmodes), dtype=complex)
+    Sum_DKernel     = np.zeros((Nmodes), dtype=complex)
+    Sum_DKernel_IBL = np.zeros((Nmodes), dtype=complex)
 
 # Kernel derivatives
 if Calculate_Kernel == True:

@@ -29,22 +29,22 @@ kernel_file = 'bsemat.h5'
 # conditionals
 calc_modes_basis = False    # not being used yet 
 
-calc_IBL_way = True         # I should comment later
-write_DKernel = False       # not being used  yet
+calc_IBL_way     = False         # I should comment later
+write_DKernel    = False       # not being used  yet
 Calculate_Kernel = False    # Dont change. We dont know how to work with kernel yet
 
-just_RPA_diag = False       # If true doesn't calculate forces a la David
-report_RPA_data = False     # report Fcvkc'v'k' matrix elements.
+just_RPA_diag    = False       # If true doesn't calculate forces a la David
+report_RPA_data  = False     # report Fcvkc'v'k' matrix elements.
 
-read_Akcv_trick = False     # If false, read eigenvectors.h5 file, when BGW is compiled with hdf5. If true read Acvk{iexc} that is an output of my modified summarize_eigenvectors.f90 file
+read_Akcv_trick  = False     # If false, read eigenvectors.h5 file, when BGW is compiled with hdf5. If true read Acvk{iexc} that is an output of my modified summarize_eigenvectors.f90 file
 
-show_imag_part = False      # Show imaginary part of excited state force . It should be very close to 0 
+show_imag_part    = False      # Show imaginary part of excited state force . It should be very close to 0 
 
 acoutic_sum_rule = True     # Makes the excited state forces to sum to zero (obey Newton's third law), by making sum of elph matrix elems to 0. May want to set this variable to true
-use_hermicity_F = True      # Use the fact that F_cvc'v' = conj(F_c'v'cv)
+use_hermicity_F  = True      # Use the fact that F_cvc'v' = conj(F_c'v'cv)
                             # Reduces the number of computed terms by about half
 
-log_k_points = True          # Write k points used in BSE and DFPT calculations
+log_k_points     = True          # Write k points used in BSE and DFPT calculations
 
 
 def true_or_false(text, default_value):

@@ -1,5 +1,4 @@
 
-from tkinter import image_names
 import h5py
 import time
 import numpy as np
@@ -64,7 +63,7 @@ def read_eqp_data(eqp_file, BSE_params):
 
 ################ BSE related functions ####################
 
-def get_kernel(kernel_file):
+def get_kernel(kernel_file, factor_head):
 
     """
     Reads the kernel matrix elements from BSE calculations
@@ -77,16 +76,21 @@ def get_kernel(kernel_file):
 
     f_hdf5 = h5py.File(kernel_file, 'r')
 
-    Head = f_hdf5['mats/head']
-    Body = f_hdf5['mats/body']
-    Wing = f_hdf5['mats/wing']
-    Exchange = f_hdf5['mats/exchange']
+    celvol = f_hdf5['mf_header/crystal/celvol'][()]
+    factor_kernel = -8.0*np.pi/celvol
 
-    Kd = Head[:,:,:,:,:,:,0] + 1.0j*Head[:,:,:,:,:,:,1]
-    Kd += Wing[:,:,:,:,:,:,0] + 1.0j*Wing[:,:,:,:,:,:,1]
-    Kd += Body[:,:,:,:,:,:,0] + 1.0j*Body[:,:,:,:,:,:,1]
+    Head = f_hdf5['mats/head'][()]
+    Body = f_hdf5['mats/body'][()]
+    Wing = f_hdf5['mats/wing'][()]
+    Exchange = f_hdf5['mats/exchange'][()]
 
-    Kx = Exchange[:,:,:,:,:,:,0] + 1.0j*Exchange[:,:,:,:,:,:,1]
+    Kd =  (Head[:,:,:,:,:,:,0] + 1.0j*Head[:,:,:,:,:,:,1])*factor_head
+    Kd += (Wing[:,:,:,:,:,:,0] + 1.0j*Wing[:,:,:,:,:,:,1])
+    Kd += (Body[:,:,:,:,:,:,0] + 1.0j*Body[:,:,:,:,:,:,1])
+    Kx =  -2*(Exchange[:,:,:,:,:,:,0] + 1.0j*Exchange[:,:,:,:,:,:,1])
+
+    Kd = Kd*factor_kernel*Ry2eV
+    Kd = Kx*factor_kernel*Ry2eV
 
     # end_time_func = time.clock_gettime(0)
     # print(f'Time spent on get_kernel function: '+report_time(start_time_func))
