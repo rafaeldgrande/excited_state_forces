@@ -67,6 +67,7 @@ def get_kernel(kernel_file, factor_head):
 
     """
     Reads the kernel matrix elements from BSE calculations
+    Return the direct (Kd) and exchange (Kx) kernels in Ry
     """
 
     # start_time_func = time.clock_gettime(0)
@@ -89,8 +90,8 @@ def get_kernel(kernel_file, factor_head):
     Kd += (Body[:,:,:,:,:,:,0] + 1.0j*Body[:,:,:,:,:,:,1])
     Kx =  -2*(Exchange[:,:,:,:,:,:,0] + 1.0j*Exchange[:,:,:,:,:,:,1])
 
-    Kd = Kd*factor_kernel*Ry2eV
-    Kd = Kx*factor_kernel*Ry2eV
+    Kd = Kd*factor_kernel
+    Kx = Kx*factor_kernel
 
     # end_time_func = time.clock_gettime(0)
     # print(f'Time spent on get_kernel function: '+report_time(start_time_func))

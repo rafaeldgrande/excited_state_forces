@@ -228,7 +228,7 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
 
     return elph, Kpoints_in_elph_file
 
-def impose_ASR(elph, Displacements, MF_params):
+def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
 
     """Impose Acoustic Sum Rule on elph matrix elements
     Test for just CO until now: I know that first and second displacement
@@ -239,71 +239,76 @@ def impose_ASR(elph, Displacements, MF_params):
     
     """
 
-    print('Applying acoustic sum rule. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
+    if acoutic_sum_rule == True:
 
-    Nmodes = MF_params.Nmodes
-    Nat    = MF_params.Nat
+        print('Applying acoustic sum rule. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
 
-    mod_sum_report_diag = []
-    mod_sum_report_offdiag = []
-    mod_sum_report_diag_afterASR = []
-    mod_sum_report_offdiag_afterASR = []    
+        Nmodes = MF_params.Nmodes
+        Nat    = MF_params.Nat
 
-    shape_elph = np.shape(elph)
-    Nbnds_in_xml = shape_elph[2]
+        mod_sum_report_diag = []
+        mod_sum_report_offdiag = []
+        mod_sum_report_diag_afterASR = []
+        mod_sum_report_offdiag_afterASR = []    
 
-    for iband1 in range(Nbnds_in_xml):
-        for iband2 in range(Nbnds_in_xml):
-            # sum_elph = elph[0, 0, iband1, iband2] + elph[1, 0, iband1, iband2]
+        shape_elph = np.shape(elph)
+        Nbnds_in_xml = shape_elph[2]
 
-            # elph[0, 0, iband1, iband2] = elph[0, 0, iband1, iband2] - sum_elph / 2
-            # elph[1, 0, iband1, iband2] = elph[1, 0, iband1, iband2] - sum_elph / 2
+        for iband1 in range(Nbnds_in_xml):
+            for iband2 in range(Nbnds_in_xml):
+                # sum_elph = elph[0, 0, iband1, iband2] + elph[1, 0, iband1, iband2]
 
-            sum_elph = np.zeros((3), dtype=complex) # x, y, z
+                # elph[0, 0, iband1, iband2] = elph[0, 0, iband1, iband2] - sum_elph / 2
+                # elph[1, 0, iband1, iband2] = elph[1, 0, iband1, iband2] - sum_elph / 2
 
-            for i_mode in range(Nmodes):
-                for i_atom in range(Nat):
-                    sum_elph += elph[i_mode, 0, iband1, iband2] * Displacements[i_mode, i_atom]
+                sum_elph = np.zeros((3), dtype=complex) # x, y, z
 
-            for i_mode in range(Nmodes):
-                for i_atom in range(Nat):
+                for i_mode in range(Nmodes):
+                    for i_atom in range(Nat):
+                        sum_elph += elph[i_mode, 0, iband1, iband2] * Displacements[i_mode, i_atom]
+
+                for i_mode in range(Nmodes):
+                    for i_atom in range(Nat):
+                        for i_dir in range(3):
+                            elph[i_mode, 0, iband1, iband2] = elph[i_mode, 0, iband1, iband2] - Displacements[i_mode, i_atom, i_dir] * sum_elph[i_dir] / Nat
+
+                sum_elph_afterASR = np.zeros((3), dtype=complex) # x, y, z
+
+                for i_mode in range(Nmodes):
+                    for i_atom in range(Nat):
+                        sum_elph_afterASR += elph[i_mode, 0, iband1, iband2] * Displacements[i_mode, i_atom]
+
+
+                if iband1 == iband2:
                     for i_dir in range(3):
-                        elph[i_mode, 0, iband1, iband2] = elph[i_mode, 0, iband1, iband2] - Displacements[i_mode, i_atom, i_dir] * sum_elph[i_dir] / Nat
+                        mod_sum_report_diag.append(abs(sum_elph[i_dir]))
+                        mod_sum_report_diag_afterASR.append(abs(sum_elph_afterASR[i_dir]))
+                else:
+                    for i_dir in range(3):
+                        mod_sum_report_offdiag.append(abs(sum_elph[i_dir]))
+                        mod_sum_report_offdiag_afterASR.append(abs(sum_elph_afterASR[i_dir]))
 
-            sum_elph_afterASR = np.zeros((3), dtype=complex) # x, y, z
-
-            for i_mode in range(Nmodes):
-                for i_atom in range(Nat):
-                    sum_elph_afterASR += elph[i_mode, 0, iband1, iband2] * Displacements[i_mode, i_atom]
-
-
-            if iband1 == iband2:
-                for i_dir in range(3):
-                    mod_sum_report_diag.append(abs(sum_elph[i_dir]))
-                    mod_sum_report_diag_afterASR.append(abs(sum_elph_afterASR[i_dir]))
-            else:
-                for i_dir in range(3):
-                    mod_sum_report_offdiag.append(abs(sum_elph[i_dir]))
-                    mod_sum_report_offdiag_afterASR.append(abs(sum_elph_afterASR[i_dir]))
-
-    mean_val = np.mean(mod_sum_report_diag)
-    max_val  = np.max(mod_sum_report_diag)
-    mean_val_afterASR = np.mean(mod_sum_report_diag_afterASR)
-    max_val_afterASR  = np.max(mod_sum_report_diag_afterASR)
-    print("    Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
-    print("    Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
-    print("    Mean diag |g_ii| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
-    print("    Max diag  |g_ii| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
+        mean_val = np.mean(mod_sum_report_diag)
+        max_val  = np.max(mod_sum_report_diag)
+        mean_val_afterASR = np.mean(mod_sum_report_diag_afterASR)
+        max_val_afterASR  = np.max(mod_sum_report_diag_afterASR)
+        print("    Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
+        print("    Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
+        print("    Mean diag |g_ii| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
+        print("    Max diag  |g_ii| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
 
 
-    mean_val = np.mean(mod_sum_report_offdiag)
-    max_val  = np.max(mod_sum_report_offdiag)
-    mean_val_afterASR = np.mean(mod_sum_report_offdiag_afterASR)
-    max_val_afterASR  = np.max(mod_sum_report_offdiag_afterASR)
-    print("    Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
-    print("    Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
-    print("    Mean offdiag |g_ij| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
-    print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
+        mean_val = np.mean(mod_sum_report_offdiag)
+        max_val  = np.max(mod_sum_report_offdiag)
+        mean_val_afterASR = np.mean(mod_sum_report_offdiag_afterASR)
+        max_val_afterASR  = np.max(mod_sum_report_offdiag_afterASR)
+        print("    Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
+        print("    Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
+        print("    Mean offdiag |g_ij| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
+        print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
+
+    else:
+        print('Not applying acoustic sum rule')
 
     return elph
 

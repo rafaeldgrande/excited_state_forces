@@ -15,14 +15,17 @@ import h5py
 from excited_forces_config import *
 
 
-def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH):
+def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_params):
 
     """Calculates derivatives of kernel matrix elements"""
 
     ik1, ik2, iv1, iv2, ic1, ic2, imode = indexes
 
     elph_cond, elph_val = ELPH
-    Ncbnds, Nvbnds, Nkpoints, Nmodes = Params
+    Nmodes   = MF_params.Nmodes
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds   = BSE_params.Ncbnds
+    Nvbnds   = BSE_params.Nvbnds
     Edft_val, Edft_cond = EDFT
 
     if calc_IBL_way == True:
@@ -37,23 +40,25 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH):
     for ivp in range(Nvbnds):
 
         DeltaEdft = Edft_val[ik1, iv1] - Edft_val[ik1, ivp]
-        DeltaEqp = Eqp_val[ik1, iv1] - Eqp_val[ik1, ivp]
+        if calc_IBL_way == True:
+            DeltaEqp = Eqp_val[ik1, iv1] - Eqp_val[ik1, ivp]
 
         indexes_K = ik2, ik1, ic2, ic1, iv2, ivp
         indexes_g = imode, ik1, ivp, iv1
 
-        if abs(DeltaEqp) > TOL_DEG:
+        if abs(DeltaEdft) > TOL_DEG:
             DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
-            if calc_IBL_way == True:
+            if calc_IBL_way == True:  # assuming that gw levels have the same degeneracy of dft levels
                 DKelement_IBL += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEqp
 
         DeltaEdft = Edft_val[ik2, iv2] - Edft_val[ik2, ivp]
-        DeltaEqp = Eqp_val[ik2, iv2] - Eqp_val[ik2, ivp]
+        if calc_IBL_way == True:
+            DeltaEqp = Eqp_val[ik2, iv2] - Eqp_val[ik2, ivp]
 
         indexes_K = ik2, ik1, ic2, ic1, ivp, iv1
         indexes_g = imode, ik2, iv2, ivp
 
-        if abs(DeltaEqp) > TOL_DEG:
+        if abs(DeltaEdft) > TOL_DEG:
             DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
                 DKelement_IBL += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEqp
@@ -62,23 +67,25 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH):
     for icp in range(Ncbnds):
 
         DeltaEdft = Edft_cond[ik1, ic1] - Edft_cond[ik1, icp]
-        DeltaEqp = Eqp_cond[ik1, ic1] - Eqp_cond[ik1, icp]
+        if calc_IBL_way == True:
+            DeltaEqp = Eqp_cond[ik1, ic1] - Eqp_cond[ik1, icp]
 
         indexes_K = ik2, ik1, ic2, icp, iv2, iv1
         indexes_g = imode, ik1, icp, ic1
 
-        if abs(DeltaEqp) > TOL_DEG:
+        if abs(DeltaEdft) > TOL_DEG:
             DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
                 DKelement_IBL += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEqp
 
         DeltaEdft = Edft_cond[ik2, ic2] - Edft_cond[ik2, icp]
-        DeltaEqp = Eqp_cond[ik2, ic2] - Eqp_cond[ik2, icp]
+        if calc_IBL_way == True:
+            DeltaEqp = Eqp_cond[ik2, ic2] - Eqp_cond[ik2, icp]
 
         indexes_K = ik2, ik1, icp, ic1, iv2, iv1
         indexes_g = imode, ik2, ic2, icp
 
-        if abs(DeltaEqp) > TOL_DEG:
+        if abs(DeltaEdft) > TOL_DEG:
             DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
                 DKelement_IBL += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEqp
@@ -89,13 +96,18 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH):
         return DKelement   
 
 
-def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv):
+def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, MF_params, BSE_params):
 
     print("    - Calculating Kernel part")
 
-    Shape2 = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
-    DKernel          = np.zeros(Shape2, dtype=np.complex64)
-    DKernel_IBL      = np.zeros(Shape2, dtype=np.complex64)
+    Nmodes   = MF_params.Nmodes
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds   = BSE_params.Ncbnds
+    Nvbnds   = BSE_params.Nvbnds
+
+    Shape_kernel = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
+    DKernel      = np.zeros(Shape_kernel, dtype=np.complex64)
+    DKernel_IBL  = np.zeros(Shape_kernel, dtype=np.complex64)
 
     for imode in range(Nmodes):
         for ik1 in range(Nkpoints):
@@ -111,7 +123,7 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv):
                                 A_ket = Akcv[ik2, ic2, iv2]
 
                                 indexes = ik1, ik2, iv1, iv2, ic1, ic2, imode
-                                dK = calc_DKernel_mat_elem(indexes, KernelMat, EDFT, EQP, ELPH)
+                                dK = calc_DKernel_mat_elem(indexes, KernelMat, EDFT, EQP, ELPH, MF_params, BSE_params)
 
                                 if calc_IBL_way == False:
                                     DKernel[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK * A_ket
