@@ -12,8 +12,7 @@ print("\n\nExecution date: ", dt_string)
 print('\n\n*************************************************************')
 print('Excited state forces code')
 print('Developed by Rafael Del Grande and David Strubbe')
-print('Contact: rdelgrande@ucmerced.edu')
-print('*************************************************************')
+print('*************************************************************\n\n')
 
 
 # Importing modules
@@ -23,7 +22,7 @@ import tracemalloc # track ram usage
 tracemalloc.start()
 
 
-# My modules
+# excited state forces modules
 from excited_forces_m import *
 from qe_interface_m import *
 from bgw_interface_m import *
@@ -44,10 +43,6 @@ def report_ram():
     print(f'RAM used now: {temp_ram:.2f} MB')
     print(f'Max RAM used until now: {max_temp_ram:.2f} MB')
     print('############################################\n\n')
-
-
-start_time = time.clock_gettime(0)
-
 
 # Classes 
 class Parameters_BSE:
@@ -76,15 +71,144 @@ class Parameters_ELPH:
         self.Nkpoints_DFPT = Nkpoints_DPFT
         self.Kpoints_DFPT  = Kpoints_DFPT
 
+# functions 
 
+def get_BSE_MF_params():
+
+    global MF_params, BSE_params, Nmodes
+    global Nat, atomic_pos, cell_vecs, cell_vol, alat
+    global Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval
+    global rec_cell_vecs, Nmodes
+
+    Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_eigenvecs_file(exciton_file)
+    Nmodes = 3 * Nat
+
+    MF_params  = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
+    BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval)
+
+def report_expected_energies():
+
+    Mean_Ekin = 0.0 
+    if Calculate_Kernel == True:
+        Mean_Kx, Mean_Kd = 0.0, 0.0
+
+    for ik1 in range(BSE_params.Nkpoints_BSE):
+        for ic1 in range(BSE_params.Ncbnds):
+            for iv1 in range(BSE_params.Nvbnds):
+                Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*abs(Akcv[ik1, ic1, iv1])**2
+
+    if Calculate_Kernel == True:
+        for ik1 in range(BSE_params.Nkpoints_BSE):
+            for ic1 in range(BSE_params.Ncbnds):
+                for iv1 in range(BSE_params.Nvbnds):
+                    for ik2 in range(BSE_params.Nkpoints_BSE):
+                        for ic2 in range(BSE_params.Ncbnds):
+                            for iv2 in range(BSE_params.Nvbnds):
+                                Mean_Kx += Ry2eV*np.conj(Akcv[ik1, ic1, iv1]) * Kx[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
+                                Mean_Kd += Ry2eV*np.conj(Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
+
+    print('Exciton energies (eV): ')
+    print('    Omega         = ', Omega)
+    print('    <KE>          = ', Mean_Ekin)
+    print('    Omega - <KE>  = ', Omega - Mean_Ekin)
+    if Calculate_Kernel == True:
+        print('    <Kx>          = ', Mean_Kx)
+        print('    <Kd>          = ', Mean_Kd)
+        print('\n    DIFF          = ', Omega - (Mean_Ekin + Mean_Kd + Mean_Kx))
+
+
+def correct_comp_vector(comp):
+    # component is in alat units
+    if comp < 0:
+        return comp + 1
+    elif comp > 1:
+        return comp - 1
+    else:
+        return comp
+
+def find_kpoint(kpoint, K_list):
+    index_in_matrix = -1
+    for index in range(len(K_list)):
+        # if np.array_equal(kpoint, K_list[index]):
+        if np.linalg.norm(kpoint - K_list[index]) <= TOL_DEG:
+            index_in_matrix = index
+    return index_in_matrix
+
+def translate_bse_to_dfpt_k_points():
+    ikBSE_to_ikDFPT = []
+    # This list shows which k point from BSE corresponds to which 
+    # point from DFPT calculation. 
+    # ikBSE_to_ikDFPT[ikBSE] = ikDFPT
+    # Means that the k point from eigenvectors.h5 with index ikBSE corresponds to 
+    # the k point with index ikDFPT from DFPT calculation
+
+    for ik in range(Nkpoints_BSE):
+
+        # getting vectors from eigenvectors.h5 file in cartesian basis
+        a1, a2, a3 = Kpoints_BSE[ik]
+
+        # putting the vector in the first Brillouin zone
+        a1 = correct_comp_vector(a1)
+        a2 = correct_comp_vector(a2)
+        a3 = correct_comp_vector(a3)
+
+        # vector in cartesian basis
+        vec_eigvecs = a1 * rec_cell_vecs[0] + a2 * rec_cell_vecs[1] + a3 * rec_cell_vecs[2]
+
+        found_or_not = find_kpoint(vec_eigvecs, Kpoints_in_elph_file)
+        # if found the vec_eigvecs in the Kpoints_in_elph_file, then returns 
+        # the index in the Kpoints_in_elph_file. 
+        # if did not find it, then returns -1
+
+        # the conversion list from one to another
+        ikBSE_to_ikDFPT.append(found_or_not)
+
+    return ikBSE_to_ikDFPT
+
+def check_k_points_BSE_DFPT():
+# Checking if any kpoint is missing
+    flag_missing_kpoints = False
+    flag_repeated_kpoints = False
+
+    if ikBSE_to_ikDFPT.count(-1) > 0:
+
+        flag_missing_kpoints = True
+
+        print('WARNING! Some k points from eigenvecs file were not found in the grid used in the DFPT calculation!')
+        print(f'Total number of missing k points {ikBSE_to_ikDFPT.count(-1)}')
+        print('The missing k points in DFPT are (in reciprocal lattice basis):')
+        for ik in range(Nkpoints_BSE):
+            if ikBSE_to_ikDFPT[ik] == -1:
+                print(Kpoints_BSE[ik])
+        
+
+    # Checking if any kpoint is reported more than once
+
+    for ikBSE in range(Nkpoints_BSE):
+        how_many_times = 0  
+        for ikBSE2 in range(Nkpoints_BSE):
+            if np.linalg.norm(Kpoints_BSE[ikBSE] - Kpoints_BSE[ikBSE2]) <= TOL_DEG:
+                how_many_times += 1
+        if how_many_times > 1:
+            print(f'WARNING!    This k point appear more than once: {Kpoints_BSE[ikBSE]} ')
+            flag_repeated_kpoints = True
+
+    if flag_missing_kpoints == False and flag_repeated_kpoints == False:
+        print('Found no problem for k points from both DFPT and BSE calculations')
+    else:
+        print('Quiting program! Please check the above warnings!')
+        quit()
+
+
+
+
+
+########## RUNNING CODE ###################
+
+start_time = time.clock_gettime(0)
 # Getting BSE and MF parameters
 # Reading eigenvecs.h5 file
-
-Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_eigenvecs_file(exciton_file)
-Nmodes = 3 * Nat
-
-BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval)
-MF_params  = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
+get_BSE_MF_params()
 
 # Getting exciton info
 Akcv, Omega = get_exciton_info(exciton_file, iexc)
@@ -94,34 +218,10 @@ Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
 
 # Getting kernel info from bsemat.h5 file
 if Calculate_Kernel == True:
-    Kx, Kd = get_kernel(kernel_file, factor_head)  
+    Kd, Kx = get_kernel(kernel_file, factor_head)  
 
 # Reporting expected energies
-Mean_Kx, Mean_Kd, Mean_Ekin = 0.0, 0.0, 0.0
-
-for ik1 in range(Nkpoints_BSE):
-    for ic1 in range(Ncbnds):
-        for iv1 in range(Nvbnds):
-            Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*abs(Akcv[ik1, ic1, iv1])**2
-
-if Calculate_Kernel == True:
-    for ik1 in range(Nkpoints_BSE):
-        for ic1 in range(Ncbnds):
-            for iv1 in range(Nvbnds):
-                for ik2 in range(Nkpoints_BSE):
-                    for ic2 in range(Ncbnds):
-                        for iv2 in range(Nvbnds):
-                            Mean_Kx += np.conj(Akcv[ik1, ic1, iv1]) * Kx[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
-                            Mean_Kd += np.conj(Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
-
-print('Exciton energies (eV): ')
-print('    Omega         = ', Omega)
-print('    <KE>          = ', Mean_Ekin)
-print('    Omega - <KE>  = ', Omega - Mean_Ekin)
-if Calculate_Kernel == True:
-    print('    <Kx> = ', Mean_Kx)
-    print('    <Kd> = ', Mean_Kd)
-    print('    DIFF = ', Omega - (Mean_Ekin + Mean_Kd + Mean_Kx))
+report_expected_energies()
 
 # Getting elph coefficients
     
@@ -133,9 +233,7 @@ Displacements, Nirreps = get_patterns2(iq, MF_params)
 elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps)
 
     # apply acoustic sum rule
-if acoutic_sum_rule == True:
-    print('\n\n')
-    elph = impose_ASR(elph, Displacements, MF_params)
+elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
 
     # filter data to get just g_c1c2 and g_v1v2
 elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
@@ -160,94 +258,12 @@ report_ram()
 # First let's put all k points from BSE grid in the first Brillouin zone
 
 print('Checking if kpoints of DFPT and BSE agree with each other')
+ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
 
-def correct_a(a):
-    if a < 0:
-        return a + 1
-    elif a > 1:
-        return a - 1
-    else:
-        return a
-
-def find_kpoint(kpoint, K_list):
-    index_in_matrix = -1
-    for index in range(len(K_list)):
-        # if np.array_equal(kpoint, K_list[index]):
-        if np.linalg.norm(kpoint - K_list[index]) <= TOL_DEG:
-            index_in_matrix = index
-    return index_in_matrix
-
-ikBSE_to_ikDFPT = []
-# This list shows which k point from BSE corresponds to which 
-# point from DFPT calculation. 
-# ikBSE_to_ikDFPT[ikBSE] = ikDFPT
-# Means that the k point from eigenvectors.h5 with index ikBSE corresponds to 
-# the k point with index ikDFPT from DFPT calculation
-
-for ik in range(Nkpoints_BSE):
-
-    # getting vectors from eigenvectors.h5 file in cartesian basis
-    a1, a2, a3 = Kpoints_BSE[ik]
-
-    # putting the vector in the first Brillouin zone
-    a1 = correct_a(a1)
-    a2 = correct_a(a2)
-    a3 = correct_a(a3)
-
-    # vector in cartesian basis
-    vec_eigvecs = a1 * rec_cell_vecs[0] + a2 * rec_cell_vecs[1] + a3 * rec_cell_vecs[2]
-
-    found_or_not = find_kpoint(vec_eigvecs, Kpoints_in_elph_file)
-    # if found the vec_eigvecs in the Kpoints_in_elph_file, then returns 
-    # the index in the Kpoints_in_elph_file. 
-    # if did not find it, then returns -1
-
-    # the conversion list from one to another
-    ikBSE_to_ikDFPT.append(found_or_not)
 
 # Now checking if everything is ok with ikBSE_to_ikDFPT list
-
-# CHecking if any kpoint is missing
-flag_missing_kpoints = False
-flag_repeated_kpoints = False
-
-if ikBSE_to_ikDFPT.count(-1) > 0:
-
-    flag_missing_kpoints = True
-
-    print('WARNING! Some k points from eigenvecs file were not found in the grid used in the DFPT calculation!')
-    print(f'Total number of missing k points {ikBSE_to_ikDFPT.count(-1)}')
-    print('The missing k points in DFPT are (in reciprocal lattice basis):')
-    for ik in range(Nkpoints_BSE):
-        if ikBSE_to_ikDFPT[ik] == -1:
-            print(Kpoints_BSE[ik])
-        
-
-# Checking if any kpoint is reported more than once
-
-for ikBSE in range(Nkpoints_BSE):
-    how_many_times = 0  
-    for ikBSE2 in range(Nkpoints_BSE):
-        if np.linalg.norm(Kpoints_BSE[ikBSE] - Kpoints_BSE[ikBSE2]) <= TOL_DEG:
-            how_many_times += 1
-    if how_many_times > 1:
-        print(f'WARNING!    This k point appear more than once: {Kpoints_BSE[ikBSE]} ')
-        flag_repeated_kpoints = True
-
-if flag_missing_kpoints == False and flag_repeated_kpoints == False:
-    print('Found no problem for k points from both DFPT and BSE calculations')
-
-# TODO -> just create those matrices when they are necessary, then erase them when finished
-
-Shape = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
-Shape2 = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds, Nkpoints_BSE, Ncbnds, Nvbnds)
-
-print('SHAPE', Shape)
-
-DKinect          = np.zeros(Shape2, dtype=np.complex64) 
-
-Sum_DKinect_diag            = np.zeros((Nmodes), dtype=np.complex64)
-Sum_DKinect                 = np.zeros((Nmodes), dtype=np.complex64)
+# if something is wrong kill the code
+check_k_points_BSE_DFPT()
 
 report_ram()
 
@@ -255,17 +271,17 @@ report_ram()
 
 print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
 print("    - Calculating RPA part")
-# Creating auxialiry quantities
 
+# Creating auxialiry quantities
+# aux_cond_matrix[imode, ik, ic1, ic2] = elph_cond[imode, ik, ic1, ic2] * deltaEqp / deltaEdft (if ic1 != ic2)
+# aux_val_matrix[imode, ik, iv1, iv2]  = elph_val[imode, ik, iv1, iv2]  * deltaEqp / deltaEdft (if iv1 != iv2)
+# If ic1 == ic2 (iv1 == iv2), then the matrix elements are just the elph coefficients"""
 aux_cond_matrix, aux_val_matrix = aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
 
 # Calculating matrix elements F_cvkc'v'k'
 DKinect = calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params)
 
-
-if Calculate_Kernel == True:
-    Sum_DKernel     = np.zeros((Nmodes), dtype=complex)
-    Sum_DKernel_IBL = np.zeros((Nmodes), dtype=complex)
+del aux_cond_matrix, aux_val_matrix
 
 # Kernel derivatives
 if Calculate_Kernel == True:
@@ -275,11 +291,16 @@ if Calculate_Kernel == True:
     ELPH = elph_cond, elph_val
 
     if calc_IBL_way == True:
-        DKernel, DKernel_IBL = calc_deriv_Kernel(Kx+Kd, EDFT, EQP, ELPH, Akcv)
+        DKernel, DKernel_IBL = calc_deriv_Kernel((Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, MF_params, BSE_params)
     else:
-        DKernel = calc_deriv_Kernel(Kx+Kd, EDFT, EQP, ELPH, Akcv)
+        DKernel = calc_deriv_Kernel((Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, MF_params, BSE_params)
+
+del Kx, Kd
 
 print("Calculating sums")
+
+Sum_DKinect_diag            = np.zeros((Nmodes), dtype=complex)
+Sum_DKinect                 = np.zeros((Nmodes), dtype=complex)
 
 for imode in range(Nmodes):
 
@@ -294,7 +315,11 @@ for imode in range(Nmodes):
     # sum of off-diagonal part + sum of diagonal part
     Sum_DKinect[imode] = np.sum(DKinect[imode])
 
-    if Calculate_Kernel == True:
+if Calculate_Kernel == True:
+    Sum_DKernel     = np.zeros((Nmodes), dtype=np.complex64)
+    Sum_DKernel_IBL = np.zeros((Nmodes), dtype=np.complex64)
+
+    for imode in range(Nmodes):
         Sum_DKernel[imode] = np.sum(DKernel[imode])
         if calc_IBL_way == True:
             Sum_DKernel_IBL[imode] = np.sum(DKernel_IBL[imode])
@@ -346,11 +371,11 @@ print("Calculating forces in cartesian basis")
 
 
 if show_imag_part == True:
-    F_cart_KE_IBL                       = np.zeros((Nat, 3), dtype=np.complex64)  # IBL just diag RPA
-    F_cart_KE_David                     = np.zeros((Nat, 3), dtype=np.complex64)  # david thesis - diag + offdiag from kinect part
+    F_cart_KE_IBL                       = np.zeros((Nat, 3), dtype=complex)  # IBL just diag RPA
+    F_cart_KE_David                     = np.zeros((Nat, 3), dtype=complex)  # david thesis - diag + offdiag from kinect part
     if Calculate_Kernel == True:
-        F_cart_Kernel_IBL                   = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's paper 
-        F_cart_Kernel_IBL_correct           = np.zeros((Nat, 3), dtype=np.complex64)  # Ismail-Beigi and Louie's with new kernel
+        F_cart_Kernel_IBL                   = np.zeros((Nat, 3), dtype=complex)  # Ismail-Beigi and Louie's paper 
+        F_cart_Kernel_IBL_correct           = np.zeros((Nat, 3), dtype=complex)  # Ismail-Beigi and Louie's with new kernel
 else:
     F_cart_KE_IBL                       = np.zeros((Nat, 3))  # IBL just diag RPA
     F_cart_KE_David                     = np.zeros((Nat, 3))  # david thesis - diag + offdiag from kinect part
@@ -360,12 +385,13 @@ else:
 
 for iatom in range(Nat):
     for imode in range(Nmodes):
-        F_cart_KE_IBL[iatom] += Displacements[imode, iatom] * Sum_DKinect_diag[imode]
+        F_cart_KE_IBL[iatom]   += Displacements[imode, iatom] * Sum_DKinect_diag[imode]
         F_cart_KE_David[iatom] += Displacements[imode, iatom] * Sum_DKinect[imode]
 
         if Calculate_Kernel == True:
-            F_cart_Kernel_IBL[iatom] += Displacements[imode, iatom] * (Sum_DKernel_IBL[imode] + Sum_DKinect_diag[imode])
-            F_cart_Kernel_IBL_correct[iatom] += Displacements[imode, iatom] * (Sum_DKernel[imode] + Sum_DKinect_diag[imode])
+            F_cart_Kernel_IBL[iatom]         = F_cart_Kernel_IBL[iatom]         + Displacements[imode, iatom] * (Sum_DKernel_IBL[imode] + Sum_DKinect_diag[imode])
+            F_cart_Kernel_IBL_correct[iatom] = F_cart_Kernel_IBL_correct[iatom] + Displacements[imode, iatom] * (Sum_DKernel[imode]     + Sum_DKinect_diag[imode])
+            # need to make x = x + y, instead of x += y because numpy complains that x+=y does not work when type(x)=!type(y) (one is complex and the other is real - float)
 
 
 # Reporting forces in cartesian basis 
@@ -397,11 +423,9 @@ for iatom in range(Nat):
 arq_out.close()
 
 end_time = time.clock_gettime(0)
+report_ram()
+# stopping the library
+tracemalloc.stop()
 
 print('\n\nCalculation finished!')
 print(f'Total time: '+report_time(start_time))
-
-report_ram()
-
-# stopping the library
-tracemalloc.stop()

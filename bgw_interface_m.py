@@ -80,15 +80,23 @@ def get_kernel(kernel_file, factor_head):
     celvol = f_hdf5['mf_header/crystal/celvol'][()]
     factor_kernel = -8.0*np.pi/celvol
 
+    flavor_calc = f_hdf5['/bse_header/flavor'][()]
+
     Head = f_hdf5['mats/head'][()]
     Body = f_hdf5['mats/body'][()]
     Wing = f_hdf5['mats/wing'][()]
     Exchange = f_hdf5['mats/exchange'][()]
 
-    Kd =  (Head[:,:,:,:,:,:,0] + 1.0j*Head[:,:,:,:,:,:,1])*factor_head
-    Kd += (Wing[:,:,:,:,:,:,0] + 1.0j*Wing[:,:,:,:,:,:,1])
-    Kd += (Body[:,:,:,:,:,:,0] + 1.0j*Body[:,:,:,:,:,:,1])
-    Kx =  -2*(Exchange[:,:,:,:,:,:,0] + 1.0j*Exchange[:,:,:,:,:,:,1])
+    if flavor_calc == 2:
+        Kd =  (Head[:,:,:,:,:,:,0] + 1.0j*Head[:,:,:,:,:,:,1])*factor_head
+        Kd += (Wing[:,:,:,:,:,:,0] + 1.0j*Wing[:,:,:,:,:,:,1])
+        Kd += (Body[:,:,:,:,:,:,0] + 1.0j*Body[:,:,:,:,:,:,1])
+        Kx =  -2*(Exchange[:,:,:,:,:,:,0] + 1.0j*Exchange[:,:,:,:,:,:,1])
+    else:
+        Kd =  (Head[:,:,:,:,:,:,0])*factor_head
+        Kd += (Wing[:,:,:,:,:,:,0])
+        Kd += (Body[:,:,:,:,:,:,0])
+        Kx =  -2*(Exchange[:,:,:,:,:,:,0])        
 
     Kd = Kd*factor_kernel
     Kx = Kx*factor_kernel
@@ -151,12 +159,17 @@ def get_exciton_info(exciton_file, iexc):
 
     f_hdf5 = h5py.File(exciton_file, 'r')
     
-    eigenvecs = f_hdf5['exciton_data/eigenvectors'][()]          # (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
-    eigenvals = f_hdf5['exciton_data/eigenvalues'][()] 
+    flavor_calc = f_hdf5['/exciton_header/flavor'][()]
+    eigenvecs   = f_hdf5['exciton_data/eigenvectors'][()]          # (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
+    eigenvals   = f_hdf5['exciton_data/eigenvalues'][()] 
 
-
-    Akcv = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
     Omega = eigenvals[iexc-1]
+    if flavor_calc == 2:
+        print('Flavor in BGW: complex')
+        Akcv = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
+    else:
+        print('Flavor in BGW: real')
+        Akcv = eigenvecs[0,iexc-1,:,:,:,0,0]
 
     print("    Max real value of Akcv: ", np.max(np.real(Akcv)))
     print("    Max imag value of Akcv: ", np.max(np.imag(Akcv)))
