@@ -295,7 +295,7 @@ if Calculate_Kernel == True:
     else:
         DKernel = calc_deriv_Kernel((Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, MF_params, BSE_params)
 
-del Kx, Kd
+    del Kx, Kd
 
 print("Calculating sums")
 
