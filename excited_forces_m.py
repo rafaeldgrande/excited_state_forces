@@ -98,7 +98,7 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_param
 
 def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, MF_params, BSE_params):
 
-    print("    - Calculating Kernel part")
+    print("\n\n    - Calculating Kernel part")
 
     Nmodes   = MF_params.Nmodes
     Nkpoints = BSE_params.Nkpoints_BSE
@@ -109,7 +109,13 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, MF_params, BSE_params):
     DKernel      = np.zeros(Shape_kernel, dtype=np.complex64)
     DKernel_IBL  = np.zeros(Shape_kernel, dtype=np.complex64)
 
+    total_ite          = Nmodes*(Nkpoints*Ncbnds*Nvbnds)**2
+    interval_report    = max(int(np.sqrt(total_ite)), int(total_ite/20))
+    i_term = 0
+    print(f'        Total terms to be calculated : {total_ite}')
+
     for imode in range(Nmodes):
+
         for ik1 in range(Nkpoints):
             for ic1 in range(Ncbnds):
                 for iv1 in range(Nvbnds):
@@ -130,6 +136,10 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, MF_params, BSE_params):
                                 else:
                                     DKernel[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK[0] * A_ket
                                     DKernel_IBL[imode, ik1, ic1, iv1, ik2, ic2, iv2] = A_bra * dK[1] * A_ket
+
+                                i_term += 1
+                                if i_term % interval_report == 0:
+                                    print(f'        {i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
 
 
     if calc_IBL_way == False:
@@ -232,6 +242,8 @@ def calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, i
 
 def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params):
 
+    print("\n\n     - Calculating RPA part")
+
     Nmodes   = MF_params.Nmodes
     Nkpoints = BSE_params.Nkpoints_BSE
     Ncbnds   = BSE_params.Ncbnds
@@ -247,7 +259,15 @@ def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_pa
 
 
     if just_RPA_diag == True:
+
+        # reporting
+        total_ite          = Nmodes*Nkpoints*Ncbnds*Nvbnds
+        interval_report    = max(int(np.sqrt(total_ite)), int(total_ite/20))
+        i_term = 0
+
         print('Calculating just diag RPA force matrix elements')
+        print(f'Total terms to be calculated : {total_ite}')
+        
         for imode in range(Nmodes):
             for ik in range(Nkpoints):
                 for ic1 in range(Ncbnds):
@@ -255,11 +275,24 @@ def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_pa
                         temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1)
                         DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
 
+                        # reporting
+                        i_term += 1
+                        if i_term % interval_report == 0:
+                            print(f'{i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
+                        
+
     else:
 
         print('Calculating diag and offdiag RPA force matrix elements')
 
         if use_hermicity_F == False:
+
+            # reporting
+            total_ite          = Nmodes*Nkpoints*(Ncbnds*Nvbnds)**2
+            interval_report    = max(int(np.sqrt(total_ite)), int(total_ite/20))
+            i_term = 0
+            print(f'Total terms to be calculated : {total_ite}')
+
             for imode in range(Nmodes):
                 for ik in range(Nkpoints):
                     for ic1 in range(Ncbnds):
@@ -269,6 +302,11 @@ def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_pa
                                     temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
                                     DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
 
+                                    # reporting
+                                    i_term += 1
+                                    if i_term % interval_report == 0:
+                                        print(f'{i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
+
         # Creating a list of tuples with cond and val bands indexes
         # [(0,0), (0,1), (0,2), ... (Ncbnds-1, 0), (Ncbnds-1, 1), ..., (Ncbnds-1, Nvbnds-1)]
         # size of this list Nvbnds*Ncbnds
@@ -276,8 +314,17 @@ def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_pa
         # New block - now using the fact that F_cvc'v' = conj(F_c'v'cv)
         # Reduces the number of computed terms by about half
 
-        if use_hermicity_F == True:
+        else:
+
+            print('Using "hermicity" of force matrix elements')
+
             indexes_cv = [(icp, ivp) for ivp in range(Nvbnds) for icp in range(Ncbnds)]
+
+            # reporting
+            total_ite          = int(Nmodes*Nkpoints*len(indexes_cv)*(len(indexes_cv)-1) / 2)
+            interval_report    = max(int(np.sqrt(total_ite)), int(total_ite/20))
+            i_term = 0
+            print(f'Total terms to be calculated : {total_ite}')
 
             for imode in range(Nmodes):
                 for ik in range(Nkpoints):
@@ -296,6 +343,12 @@ def calc_Dkinect_matrix(Akcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_pa
                             temp = calc_Dkinect_matrix_elem(Akcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
                             DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
                             DKinect[imode, ik, ic2, iv2, ik, ic1, iv1] = np.conj(temp)
+
+                            # reporting
+                            i_term += 1
+                            if i_term % interval_report == 0:
+                                print(f'       {i_term} of {int(total_ite)} calculated --------- {round(100*i_term/total_ite,1)} %')                    
+
 
     if report_RPA_data == True:
         print(f'RPA matrix elements written in file: RPA_matrix_elements.dat')

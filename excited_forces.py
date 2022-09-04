@@ -270,7 +270,6 @@ report_ram()
 ########## Calculating stuff ############
 
 print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
-print("    - Calculating RPA part")
 
 # Creating auxialiry quantities
 # aux_cond_matrix[imode, ik, ic1, ic2] = elph_cond[imode, ik, ic1, ic2] * deltaEqp / deltaEdft (if ic1 != ic2)

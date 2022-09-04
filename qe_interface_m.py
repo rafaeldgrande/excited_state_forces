@@ -106,8 +106,6 @@ def read_elph_xml(elph_xml_file):
             - Nbnds_in_xml_file is the number of bands in the file 
     """
 
-    print('    Reading file ', elph_xml_file)
-
     tree = ET.parse(elph_xml_file)
     root = tree.getroot()
 
@@ -218,6 +216,7 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
 
     for irrep in range(Nirreps):
         elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
+        print('    Reading file ', elph_xml_file, f'({irrep+1}/{Nirreps})')
         elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)
         # print('Shape elph_aux', np.shape(elph_aux))
 
@@ -241,7 +240,7 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
 
     if acoutic_sum_rule == True:
 
-        print('Applying acoustic sum rule. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
+        print('\nApplying acoustic sum rule. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
 
         Nmodes = MF_params.Nmodes
         Nat    = MF_params.Nat
@@ -308,7 +307,7 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
         print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
 
     else:
-        print('Not applying acoustic sum rule')
+        print('\nNot applying acoustic sum rule')
 
     return elph
 
