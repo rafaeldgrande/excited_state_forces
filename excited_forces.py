@@ -232,18 +232,6 @@ Displacements, Nirreps = get_patterns2(iq, MF_params)
     # get elph coefficients from .xml files
 elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps)
 
-    # apply acoustic sum rule
-elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
-
-    # filter data to get just g_c1c2 and g_v1v2
-elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
-
-# report_ram()
-# print('DELETING ELPH')
-del elph
-report_ram()
-
-
 # Checking kpoints from DFPT and BSE calculations
 # The kpoints in eigenvecs.h5 are not in the same order in the 
 # input for the fine grid calculation. 
@@ -260,10 +248,21 @@ report_ram()
 print('Checking if kpoints of DFPT and BSE agree with each other')
 ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
 
-
 # Now checking if everything is ok with ikBSE_to_ikDFPT list
 # if something is wrong kill the code
 check_k_points_BSE_DFPT()
+
+    # apply acoustic sum rule
+elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
+
+    # filter data to get just g_c1c2 and g_v1v2
+elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
+
+# report_ram()
+# print('DELETING ELPH')
+del elph
+report_ram()
+
 
 report_ram()
 
