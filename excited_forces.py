@@ -324,7 +324,11 @@ if Calculate_Kernel == True:
 print("Calculating sums")
 
 Sum_DKinect_diag = np.zeros((Nmodes), dtype=complex)
-Sum_DKinect = np.zeros((Nmodes), dtype=complex)
+Sum_DKinect      = np.zeros((Nmodes), dtype=complex)
+
+arq_f_disp = open('forces_vs_displacement.dat', 'w')
+arq_f_disp.write('########## Forces in (eV/A) ################')
+arq_f_disp.write('# disp_pattern F_diag F_diag_offdiag')
 
 for imode in range(Nmodes):
 
@@ -338,6 +342,11 @@ for imode in range(Nmodes):
 
     # sum of off-diagonal part + sum of diagonal part
     Sum_DKinect[imode] = np.sum(DKinect[imode])
+
+    arq_f_disp.write(f'{imode+1}   {Sum_DKinect_diag[imode]}    {Sum_DKinect[imode]}\n')
+
+
+arq_f_disp.close()
 
 if Calculate_Kernel == True:
     Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)
