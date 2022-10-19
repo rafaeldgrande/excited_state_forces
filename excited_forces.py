@@ -300,8 +300,38 @@ aux_cond_matrix, aux_val_matrix = aux_matrix_elem(
     elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
 
 # Calculating matrix elements F_cvkc'v'k'
-DKinect = calc_Dkinect_matrix(
+# DKinect = calc_Dkinect_matrix(
+#     Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params)
+
+# instead of creating big matrix, calculate sums on the fly!
+Sum_DKinect_diag, Sum_DKinect = calc_Dkinect_matrix(
     Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params)
+
+
+# arq_f_disp = open('forces_vs_displacement.dat', 'w')
+# arq_f_disp.write('########## Forces in (eV/A) ################\n')
+# arq_f_disp.write('# disp_pattern F_diag F_diag_offdiag\n')
+
+# for imode in range(Nmodes):
+
+#     sum_temp = 0.0 + 0.0j
+#     for ik in range(Nkpoints_BSE):
+#         for ic in range(Ncbnds):
+#             for iv in range(Nvbnds):
+#                 sum_temp += DKinect[imode, ik, ic, iv, ik, ic, iv]
+
+#     Sum_DKinect_diag[imode] = sum_temp
+
+#     # sum of off-diagonal part + sum of diagonal part
+#     Sum_DKinect[imode] = np.sum(DKinect[imode])
+
+#     arq_f_disp.write(
+#         f'{imode+1}   {Sum_DKinect_diag[imode]}    {Sum_DKinect[imode] }\n')
+
+
+# arq_f_disp.close()
+
+
 
 del aux_cond_matrix, aux_val_matrix
 
@@ -323,30 +353,7 @@ if Calculate_Kernel == True:
 
 print("Calculating sums")
 
-Sum_DKinect_diag = np.zeros((Nmodes), dtype=complex)
-Sum_DKinect      = np.zeros((Nmodes), dtype=complex)
 
-arq_f_disp = open('forces_vs_displacement.dat', 'w')
-arq_f_disp.write('########## Forces in (eV/A) ################')
-arq_f_disp.write('# disp_pattern F_diag F_diag_offdiag')
-
-for imode in range(Nmodes):
-
-    sum_temp = 0.0 + 0.0j
-    for ik in range(Nkpoints_BSE):
-        for ic in range(Ncbnds):
-            for iv in range(Nvbnds):
-                sum_temp += DKinect[imode, ik, ic, iv, ik, ic, iv]
-
-    Sum_DKinect_diag[imode] = sum_temp
-
-    # sum of off-diagonal part + sum of diagonal part
-    Sum_DKinect[imode] = np.sum(DKinect[imode])
-
-    arq_f_disp.write(f'{imode+1}   {Sum_DKinect_diag[imode]}    {Sum_DKinect[imode]}\n')
-
-
-arq_f_disp.close()
 
 if Calculate_Kernel == True:
     Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)

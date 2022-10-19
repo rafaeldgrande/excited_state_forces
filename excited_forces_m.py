@@ -103,9 +103,11 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
     Ncbnds = BSE_params.Ncbnds
     Nvbnds = BSE_params.Nvbnds
 
-    Shape_kernel = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
-    DKernel = np.zeros(Shape_kernel, dtype=np.complex64)
-    DKernel_IBL = np.zeros(Shape_kernel, dtype=np.complex64)
+    # Shape_kernel = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
+    # DKernel = np.zeros(Shape_kernel, dtype=np.complex64)
+    # DKernel_IBL = np.zeros(Shape_kernel, dtype=np.complex64)
+    Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)
+    Sum_DKernel_IBL = np.zeros((Nmodes), dtype=np.complex64)
 
     total_ite = Nmodes*(Nkpoints*Ncbnds*Nvbnds)**2
     interval_report = max(int(np.sqrt(total_ite)), int(total_ite/20))
@@ -113,6 +115,9 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
     print(f'        Total terms to be calculated : {total_ite}')
 
     for imode in range(Nmodes):
+
+        temp_sum_imode     = 0.0 + 0.0j
+        temp_sum_IBL_imode = 0.0 + 0.0j
 
         for ik1 in range(Nkpoints):
             for ic1 in range(Ncbnds):
@@ -131,13 +136,16 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
                                     indexes, KernelMat, EDFT, EQP, ELPH, MF_params, BSE_params)
 
                                 if calc_IBL_way == False:
-                                    DKernel[imode, ik1, ic1, iv1, ik2,
-                                            ic2, iv2] = A_bra * dK * A_ket
+                                    temp_sum_imode += A_bra * dK * A_ket
+                                    # DKernel[imode, ik1, ic1, iv1, ik2,
+                                    #         ic2, iv2] = A_bra * dK * A_ket
                                 else:
-                                    DKernel[imode, ik1, ic1, iv1, ik2,
-                                            ic2, iv2] = A_bra * dK[0] * A_ket
-                                    DKernel_IBL[imode, ik1, ic1, iv1, ik2,
-                                                ic2, iv2] = A_bra * dK[1] * A_ket
+                                    temp_sum_imode     += A_bra * dK[0] * A_ket
+                                    temp_sum_IBL_imode += A_bra * dK[1] * A_ket
+                                    # DKernel[imode, ik1, ic1, iv1, ik2,
+                                    #         ic2, iv2] = A_bra * dK[0] * A_ket
+                                    # DKernel_IBL[imode, ik1, ic1, iv1, ik2,
+                                    #             ic2, iv2] = A_bra * dK[1] * A_ket
 
                                 i_term += 1
                                 if i_term % interval_report == 0:
@@ -145,9 +153,9 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
                                         f'        {i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
 
     if calc_IBL_way == False:
-        return DKernel
+        return Sum_DKernel
     else:
-        return DKernel, DKernel_IBL
+        return Sum_DKernel, Sum_DKernel_IBL
 
 
 def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT):
@@ -253,8 +261,11 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
     Ncbnds = BSE_params.Ncbnds
     Nvbnds = BSE_params.Nvbnds
 
-    Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
-    DKinect = np.zeros(Shape, dtype=np.complex64)
+    Sum_DKinect_diag = np.zeros((Nmodes), dtype=complex)
+    Sum_DKinect      = np.zeros((Nmodes), dtype=complex)
+
+    # Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
+    # DKinect = np.zeros(Shape, dtype=np.complex64)
 
     if report_RPA_data == True:
         arq_RPA_data = open('RPA_matrix_elements.dat', 'w')
@@ -270,21 +281,26 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
         i_term = 0
 
         print('Calculating just diag RPA force matrix elements')
-        print(f'Total terms to be calculated : {total_ite}')
+        print(f'Total terms to be calculated : {total_ite}\n')
 
         for imode in range(Nmodes):
+            temp_imode_just_diag = 0.0 + 0.0j
+
             for ik in range(Nkpoints):
                 for ic1 in range(Ncbnds):
                     for iv1 in range(Nvbnds):
                         temp = calc_Dkinect_matrix_elem(
-                            Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1)
-                        DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
+                            Akcv, Bkcv, aux_cond_matrix, imode, ik, ic1, ic1, iv1, iv1)
+                        # DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
+                        temp_imode_just_diag += temp 
 
                         # reporting
                         i_term += 1
                         if i_term % interval_report == 0:
                             print(
                                 f'{i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
+
+            Sum_DKinect_diag[imode] = temp_imode_just_diag
 
     else:
 
@@ -299,21 +315,31 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
             print(f'Total terms to be calculated : {total_ite}')
 
             for imode in range(Nmodes):
+                temp_imode = 0.0 + 0.0j
+                temp_imode_just_diag = 0.0 + 0.0j
+
                 for ik in range(Nkpoints):
                     for ic1 in range(Ncbnds):
                         for iv1 in range(Nvbnds):
+                            temp = calc_Dkinect_matrix_elem(
+                                Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1)
+                            temp_imode_just_diag += temp
                             for ic2 in range(Ncbnds):
                                 for iv2 in range(Nvbnds):
                                     temp = calc_Dkinect_matrix_elem(
                                         Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
-                                    DKinect[imode, ik, ic1, iv1,
-                                            ik, ic2, iv2] = temp
+                                    temp_imode += temp
+                                    # DKinect[imode, ik, ic1, iv1,
+                                            # ik, ic2, iv2] = temp
 
                                     # reporting
                                     i_term += 1
                                     if i_term % interval_report == 0:
                                         print(
                                             f'{i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
+
+                Sum_DKinect_diag[imode] = temp_imode_just_diag
+                Sum_DKinect[imode]      = temp_imode
 
         # Creating a list of tuples with cond and val bands indexes
         # [(0,0), (0,1), (0,2), ... (Ncbnds-1, 0), (Ncbnds-1, 1), ..., (Ncbnds-1, Nvbnds-1)]
@@ -337,6 +363,8 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
             print(f'Total terms to be calculated : {total_ite}')
 
             for imode in range(Nmodes):
+                temp_imode_not_diag = 0.0 + 0.0j
+                temp_imode_just_diag = 0.0 + 0.0j
                 for ik in range(Nkpoints):
                     for ind_cv1 in range(len(indexes_cv)):
                         # diagonal term (cv,cv)
@@ -344,7 +372,9 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
 
                         temp = calc_Dkinect_matrix_elem(
                             Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1)
-                        DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
+                        # DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
+
+                        temp_imode_just_diag += temp  
 
                         # Now get offdiag
                         # don't get it repeated
@@ -354,9 +384,12 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
 
                             temp = calc_Dkinect_matrix_elem(
                                 Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
-                            DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
-                            DKinect[imode, ik, ic2, iv2, ik,
-                                    ic1, iv1] = np.conj(temp)
+                            # DKinect[imode, ik, ic1, iv1, ik, ic2, iv2] = temp
+                            # DKinect[imode, ik, ic2, iv2, ik,
+                            #         ic1, iv1] = np.conj(temp)
+
+                            temp_imode_not_diag += 2 * \
+                                np.real(temp)  # temp + conj(temp)
 
                             # reporting
                             i_term += 1
@@ -364,7 +397,11 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
                                 print(
                                     f'       {i_term} of {int(total_ite)} calculated --------- {round(100*i_term/total_ite,1)} %')
 
+
+                Sum_DKinect_diag[imode] = temp_imode_just_diag
+                Sum_DKinect[imode] = temp_imode_not_diag + temp_imode_just_diag
+
     if report_RPA_data == True:
         print(f'RPA matrix elements written in file: RPA_matrix_elements.dat')
 
-    return DKinect
+    return Sum_DKinect_diag, Sum_DKinect
