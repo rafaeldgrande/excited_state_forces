@@ -1,3 +1,6 @@
+# IGNORE ERRORS
+
+IGNORE_ERRORS = False
 
 from scipy.constants import physical_constants
 import numpy as np
@@ -38,9 +41,6 @@ Calculate_Kernel = False    # Dont change. We dont know how to work with kernel 
 just_RPA_diag = False    # If true doesn't calculate forces a la David
 report_RPA_data = False    # report Fcvkc'v'k' matrix elements.
 
-# If false, read eigenvectors.h5 file, when BGW is compiled with hdf5. If true read Acvk{iexc} that is an output of my modified summarize_eigenvectors.f90 file
-read_Akcv_trick = False
-
 # Show imaginary part of excited state force . It should be very close to 0
 show_imag_part = False
 
@@ -51,6 +51,10 @@ use_hermicity_F = True     # Use the fact that F_cvc'v' = conj(F_c'v'cv)
 
 log_k_points = True     # Write k points used in BSE and DFPT calculations
 
+# reads Acvk coeffs from files produced by my modified version of 
+# summarize_eigenvectors.x
+read_Acvk_pos = False
+Acvk_directory = './' # directory where the Acvk files are
 
 def true_or_false(text, default_value):
     if text.lower() == 'true':
@@ -72,7 +76,7 @@ def read_input(input_file):
     global calc_IBL_way, write_DKernel, Calculate_Kernel
     global just_RPA_diag, report_RPA_data
     global show_imag_part
-    global read_Akcv_trick
+    global read_Acvk_pos, Acvk_directory
     global acoutic_sum_rule, use_hermicity_F
     global log_k_points
 
@@ -108,8 +112,10 @@ def read_input(input_file):
                     dyn_file = linha[1]
                 elif linha[0] == 'kernel_file':
                     kernel_file = linha[1]
+                elif linha[0] == 'Acvk_directory':
+                    Acvk_directory = linha[1]
 
-######### conditionals #############################
+                ######### conditionals #############################
 
                 elif linha[0] == 'calc_modes_basis':
                     calc_modes_basis = true_or_false(
@@ -125,8 +131,6 @@ def read_input(input_file):
                     just_RPA_diag = true_or_false(linha[1], just_RPA_diag)
                 elif linha[0] == 'report_RPA_data':
                     report_RPA_data = true_or_false(linha[1], report_RPA_data)
-                elif linha[0] == 'read_Akcv_trick':
-                    read_Akcv_trick = true_or_false(linha[1], read_Akcv_trick)
                 elif linha[0] == 'show_imag_part':
                     show_imag_part = true_or_false(linha[1], show_imag_part)
                 elif linha[0] == 'acoutic_sum_rule':
@@ -136,11 +140,13 @@ def read_input(input_file):
                     use_hermicity_F = true_or_false(linha[1], use_hermicity_F)
                 elif linha[0] == 'log_k_points':
                     log_k_points = true_or_false(linha[1], log_k_points)
+                elif linha[0] == 'read_Acvk_pos':
+                    read_Acvk_pos = true_or_false(linha[1], read_Acvk_pos)
 
 ########## did not recognize this line #############
 
                 elif linha[0][0] != '#':
-                    print('Parameters not recognized in the following line:\n')
+                    print('Parameters not recognized in the following line:')
                     print(line)
         arq_in.close()
 

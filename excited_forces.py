@@ -1,13 +1,18 @@
 
 # FIRST MESSAGE
 
+# excited state forces modules
 from excited_forces_config import *
 from bgw_interface_m import *
 from qe_interface_m import *
 from excited_forces_m import *
-import tracemalloc  # track ram usage
-import time
+
 import numpy as np
+
+import tracemalloc  # track ram usage
+tracemalloc.start()
+
+import time
 from datetime import datetime
 # datetime object containing current date and time
 now = datetime.now()
@@ -20,13 +25,6 @@ print('\n\n*************************************************************')
 print('Excited state forces code')
 print('Developed by Rafael Del Grande and David Strubbe')
 print('*************************************************************\n\n')
-
-
-# Importing modules
-tracemalloc.start()
-
-
-# excited state forces modules
 
 
 # Report functions
@@ -85,8 +83,11 @@ def get_BSE_MF_params():
     global Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval
     global rec_cell_vecs, Nmodes
 
-    Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_eigenvecs_file(
-        exciton_file)
+    if read_Acvk_pos == False:
+        Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_eigenvecs_file(exciton_file)
+    else:
+        Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_alternative_file('params')
+    
     Nmodes = 3 * Nat
 
     MF_params = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
@@ -169,8 +170,7 @@ def translate_bse_to_dfpt_k_points():
         a3 = correct_comp_vector(a3)
 
         # vector in cartesian basis
-        vec_eigvecs = a1 * rec_cell_vecs[0] + a2 * \
-            rec_cell_vecs[1] + a3 * rec_cell_vecs[2]
+        vec_eigvecs = a1 * rec_cell_vecs[0] + a2 * rec_cell_vecs[1] + a3 * rec_cell_vecs[2]
 
         found_or_not = find_kpoint(vec_eigvecs, Kpoints_in_elph_file)
         # if found the vec_eigvecs in the Kpoints_in_elph_file, then returns
@@ -215,7 +215,8 @@ def check_k_points_BSE_DFPT():
         print('Found no problem for k points from both DFPT and BSE calculations')
     else:
         print('Quiting program! Please check the above warnings!')
-        quit()
+        if IGNORE_ERRORS == False:
+            quit()
 
 
 ########## RUNNING CODE ###################
@@ -225,8 +226,13 @@ start_time = time.clock_gettime(0)
 get_BSE_MF_params()
 
 # Getting exciton info
-Akcv, OmegaA = get_exciton_info(exciton_file, iexc)
-Bkcv, OmegaB = get_exciton_info(exciton_file, jexc)
+if read_Acvk_pos == False:
+    Akcv, OmegaA = get_exciton_info(exciton_file, iexc)
+    Bkcv, OmegaB = get_exciton_info(exciton_file, jexc)
+else:
+    llllllllll = 1
+    Akcv, OmegaA = get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+    Bkcv, OmegaB = get_exciton_info_alternative(Acvk_directory, jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
 
 # getting info from eqp.dat (from absorption calculation)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
@@ -254,6 +260,8 @@ Displacements, Nirreps = get_patterns2(iq, MF_params)
 # get elph coefficients from .xml files
 elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps)
 
+print('Checking if kpoints of DFPT and BSE agree with each other')
+
 # Checking kpoints from DFPT and BSE calculations
 # The kpoints in eigenvecs.h5 are not in the same order in the
 # input for the fine grid calculation.
@@ -266,8 +274,6 @@ elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps)
 # Maybe it would be necessary to check it later!
 
 # First let's put all k points from BSE grid in the first Brillouin zone
-
-print('Checking if kpoints of DFPT and BSE agree with each other')
 ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
 
 # Now checking if everything is ok with ikBSE_to_ikDFPT list

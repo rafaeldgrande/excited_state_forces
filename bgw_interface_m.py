@@ -107,32 +107,6 @@ def get_kernel(kernel_file, factor_head):
     return Kd, Kx
 
 
-def get_exciton_info(exciton_file):
-
-    """
-    When eigenvectors.h5 files are not available, must use this alternative here
-    Have to use my modified version of summarize_eigenvectors code from BGW
-    https://github.com/rafaeldgrande/utilities/blob/main/BGW/modified_summarize_eigenvectors.f90
-    """
-
-    Akcv = np.zeros((Nkpoints, Ncbnds, Nvbnds), dtype=np.complex64)
-
-    print('Reading exciton info from file', exciton_file)
-    arq = open(exciton_file)
-
-    for line in arq:
-        linha = line.split()
-        if len(linha) == 6:
-            if linha[0] != 'Special' and linha[0] != 'c':
-                ic, iv, ik = int(linha[0]) - 1, int(linha[1]) - 1, int(linha[2]) - 1
-                if ic < Ncbnds and iv < Nvbnds:
-                    Akcv[ik][ic][iv] = float(linha[3]) + 1.0j*float(linha[4])
-            if linha[0] == 'Special':
-                exc_energy = float(linha[-1])
-
-    print('Exciton energy (eV): '+str(exc_energy)+'\n\n')
-
-    return Akcv, exc_energy
 
 def get_exciton_info(exciton_file, iexc):
 
@@ -265,3 +239,91 @@ def get_params_from_eigenvecs_file(exciton_file):
 
 
     return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval, rec_cell_vecs
+
+
+def get_params_from_alternative_file(alternative_params_file):
+
+    file_params = open(alternative_params_file)
+    rec_cell_vecs = []
+
+    for line in file_params:
+
+        linha = line.split()    
+
+        if len(linha) > 1:
+            if linha[0] == 'Nvbnds':
+                Nvbnds = int(linha[1])
+            elif linha[0] == 'Ncbnds':
+                Ncbnds = int(linha[1])
+            elif linha[0] ==  'Nval':
+                Nval = int(linha[1])
+            elif ['b1', 'b2', 'b3'].count(linha[0]) == 1:
+                bx, by, bz = np.float(linha[1]), np.float(linha[2]), np.float(linha[3])
+                rec_cell_vecs.append([bx, by, bz])
+            elif linha[0] == 'Nat':
+                Nat = int(linha[1])
+            elif linha[0] == 'Nkpoints':
+                Nkpoints = int(linha[1])
+            elif linha[0] == 'alat': # alat in a.u.
+                alat = float(linha[1])
+
+    file_params.close()
+
+    Kpoints_bse = []
+
+    arq_kpoints_bse = open('kpoints_fine_bse')
+
+    # 1   0.00000   0.00000   0.00000
+    # 2   0.00000   0.00000   0.16667
+    # 3  -0.00000  -0.00000   0.33333
+    # 4  -0.00000   0.00000   0.50000
+    # 5  -0.00000   0.00000  -0.33333
+
+
+    for line in arq_kpoints_bse:
+        linha = line.split()
+        kx, ky, kz = float(linha[1]), float(linha[2]), float(linha[3])
+        Kpoints_bse.append([kx, ky, kz])
+
+    Kpoints_bse = np.array(Kpoints_bse)    
+            
+    atomic_pos = []
+    cell_vol = 0.0
+    cell_vecs = np.array([[0,0,0], [0,0,0], [0,0,0]])
+    rec_cell_vecs = np.array(rec_cell_vecs)
+
+    print('RECIPROCAL VECTORS')
+    print(rec_cell_vecs)
+
+    return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval, rec_cell_vecs
+
+
+def get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints, Ncbnds, Nvbnds):
+
+    """
+    When eigenvectors.h5 files are not available, must use this alternative here
+    Have to use my modified version of summarize_eigenvectors code from BGW
+    https://github.com/rafaeldgrande/utilities/blob/main/BGW/modified_summarize_eigenvectors.f90
+    """
+
+    exciton_file = Acvk_directory + f'/Avck_{iexc}'
+
+    Akcv = np.zeros((Nkpoints, Ncbnds, Nvbnds), dtype=complex)
+
+    print('Reading exciton info from file', exciton_file)
+    arq = open(exciton_file)
+
+    for line in arq:
+        linha = line.split()
+        if len(linha) == 6:
+            if linha[0] != 'Special' and linha[0] != 'c':
+                ic, iv, ik = int(linha[0]) - \
+                    1, int(linha[1]) - 1, int(linha[2]) - 1
+                if ic < Ncbnds and iv < Nvbnds:
+                    Akcv[ik][ic][iv] = float(linha[3]) + 1.0j*float(linha[4])
+            if linha[0] == 'Special':
+                exc_energy = float(linha[-1])
+
+    print('Exciton energy (eV): '+str(exc_energy)+'\n\n')
+
+    return Akcv, exc_energy
