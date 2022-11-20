@@ -19,7 +19,7 @@
 
    The eigvecs file is the output from dynmat.x (QE) that is done after the PH calculation.
    It is recommended to inclulde ASR in this calculation.
-   This code assumes displacements are real values.
+   This code assumes displacements are real values and eigvecs are normalized to 1.
    Just calculate phonons for q = (0,0,0)!
    This file looks something like this
 
@@ -100,6 +100,7 @@ for line in arq_eigvecs:
 
 for i_eigvec in range(len(eigvecs)):
    eigvecs[i_eigvec] = np.array(eigvecs[i_eigvec])
+   # print('Norm = ', np.dot(eigvecs[i_eigvec], eigvecs[i_eigvec]))
 
 
 arq_eigvecs.close()
