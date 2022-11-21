@@ -348,6 +348,10 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
         # New block - now using the fact that F_cvc'v' = conj(F_c'v'cv)
         # Reduces the number of computed terms by about half
 
+        # Cannot use this if iexc != jexc 
+        # If use_hermicity_F == True and iexc != jexc
+        # then I just make use_hermicity_F == False
+
         else:
 
             print('Using "hermicity" of force matrix elements')

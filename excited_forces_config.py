@@ -158,16 +158,24 @@ read_input('forces.inp')
 
 print('\n--------------------Configurations----------------------------\n\n')
 
-if jexc == iexc:
-    print(f'Exciton index to be read : {iexc}')
-else:
-    print(f'Exciton indexes to be read : {iexc}, {jexc}')
+
 print(f'Eqp data file : {eqp_file}')
 print(f'Exciton file : {exciton_file}')
 print(f'Elph directory : {el_ph_dir}')
 
 print(f'Using Acoustic Sum Rule for elph coeffs : {acoutic_sum_rule}')
-print(f'Using "hermicity" in forces calculations : {use_hermicity_F}')
+
+if jexc == iexc:
+    print(f'Exciton index to be read : {iexc}')
+else:
+    print(f'Exciton indexes to be read : {iexc}, {jexc}')
+
+if iexc == jexc:
+    print(f'Using "hermicity" in forces calculations : {use_hermicity_F}')
+elif use_hermicity_F == True:
+    print(f'Exciton indexes are not equal to each other. Cannot use "hermicity"')
+    use_hermicity_F == False
+
 
 if calc_IBL_way == True:
     print('Calculating derivatives of Kernel using Ismail-Beigi and Louie\'s paper approach')
