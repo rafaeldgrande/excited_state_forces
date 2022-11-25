@@ -56,6 +56,9 @@ log_k_points = True     # Write k points used in BSE and DFPT calculations
 read_Acvk_pos = False
 Acvk_directory = './' # directory where the Acvk files are
 
+# do not renormalize elph coefficients (make <n|dHqp|m> = <n|dHdft|m> for all n and m)
+no_renorm_elph = False
+
 def true_or_false(text, default_value):
     if text.lower() == 'true':
         return True
@@ -142,6 +145,8 @@ def read_input(input_file):
                     log_k_points = true_or_false(linha[1], log_k_points)
                 elif linha[0] == 'read_Acvk_pos':
                     read_Acvk_pos = true_or_false(linha[1], read_Acvk_pos)
+                elif linha[0] == 'no_renorm_elph':
+                    no_renorm_elph = true_or_false(linha[1], no_renorm_elph)
 
 ########## did not recognize this line #############
 
