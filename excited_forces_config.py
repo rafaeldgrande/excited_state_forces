@@ -185,5 +185,8 @@ elif use_hermicity_F == True:
 if calc_IBL_way == True:
     print('Calculating derivatives of Kernel using Ismail-Beigi and Louie\'s paper approach')
 
+if no_renorm_elph == True:
+    print('Elph coefficients at gw level will be considered to be equal to coefficients calculated at DFT level')
+
 
 print('\n-------------------------------------------------------------\n\n')
