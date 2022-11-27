@@ -41,7 +41,7 @@ Calculate_Kernel = False    # Dont change. We dont know how to work with kernel 
 just_RPA_diag = False    # If true doesn't calculate forces a la David
 report_RPA_data = False    # report Fcvkc'v'k' matrix elements.
 
-# Show imaginary part of excited state force . It should be very close to 0
+# Show imaginary part of excited state force . It should be very close to 0 when iexc = jexc
 show_imag_part = False
 
 # Makes the excited state forces to sum to zero (obey Newton's third law), by making sum of elph matrix elems to 0. May want to set this variable to true
@@ -58,6 +58,8 @@ Acvk_directory = './' # directory where the Acvk files are
 
 # do not renormalize elph coefficients (make <n|dHqp|m> = <n|dHdft|m> for all n and m)
 no_renorm_elph = False
+
+print('!!!!!!!!!!', no_renorm_elph)
 
 def true_or_false(text, default_value):
     if text.lower() == 'true':
@@ -82,6 +84,7 @@ def read_input(input_file):
     global read_Acvk_pos, Acvk_directory
     global acoutic_sum_rule, use_hermicity_F
     global log_k_points
+    global no_renorm_elph       
 
     try:
         arq_in = open(input_file)
@@ -137,8 +140,7 @@ def read_input(input_file):
                 elif linha[0] == 'show_imag_part':
                     show_imag_part = true_or_false(linha[1], show_imag_part)
                 elif linha[0] == 'acoutic_sum_rule':
-                    acoutic_sum_rule = true_or_false(
-                        linha[1], acoutic_sum_rule)
+                    acoutic_sum_rule = true_or_false(linha[1], acoutic_sum_rule)
                 elif linha[0] == 'use_hermicity_F':
                     use_hermicity_F = true_or_false(linha[1], use_hermicity_F)
                 elif linha[0] == 'log_k_points':
@@ -174,12 +176,16 @@ if jexc == iexc:
     print(f'Exciton index to be read : {iexc}')
 else:
     print(f'Exciton indexes to be read : {iexc}, {jexc}')
+    print(f'As excitons indexes are different, we must use complex values to forces!')
+    print(f'Setting show_imag_part to true')
+    show_imag_part = True
 
 if iexc == jexc:
     print(f'Using "hermicity" in forces calculations : {use_hermicity_F}')
 elif use_hermicity_F == True:
     print(f'Exciton indexes are not equal to each other. Cannot use "hermicity"')
-    use_hermicity_F == False
+    print(f'Setting use_hermicity_F to false')
+    use_hermicity_F = False
 
 
 if calc_IBL_way == True:
