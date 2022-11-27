@@ -25,74 +25,65 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_param
     Ncbnds = BSE_params.Ncbnds
     Nvbnds = BSE_params.Nvbnds
     Edft_val, Edft_cond = EDFT
+    Eqp_val, Eqp_cond = EQP
 
-    if calc_IBL_way == True:
-        Eqp_val, Eqp_cond = EQP
-        DKelement_IBL = 0 + 0.0*1.0j
-
-    DKelement = 0 + 0.0*1.0j
+    DKelement = 0 + 0.0*1.0j    
 
     # ik2, ik1, ic2, ic1, iv2, iv1
 
     for ivp in range(Nvbnds):
 
         DeltaEdft = Edft_val[ik1, iv1] - Edft_val[ik1, ivp]
-        if calc_IBL_way == True:
-            DeltaEqp = Eqp_val[ik1, iv1] - Eqp_val[ik1, ivp]
+        DeltaEqp = Eqp_val[ik1, iv1] - Eqp_val[ik1, ivp]
 
         indexes_K = ik2, ik1, ic2, ic1, iv2, ivp
         indexes_g = imode, ik1, ivp, iv1
 
         if abs(DeltaEdft) > TOL_DEG:
-            DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
-            if calc_IBL_way == True:  # assuming that gw levels have the same degeneracy of dft levels
-                DKelement_IBL += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEqp
+            if no_renorm_elph == True:
+                DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEqp
+            else:  # assuming that gw levels have the same degeneracy of dft levels
+                DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
 
         DeltaEdft = Edft_val[ik2, iv2] - Edft_val[ik2, ivp]
-        if calc_IBL_way == True:
-            DeltaEqp = Eqp_val[ik2, iv2] - Eqp_val[ik2, ivp]
+        DeltaEqp = Eqp_val[ik2, iv2] - Eqp_val[ik2, ivp]
 
         indexes_K = ik2, ik1, ic2, ic1, ivp, iv1
         indexes_g = imode, ik2, iv2, ivp
 
         if abs(DeltaEdft) > TOL_DEG:
-            DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
-            if calc_IBL_way == True:
-                DKelement_IBL += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEqp
+            if no_renorm_elph == True:
+                DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEqp
+            else:
+                DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
 
     for icp in range(Ncbnds):
 
         DeltaEdft = Edft_cond[ik1, ic1] - Edft_cond[ik1, icp]
-        if calc_IBL_way == True:
-            DeltaEqp = Eqp_cond[ik1, ic1] - Eqp_cond[ik1, icp]
+        DeltaEqp = Eqp_cond[ik1, ic1] - Eqp_cond[ik1, icp]
 
         indexes_K = ik2, ik1, ic2, icp, iv2, iv1
         indexes_g = imode, ik1, icp, ic1
 
-        
-
         if abs(DeltaEdft) > TOL_DEG:
-            DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEdft
-            if calc_IBL_way == True:
-                DKelement_IBL += Kernel[indexes_K] * elph_cond[indexes_g]/DeltaEqp
+            if no_renorm_elph == True:
+                DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEqp
+            else:
+                DKelement += Kernel[indexes_K] * elph_cond[indexes_g]/DeltaEdft
 
         DeltaEdft = Edft_cond[ik2, ic2] - Edft_cond[ik2, icp]
-        if calc_IBL_way == True:
-            DeltaEqp = Eqp_cond[ik2, ic2] - Eqp_cond[ik2, icp]
+        DeltaEqp = Eqp_cond[ik2, ic2] - Eqp_cond[ik2, icp]
 
         indexes_K = ik2, ik1, icp, ic1, iv2, iv1
         indexes_g = imode, ik2, ic2, icp
 
         if abs(DeltaEdft) > TOL_DEG:
-            DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEdft
-            if calc_IBL_way == True:
-                DKelement_IBL += Kernel[indexes_K] * \
-                    elph_cond[indexes_g]/DeltaEqp
+            if no_renorm_elph == True:
+                DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEqp
+            else:
+                DKelement += Kernel[indexes_K] * elph_cond[indexes_g]/DeltaEdft
 
-    if calc_IBL_way is True:
-        return DKelement, DKelement_IBL
-    else:
-        return DKelement
+    return DKelement
 
 
 def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_params):
@@ -136,17 +127,9 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
                                 dK = calc_DKernel_mat_elem(
                                     indexes, KernelMat, EDFT, EQP, ELPH, MF_params, BSE_params)
 
-                                if calc_IBL_way == False:
-                                    temp_sum_imode += A_bra * dK * B_ket
+                                temp_sum_imode += A_bra * dK * B_ket
                                     # DKernel[imode, ik1, ic1, iv1, ik2,
                                     #         ic2, iv2] = A_bra * dK * A_ket
-                                else:
-                                    temp_sum_imode     += A_bra * dK[0] * B_ket
-                                    temp_sum_IBL_imode += A_bra * dK[1] * B_ket
-                                    # DKernel[imode, ik1, ic1, iv1, ik2,
-                                    #         ic2, iv2] = A_bra * dK[0] * A_ket
-                                    # DKernel_IBL[imode, ik1, ic1, iv1, ik2,
-                                    #             ic2, iv2] = A_bra * dK[1] * A_ket
 
                                 i_term += 1
                                 if i_term % interval_report == 0:
@@ -154,14 +137,9 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
                                         f'        {i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
 
         Sum_DKernel[imode] = temp_sum_imode
-        if calc_IBL_way == True:
-            Sum_DKernel_IBL[imode] = temp_sum_IBL_imode
-
-    if calc_IBL_way == False:
-        return Sum_DKernel
-    else:
-        return Sum_DKernel, Sum_DKernel_IBL
-
+    
+    return Sum_DKernel
+    
 
 def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT):
     """ Calculates auxiliar matrix elements to be used later in the forces matrix elements.

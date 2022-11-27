@@ -347,12 +347,7 @@ if Calculate_Kernel == True:
     EQP = Eqp_val, Eqp_cond
     ELPH = elph_cond, elph_val
 
-    if calc_IBL_way == True:
-        DKernel, DKernel_IBL = calc_deriv_Kernel(
-            (Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_params)
-    else:
-        DKernel = calc_deriv_Kernel(
-            (Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_params)
+    DKernel = calc_deriv_Kernel((Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_params)
 
     del Kx, Kd
 
@@ -362,12 +357,9 @@ print("Calculating sums")
 
 if Calculate_Kernel == True:
     Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)
-    Sum_DKernel_IBL = np.zeros((Nmodes), dtype=np.complex64)
 
     for imode in range(Nmodes):
         Sum_DKernel[imode] = np.sum(DKernel[imode])
-        if calc_IBL_way == True:
-            Sum_DKernel_IBL[imode] = np.sum(DKernel_IBL[imode])
 
 report_ram()
 
@@ -378,9 +370,6 @@ Sum_DKinect = -Sum_DKinect*Ry2eV/bohr2A
 
 if Calculate_Kernel == True:
     Sum_DKernel = -Sum_DKernel*Ry2eV/bohr2A
-    if calc_IBL_way == True:
-        Sum_DKernel_IBL = -Sum_DKernel_IBL*Ry2eV/bohr2A
-
 
 # Warn if imag part is too big (>= 10^-6)
 
@@ -394,21 +383,15 @@ if Calculate_Kernel == True:
     if max(abs(np.imag(Sum_DKernel))) >= 1e-6:
         print('WARNING: Imaginary part of Kernel forces >= 10^-6 eV/angs!')
 
-    if calc_IBL_way == True:
-        if max(abs(np.imag(Sum_DKernel_IBL))) >= 1e-6:
-            print('WARNING: Imaginary part of Kernel (IBL) forces >= 10^-6 eV/angs!')
-
 # Show just real part of numbers (default)
 
-
+                                                                                                                                                                                                                                                                                                                                    
 if show_imag_part == False:
     Sum_DKinect_diag = np.real(Sum_DKinect_diag)
     Sum_DKinect = np.real(Sum_DKinect)
 
     if Calculate_Kernel == True:
         Sum_DKernel = np.real(Sum_DKernel)
-        if calc_IBL_way == True:
-            Sum_DKernel_IBL = np.real(Sum_DKernel_IBL)
 
 # Calculate forces cartesian basis
 
@@ -422,8 +405,7 @@ if show_imag_part == True:
     if Calculate_Kernel == True:
         # Ismail-Beigi and Louie's paper
         F_cart_Kernel_IBL = np.zeros((Nat, 3), dtype=complex)
-        # Ismail-Beigi and Louie's with new kernel
-        F_cart_Kernel_IBL_correct = np.zeros((Nat, 3), dtype=complex)
+
 else:
     F_cart_KE_IBL = np.zeros((Nat, 3))  # IBL just diag RPA
     # david thesis - diag + offdiag from kinect part
@@ -431,8 +413,6 @@ else:
     if Calculate_Kernel == True:
         # Ismail-Beigi and Louie's paper
         F_cart_Kernel_IBL = np.zeros((Nat, 3))
-        # Ismail-Beigi and Louie's with new kernel
-        F_cart_Kernel_IBL_correct = np.zeros((Nat, 3))
 
 for iatom in range(Nat):
     for imode in range(Nmodes):
@@ -443,10 +423,8 @@ for iatom in range(Nat):
 
         if Calculate_Kernel == True:
             F_cart_Kernel_IBL[iatom] = F_cart_Kernel_IBL[iatom] + Displacements[imode,
-                                                                                iatom] * (Sum_DKernel_IBL[imode] + Sum_DKinect_diag[imode])
-            F_cart_Kernel_IBL_correct[iatom] = F_cart_Kernel_IBL_correct[iatom] + \
-                Displacements[imode, iatom] * \
-                (Sum_DKernel[imode] + Sum_DKinect_diag[imode])
+                                                                                iatom] * (Sum_DKernel[imode] + Sum_DKinect_diag[imode])
+
             # need to make x = x + y, instead of x += y because numpy complains that x+=y does not work when type(x)=!type(y) (one is complex and the other is real - float)
 
 
@@ -472,8 +450,7 @@ for iatom in range(Nat):
         text += str(F_cart_KE_David[iatom, idir])+' '
         if Calculate_Kernel == True:
             text += str(F_cart_Kernel_IBL[iatom, idir])+' '
-            if calc_IBL_way == True:
-                text += str(F_cart_Kernel_IBL_correct[iatom, idir])
+
         print(text)
         arq_out.write(text+'\n')
 

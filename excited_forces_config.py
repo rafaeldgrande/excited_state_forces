@@ -34,7 +34,6 @@ kernel_file = 'bsemat.h5'
 # conditionals
 calc_modes_basis = False    # not being used yet
 
-calc_IBL_way = False    # I should comment later
 write_DKernel = False    # not being used  yet
 Calculate_Kernel = False    # Dont change. We dont know how to work with kernel yet
 
@@ -77,7 +76,7 @@ def read_input(input_file):
     global eqp_file, exciton_file, el_ph_dir
     global dyn_file, kernel_file
     global calc_modes_basis
-    global calc_IBL_way, write_DKernel, Calculate_Kernel
+    global write_DKernel, Calculate_Kernel
     global just_RPA_diag, report_RPA_data
     global show_imag_part
     global read_Acvk_pos, Acvk_directory
@@ -125,8 +124,6 @@ def read_input(input_file):
                 elif linha[0] == 'calc_modes_basis':
                     calc_modes_basis = true_or_false(
                         linha[1], calc_modes_basis)
-                elif linha[0] == 'calc_IBL_way':
-                    calc_IBL_way = true_or_false(linha[1], calc_IBL_way)
                 elif linha[0] == 'Calculate_Kernel':
                     Calculate_Kernel = true_or_false(
                         linha[1], Calculate_Kernel)
@@ -185,10 +182,6 @@ elif use_hermicity_F == True:
     print(f'Exciton indexes are not equal to each other. Cannot use "hermicity"')
     print(f'Setting use_hermicity_F to false')
     use_hermicity_F = False
-
-
-if calc_IBL_way == True:
-    print('Calculating derivatives of Kernel using Ismail-Beigi and Louie\'s paper approach')
 
 if no_renorm_elph == True:
     print('Elph coefficients at gw level will be considered to be equal to coefficients calculated at DFT level')
