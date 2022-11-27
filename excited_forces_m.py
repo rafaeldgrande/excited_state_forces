@@ -69,11 +69,12 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_param
         indexes_K = ik2, ik1, ic2, icp, iv2, iv1
         indexes_g = imode, ik1, icp, ic1
 
+        
+
         if abs(DeltaEdft) > TOL_DEG:
             DKelement += Kernel[indexes_K]*elph_cond[indexes_g]/DeltaEdft
             if calc_IBL_way == True:
-                DKelement_IBL += Kernel[indexes_K] * \
-                    elph_cond[indexes_g]/DeltaEqp
+                DKelement_IBL += Kernel[indexes_K] * elph_cond[indexes_g]/DeltaEqp
 
         DeltaEdft = Edft_cond[ik2, ic2] - Edft_cond[ik2, icp]
         if calc_IBL_way == True:
@@ -129,19 +130,19 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
                         for ic2 in range(Ncbnds):
                             for iv2 in range(Nvbnds):
 
-                                A_ket = Bkcv[ik2, ic2, iv2]
+                                B_ket = Bkcv[ik2, ic2, iv2]
 
                                 indexes = ik1, ik2, iv1, iv2, ic1, ic2, imode
                                 dK = calc_DKernel_mat_elem(
                                     indexes, KernelMat, EDFT, EQP, ELPH, MF_params, BSE_params)
 
                                 if calc_IBL_way == False:
-                                    temp_sum_imode += A_bra * dK * A_ket
+                                    temp_sum_imode += A_bra * dK * B_ket
                                     # DKernel[imode, ik1, ic1, iv1, ik2,
                                     #         ic2, iv2] = A_bra * dK * A_ket
                                 else:
-                                    temp_sum_imode     += A_bra * dK[0] * A_ket
-                                    temp_sum_IBL_imode += A_bra * dK[1] * A_ket
+                                    temp_sum_imode     += A_bra * dK[0] * B_ket
+                                    temp_sum_IBL_imode += A_bra * dK[1] * B_ket
                                     # DKernel[imode, ik1, ic1, iv1, ik2,
                                     #         ic2, iv2] = A_bra * dK[0] * A_ket
                                     # DKernel_IBL[imode, ik1, ic1, iv1, ik2,
@@ -151,6 +152,10 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
                                 if i_term % interval_report == 0:
                                     print(
                                         f'        {i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
+
+        Sum_DKernel[imode] = temp_sum_imode
+        if calc_IBL_way == True:
+            Sum_DKernel_IBL[imode] = temp_sum_IBL_imode
 
     if calc_IBL_way == False:
         return Sum_DKernel

@@ -230,7 +230,6 @@ if read_Acvk_pos == False:
     Akcv, OmegaA = get_exciton_info(exciton_file, iexc)
     Bkcv, OmegaB = get_exciton_info(exciton_file, jexc)
 else:
-    llllllllll = 1
     Akcv, OmegaA = get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints_BSE, Ncbnds, Nvbnds)
     Bkcv, OmegaB = get_exciton_info_alternative(Acvk_directory, jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
 

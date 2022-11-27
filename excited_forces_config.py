@@ -58,7 +58,6 @@ Acvk_directory = './' # directory where the Acvk files are
 
 # do not renormalize elph coefficients (make <n|dHqp|m> = <n|dHdft|m> for all n and m)
 no_renorm_elph = False
-
 print('!!!!!!!!!!', no_renorm_elph)
 
 def true_or_false(text, default_value):
