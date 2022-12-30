@@ -25,6 +25,8 @@ bohr2A = physical_constants["Bohr radius"][0]*1e10
 iexc = 1
 jexc = -1  # if it keeps to be jexc, then make jexc to iexc
 factor_head = 1
+ncbnds_sum = -1  # how many c/v bnds to be included in forces calculation?
+nvbnds_sum = -1  # if == -1, then uses all used bnds in the BSE hamiltonian
 # # files and paths to be opened
 eqp_file = 'eqp1.dat'
 exciton_file = 'eigenvectors.h5'
@@ -73,6 +75,7 @@ def read_input(input_file):
     # getting necessary info
 
     global iexc, jexc, factor_head
+    global nvbnds_sum, ncbnds_sum
     global eqp_file, exciton_file, el_ph_dir
     global dyn_file, kernel_file
     global calc_modes_basis
@@ -104,6 +107,10 @@ def read_input(input_file):
                     iexc = int(linha[1])
                 if linha[0] == 'jexc':
                     jexc = int(linha[1])
+                if linha[0] == 'ncbnds_sum':
+                    ncbnds_sum = int(linha[1])
+                if linha[0] == 'nvbnds_sum':
+                    nvbnds_sum = int(linha[1])
                 if linha[0] == 'factor_head':
                     factor_head = float(linha[1])
                 elif linha[0] == 'eqp_file':

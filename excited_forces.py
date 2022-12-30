@@ -48,12 +48,14 @@ def report_ram():
 
 class Parameters_BSE:
 
-    def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval):
+    def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum):
         self.Nkpoints_BSE = Nkpoints_BSE
         self.Kpoints_BSE = Kpoints_BSE
         self.Ncbnds = Ncbnds
         self.Nvbnds = Nvbnds
         self.Nval = Nval
+        self.Ncbnds_sum = Ncbnds_sum
+        self.Nvbnds_sum = Nvbnds_sum
 
 
 class Parameters_MF:
@@ -81,6 +83,7 @@ def get_BSE_MF_params():
     global MF_params, BSE_params, Nmodes
     global Nat, atomic_pos, cell_vecs, cell_vol, alat
     global Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval
+    global Nvbnds_sum, Ncbnds_sum
     global rec_cell_vecs, Nmodes
 
     if read_Acvk_pos == False:
@@ -90,9 +93,27 @@ def get_BSE_MF_params():
     
     Nmodes = 3 * Nat
 
+    if 0 < ncbnds_sum < Ncbnds:
+        print('*********************************')
+        print('Instead of using all cond bands from the BSE hamiltonian')
+        print(f'I will use {ncbnds_sum} cond bands (variable ncbnds_sum)')
+        print('*********************************')
+        Ncbnds_sum = ncbnds_sum
+    else:
+        Ncbnds_sum = Ncbnds
+
+    if 0 < nvbnds_sum < Nvbnds:
+        print('*********************************')
+        print('Instead of using all val bands from the BSE hamiltonian')
+        print(f'I will use {nvbnds_sum} val bands (variable nvbnds_sum)')
+        print('*********************************')
+        Nvbnds_sum = nvbnds_sum
+    else:
+        Nvbnds_sum = Nvbnds
+
     MF_params = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
     BSE_params = Parameters_BSE(
-        Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval)
+        Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum)
 
 
 def report_expected_energies(Akcv, Omega):
@@ -290,9 +311,6 @@ elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
 del elph
 report_ram()
 
-
-report_ram()
-
 ########## Calculating stuff ############
 
 print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
@@ -366,7 +384,7 @@ report_ram()
 # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 
 Sum_DKinect_diag = -Sum_DKinect_diag*Ry2eV/bohr2A
-Sum_DKinect = -Sum_DKinect*Ry2eV/bohr2A
+Sum_DKinect      = -Sum_DKinect*Ry2eV/bohr2A
 
 if Calculate_Kernel == True:
     Sum_DKernel = -Sum_DKernel*Ry2eV/bohr2A
@@ -396,7 +414,6 @@ if show_imag_part == False:
 # Calculate forces cartesian basis
 
 print("Calculating forces in cartesian basis")
-
 
 if show_imag_part == True:
     F_cart_KE_IBL = np.zeros((Nat, 3), dtype=complex)  # IBL just diag RPA
@@ -436,9 +453,8 @@ arq_out = open('forces_cart.out', 'w')
 print('\n\nForces (eV/ang)\n')
 
 if Calculate_Kernel == True:
-    print('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel RPA_diag_newKernel')
-    arq_out.write(
-        '# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel RPA_diag_newKernel\n')
+    print('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel')
+    arq_out.write('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel \n')
 else:
     print('# Atom  dir  RPA_diag RPA_diag_offiag ')
     arq_out.write('# Atom  dir  RPA_diag RPA_diag_offiag \n')

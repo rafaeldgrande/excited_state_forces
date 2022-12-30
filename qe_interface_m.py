@@ -338,29 +338,28 @@ def filter_elph_coeffs(elph, MF_params, BSE_params):
 
     Nmodes   = MF_params.Nmodes
     Nkpoints = BSE_params.Nkpoints_BSE
-    Ncbnds   = BSE_params.Ncbnds
-    Nvbnds   = BSE_params.Nvbnds
-    Nvbnds   = BSE_params.Nvbnds
+    Ncbnds_sum   = BSE_params.Ncbnds_sum
+    Nvbnds_sum   = BSE_params.Nvbnds_sum
     Nval     = BSE_params.Nval
 
-    elph_cond = np.zeros((Nmodes, Nkpoints, Ncbnds, Ncbnds), dtype=np.complex64)
-    elph_val = np.zeros((Nmodes, Nkpoints, Nvbnds, Nvbnds), dtype=np.complex64)
+    elph_cond = np.zeros((Nmodes, Nkpoints, Ncbnds_sum, Ncbnds_sum), dtype=np.complex64)
+    elph_val = np.zeros((Nmodes, Nkpoints, Nvbnds_sum, Nvbnds_sum), dtype=np.complex64)
 
     Nbnds_in_xml_file = np.shape(elph)[2]
     Ncond_in_xml_file = Nbnds_in_xml_file - Nval
 
-    if Ncond_in_xml_file < Ncbnds:
-        print(f'Missing {Ncbnds - Ncond_in_xml_file} cond bands from DFPT calculations. Missing coefficients will be set to 0.')
+    if Ncond_in_xml_file < Ncbnds_sum:
+        print(f'Missing {Ncbnds_sum - Ncond_in_xml_file} cond bands from DFPT calculations. Missing coefficients will be set to 0.')
 
     for imode in range(Nmodes):
         for ik in range(Nkpoints):
 
-            Ncbnds_to_get = min(Ncbnds, Ncond_in_xml_file)
+            Ncbnds_to_get = min(Ncbnds_sum, Ncond_in_xml_file)
             Nmin = Nval 
             Nmax = Nval + Ncbnds_to_get 
             elph_cond[imode, ik] = elph[imode, ik, Nmin:Nmax, Nmin:Nmax]
 
-            Nvbnds_to_get = min(Nvbnds, Nval)
+            Nvbnds_to_get = min(Nvbnds_sum, Nval)
             Nmin = Nval - Nvbnds_to_get
             Nmax = Nval 
             temp = elph[imode, ik, Nmin:Nmax, Nmin:Nmax]

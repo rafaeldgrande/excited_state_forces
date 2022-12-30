@@ -22,8 +22,8 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_param
     elph_cond, elph_val = ELPH
     Nmodes = MF_params.Nmodes
     Nkpoints = BSE_params.Nkpoints_BSE
-    Ncbnds = BSE_params.Ncbnds
-    Nvbnds = BSE_params.Nvbnds
+    Ncbnds_sum = BSE_params.Ncbnds_sum
+    Nvbnds_sum = BSE_params.Nvbnds_sum
     Edft_val, Edft_cond = EDFT
     Eqp_val, Eqp_cond = EQP
 
@@ -31,7 +31,7 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_param
 
     # ik2, ik1, ic2, ic1, iv2, iv1
 
-    for ivp in range(Nvbnds):
+    for ivp in range(Nvbnds_sum):
 
         DeltaEdft = Edft_val[ik1, iv1] - Edft_val[ik1, ivp]
         DeltaEqp = Eqp_val[ik1, iv1] - Eqp_val[ik1, ivp]
@@ -57,7 +57,7 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_param
             else:
                 DKelement += Kernel[indexes_K]*elph_val[indexes_g]/DeltaEdft
 
-    for icp in range(Ncbnds):
+    for icp in range(Ncbnds_sum):
 
         DeltaEdft = Edft_cond[ik1, ic1] - Edft_cond[ik1, icp]
         DeltaEqp = Eqp_cond[ik1, ic1] - Eqp_cond[ik1, icp]
@@ -92,8 +92,8 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
 
     Nmodes = MF_params.Nmodes
     Nkpoints = BSE_params.Nkpoints_BSE
-    Ncbnds = BSE_params.Ncbnds
-    Nvbnds = BSE_params.Nvbnds
+    Ncbnds_sum = BSE_params.Ncbnds_sum
+    Nvbnds_sum = BSE_params.Nvbnds_sum
 
     # Shape_kernel = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
     # DKernel = np.zeros(Shape_kernel, dtype=np.complex64)
@@ -101,7 +101,7 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
     Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)
     Sum_DKernel_IBL = np.zeros((Nmodes), dtype=np.complex64)
 
-    total_ite = Nmodes*(Nkpoints*Ncbnds*Nvbnds)**2
+    total_ite = Nmodes*(Nkpoints*Ncbnds_sum*Nvbnds_sum)**2
     interval_report = max(int(np.sqrt(total_ite)), int(total_ite/20))
     i_term = 0
     print(f'        Total terms to be calculated : {total_ite}')
@@ -109,17 +109,16 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
     for imode in range(Nmodes):
 
         temp_sum_imode     = 0.0 + 0.0j
-        temp_sum_IBL_imode = 0.0 + 0.0j
 
         for ik1 in range(Nkpoints):
-            for ic1 in range(Ncbnds):
-                for iv1 in range(Nvbnds):
+            for ic1 in range(Ncbnds_sum):
+                for iv1 in range(Nvbnds_sum):
 
                     A_bra = np.conj(Akcv[ik1, ic1, iv1])
 
                     for ik2 in range(Nkpoints):
-                        for ic2 in range(Ncbnds):
-                            for iv2 in range(Nvbnds):
+                        for ic2 in range(Ncbnds_sum):
+                            for iv2 in range(Nvbnds_sum):
 
                                 B_ket = Bkcv[ik2, ic2, iv2]
 
@@ -146,17 +145,17 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
     Returns aux_cond_matrix, aux_val_matrix and
     aux_cond_matrix[imode, ik, ic1, ic2] = elph_cond[imode, ik, ic1, ic2] * deltaEqp / deltaEdft (if ic1 != ic2)
     aux_val_matrix[imode, ik, iv1, iv2]  = elph_val[imode, ik, iv1, iv2]  * deltaEqp / deltaEdft (if iv1 != iv2)
-    If ic1 == ic2 (iv1 == iv2), then the matrix elements are just the elph coefficients"""
+    If deltaEdft == 0, then the matrix elements are just the elph coefficients"""
 
     Nmodes = MF_params.Nmodes
     Nkpoints = BSE_params.Nkpoints_BSE
-    Ncbnds = BSE_params.Ncbnds
-    Nvbnds = BSE_params.Nvbnds
+    Ncbnds_sum = BSE_params.Ncbnds_sum
+    Nvbnds_sum = BSE_params.Nvbnds_sum
 
-    Shape_cond = (Nmodes, Nkpoints, Ncbnds, Ncbnds)
+    Shape_cond = (Nmodes, Nkpoints, Ncbnds_sum, Ncbnds_sum)
     aux_cond_matrix = np.zeros(Shape_cond, dtype=np.complex64)
 
-    Shape_val = (Nmodes, Nkpoints, Nvbnds, Nvbnds)
+    Shape_val = (Nmodes, Nkpoints, Nvbnds_sum, Nvbnds_sum)
     aux_val_matrix = np.zeros(Shape_val, dtype=np.complex64)
 
     for imode in range(Nmodes):
@@ -170,8 +169,8 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
                 # -1 means that the code did not find the corresponce
                 # between the 2 kgrids
 
-                for ic1 in range(Ncbnds):
-                    for ic2 in range(Ncbnds):
+                for ic1 in range(Ncbnds_sum):
+                    for ic2 in range(Ncbnds_sum):
 
                         elph = elph_cond[imode, ik_dfpt, ic1, ic2]
 
@@ -188,8 +187,8 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
                                 aux_cond_matrix[imode, ik, ic1, ic2] = elph * deltaEqp / deltaEdft
                             
 
-                for iv1 in range(Nvbnds):
-                    for iv2 in range(Nvbnds):
+                for iv1 in range(Nvbnds_sum):
+                    for iv2 in range(Nvbnds_sum):
 
                         elph = elph_val[imode, ik_dfpt, iv1, iv2]
 
@@ -249,8 +248,8 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
 
     Nmodes = MF_params.Nmodes
     Nkpoints = BSE_params.Nkpoints_BSE
-    Ncbnds = BSE_params.Ncbnds
-    Nvbnds = BSE_params.Nvbnds
+    Ncbnds_sum = BSE_params.Ncbnds_sum
+    Nvbnds_sum = BSE_params.Nvbnds_sum
 
     Sum_DKinect_diag = np.zeros((Nmodes), dtype=complex)
     Sum_DKinect      = np.zeros((Nmodes), dtype=complex)
@@ -267,7 +266,7 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
     if just_RPA_diag == True:
 
         # reporting
-        total_ite = Nmodes*Nkpoints*Ncbnds*Nvbnds
+        total_ite = Nmodes*Nkpoints*Ncbnds_sum*Nvbnds_sum
         interval_report = max(int(np.sqrt(total_ite)), int(total_ite/20))
         i_term = 0
 
@@ -278,8 +277,8 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
             temp_imode_just_diag = 0.0 + 0.0j
 
             for ik in range(Nkpoints):
-                for ic1 in range(Ncbnds):
-                    for iv1 in range(Nvbnds):
+                for ic1 in range(Ncbnds_sum):
+                    for iv1 in range(Nvbnds_sum):
                         temp = calc_Dkinect_matrix_elem(
                             Akcv, Bkcv, aux_cond_matrix, imode, ik, ic1, ic1, iv1, iv1)
                         # DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
@@ -300,7 +299,7 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
         if use_hermicity_F == False:
 
             # reporting
-            total_ite = Nmodes*Nkpoints*(Ncbnds*Nvbnds)**2
+            total_ite = Nmodes*Nkpoints*(Ncbnds_sum*Nvbnds_sum)**2
             interval_report = max(int(np.sqrt(total_ite)), int(total_ite/20))
             i_term = 0
             print(f'Total terms to be calculated : {total_ite}')
@@ -310,13 +309,13 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
                 temp_imode_just_diag = 0.0 + 0.0j
 
                 for ik in range(Nkpoints):
-                    for ic1 in range(Ncbnds):
-                        for iv1 in range(Nvbnds):
+                    for ic1 in range(Ncbnds_sum):
+                        for iv1 in range(Nvbnds_sum):
                             temp = calc_Dkinect_matrix_elem(
                                 Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1)
                             temp_imode_just_diag += temp
-                            for ic2 in range(Ncbnds):
-                                for iv2 in range(Nvbnds):
+                            for ic2 in range(Ncbnds_sum):
+                                for iv2 in range(Nvbnds_sum):
                                     temp = calc_Dkinect_matrix_elem(
                                         Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
                                     temp_imode += temp
@@ -347,12 +346,12 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
 
             print('Using "hermicity" of force matrix elements')
 
-            indexes_cv = [(icp, ivp) for ivp in range(Nvbnds)
-                          for icp in range(Ncbnds)]
+            indexes_cv = [(icp, ivp) for ivp in range(Nvbnds_sum)
+                          for icp in range(Ncbnds_sum)]
 
             # reporting
-            total_ite = int(Nmodes*Nkpoints*len(indexes_cv)
-                            * (len(indexes_cv)-1) / 2)
+            total_ite = int(Nmodes*Nkpoints*len(indexes_cv)*(len(indexes_cv)+1) / 2)
+
             interval_report = max(int(np.sqrt(total_ite)), int(total_ite/20))
             i_term = 0
             print(f'Total terms to be calculated : {total_ite}')
@@ -383,8 +382,8 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
                             # DKinect[imode, ik, ic2, iv2, ik,
                             #         ic1, iv1] = np.conj(temp)
 
-                            temp_imode_not_diag += 2 * \
-                                np.real(temp)  # temp + conj(temp)
+                            temp_imode_not_diag += 2 * np.real(temp)  
+                            # temp + conj(temp)
 
                             # reporting
                             i_term += 1
