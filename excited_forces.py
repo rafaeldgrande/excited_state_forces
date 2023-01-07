@@ -48,7 +48,7 @@ def report_ram():
 
 class Parameters_BSE:
 
-    def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum):
+    def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse):
         self.Nkpoints_BSE = Nkpoints_BSE
         self.Kpoints_BSE = Kpoints_BSE
         self.Ncbnds = Ncbnds
@@ -56,7 +56,9 @@ class Parameters_BSE:
         self.Nval = Nval
         self.Ncbnds_sum = Ncbnds_sum
         self.Nvbnds_sum = Nvbnds_sum
-
+        self.Ncbnds_coarse = Ncbnds_coarse
+        self.Nvbnds_coarse = Nvbnds_coarse
+        self.Nkpoints_coarse = Nkpoints_coarse
 
 class Parameters_MF:
 
@@ -84,6 +86,7 @@ def get_BSE_MF_params():
     global Nat, atomic_pos, cell_vecs, cell_vol, alat
     global Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval
     global Nvbnds_sum, Ncbnds_sum
+    global Nvbnds_coarse, Ncbnds_coarse, Nkpoints_coarse
     global rec_cell_vecs, Nmodes
 
     if read_Acvk_pos == False:
@@ -110,11 +113,24 @@ def get_BSE_MF_params():
         Nvbnds_sum = nvbnds_sum
     else:
         Nvbnds_sum = Nvbnds
+        
+    if elph_fine_a_la_bgw == True:
+        print('I will perform elph interpolation "a la BerkeleyGW"')
+        print('Check the absorption.inp file to see how many bands were used in both coarse and fine grids.')
+        print('From the forces.inp file, I got the following parameters: ')
+        print(f'    ncond_coarse    = {ncbands_co}')
+        print(f'    nval_coarse     = {nvbands_co}')
+        print(f'    nkpoints_coarse = {nkpnts_co}')
+        print('Be sure that all those bands are included in the DFPT calculation!')
+        print('If not, the missing elph coefficients will be considered to be equal 0.')
+        
+    Ncbnds_coarse = ncbands_co
+    Nvbnds_coarse = nvbands_co
+    Nkpoints_coarse = nkpnts_co
+        
 
     MF_params = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
-    BSE_params = Parameters_BSE(
-        Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum)
-
+    BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse)
 
 def report_expected_energies(Akcv, Omega):
 
@@ -125,8 +141,7 @@ def report_expected_energies(Akcv, Omega):
     for ik1 in range(BSE_params.Nkpoints_BSE):
         for ic1 in range(BSE_params.Ncbnds):
             for iv1 in range(BSE_params.Nvbnds):
-                Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1,
-                              iv1])*abs(Akcv[ik1, ic1, iv1])**2
+                Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*abs(Akcv[ik1, ic1, iv1])**2
 
     if Calculate_Kernel == True:
         for ik1 in range(BSE_params.Nkpoints_BSE):
@@ -274,33 +289,15 @@ else:
 # Getting elph coefficients
 
 # get displacement patterns
-iq = 0  # FIXME -> generalize for set of q points
+iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-zero center of mass momentum
 Displacements, Nirreps = get_patterns2(iq, MF_params)
 
 # get elph coefficients from .xml files
 elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps)
-
-print('Checking if kpoints of DFPT and BSE agree with each other')
-
-# Checking kpoints from DFPT and BSE calculations
-# The kpoints in eigenvecs.h5 are not in the same order in the
-# input for the fine grid calculation.
-# The k points in BSE are reported in reciprocal lattice vectors basis
-# and in DFPT those k points are reported in cartersian basis in units
-# of reciprocal lattice
-
-# It SEEMS that the order of k points in the eqp.dat (produced by the absorption code)
-# is the same than the order of k points in the eigenvecs file
-# Maybe it would be necessary to check it later!
-
-# First let's put all k points from BSE grid in the first Brillouin zone
-ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
-
-# Now checking if everything is ok with ikBSE_to_ikDFPT list
-# if something is wrong kill the code
-check_k_points_BSE_DFPT()
+Nkpoints_DFPT = len(Kpoints_in_elph_file)
 
 # apply acoustic sum rule
+# TODO -> maybe do the ASR just in elph_cond and elph_val variables
 elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
 
 # filter data to get just g_c1c2 and g_v1v2
@@ -311,6 +308,39 @@ elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
 del elph
 report_ram()
 
+if elph_fine_a_la_bgw == False:
+    
+    print('No interpolation on elph coeffs is used')
+    print('Checking if kpoints of DFPT and BSE agree with each other')
+
+    # Checking kpoints from DFPT and BSE calculations
+    # The kpoints in eigenvecs.h5 are not in the same order in the
+    # input for the fine grid calculation.
+    # The k points in BSE are reported in reciprocal lattice vectors basis
+    # and in DFPT those k points are reported in cartersian basis in units
+    # of reciprocal lattice
+
+    # It SEEMS that the order of k points in the eqp.dat (produced by the absorption code)
+    # is the same than the order of k points in the eigenvecs file
+    # Maybe it would be necessary to check it later!
+
+    # First let's put all k points from BSE grid in the first Brillouin zone
+    ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
+
+    # Now checking if everything is ok with ikBSE_to_ikDFPT list
+    # if something is wrong kill the code
+    check_k_points_BSE_DFPT()
+    
+else:
+    
+    print('Using interpolation "a la BerkeleyGW code"')
+    print('Reading coefficients relating fine and coarse grids from files dtmat_non_bin_val and dtmat_non_bin_conds')
+
+    elph_cond = elph_interpolate_bgw(elph_cond, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE)
+    elph_val  = elph_interpolate_bgw(elph_val, 'dtmat_non_bin_val')
+
+    
+    
 ########## Calculating stuff ############
 
 print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")

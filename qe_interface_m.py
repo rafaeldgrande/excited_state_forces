@@ -337,10 +337,16 @@ def filter_elph_coeffs(elph, MF_params, BSE_params):
     """
 
     Nmodes   = MF_params.Nmodes
-    Nkpoints = BSE_params.Nkpoints_BSE
-    Ncbnds_sum   = BSE_params.Ncbnds_sum
-    Nvbnds_sum   = BSE_params.Nvbnds_sum
     Nval     = BSE_params.Nval
+    
+    if elph_fine_a_la_bgw == False:
+        Nkpoints     = BSE_params.Nkpoints_BSE
+        Ncbnds_sum   = BSE_params.Ncbnds_sum
+        Nvbnds_sum   = BSE_params.Nvbnds_sum
+    else:
+        Nkpoints     = BSE_params.Nkpoints_coarse
+        Ncbnds_sum   = BSE_params.Ncbnds_coarse
+        Nvbnds_sum   = BSE_params.Nvbnds_coarse
 
     elph_cond = np.zeros((Nmodes, Nkpoints, Ncbnds_sum, Ncbnds_sum), dtype=np.complex64)
     elph_val = np.zeros((Nmodes, Nkpoints, Nvbnds_sum, Nvbnds_sum), dtype=np.complex64)
@@ -401,3 +407,129 @@ def get_modes2cart_matrix(dyn_file, Nat, Nmodes):
     #print(modes2cart)
     arq.close()
     return modes2cart
+
+
+def elph_interpolate_bgw(elph_co, file_coeffs, Nkpoints_fine):
+    
+    """
+    Make the interpolation of elph (cond or val) coeffs "a la BerkeleyGW".
+    
+    The BGW code expands wavefunctions in the fine grid in a basis with coarse grid
+
+    fine grid = less bands, more k ponits
+    coarse grid = more bands, less k points
+    
+    The expansion coefficients relate the fine and coarse grid by
+    u_(n, k_fi) = sum_(m) C_(n, m)^(k_fi -> k_co) u_(m, k_co)
+    
+    where u_(n,k) is the periodic part of the Bloch functions.
+    
+    We have as input:
+        - elph coeffs calculated in a coarse grid
+        - file with expansion coeffs for bands (dtmat_non_bin_val or dtmat_non_bin_conds)
+        - kpoints in the coarse grid (read from kpoints_coarse file. those k points are got from the absorption.out file)
+        
+    The elph coeffs in a fine grid are given by
+    
+    g_(ij)^f = sum_(n,m) g_(n,m)^c * C^*_(i,n) * C_(j,m)
+    
+    where i,j,m,n are val (cond) bands
+    i, j are from the fine grid
+    n, m are from the coarse grid
+    
+    The coeffs file looks like this:
+    
+           1           1           1           1           1
+ (0.991465028086625,-0.130372919275044)
+           1           2           1           1           1
+ (2.537030932414388E-009,1.761237479758188E-009)
+           1           3           1           1           1
+ (2.364126527817620E-007,4.259280043476210E-007)
+           1           4           1           1           1
+ (3.354064988511618E-008,-4.543149744118019E-008)
+ 
+    it is written ik_fine iband_fine ik_coarse iband_coarse i_spin (not used now)
+ 
+    The kpoints_coarse file looks like this
+    
+     0.000000   0.000000   0.000000
+     0.000000   0.000000   0.166667
+    -0.000000  -0.000000   0.333333
+    -0.000000   0.000000   0.500000
+    -0.000000   0.000000   0.666667
+    -0.000000   0.000000   0.833333
+     0.000000   0.166667  -0.000000
+     0.000000   0.166667   0.166667
+    -0.000000   0.166667   0.333333
+    -0.000000   0.166667   0.500000
+ 
+    """
+    # np.shape(elph_co) = (number of modes, number of k points, number of bands, number of bands)
+    
+    # # reading kpoints_coarse file    
+    # kpoints_coarse = np.loadtxt('kpoints_coarse')
+    # # each k point -> kpoints_coarse[ik] -> [kx, ky, kz]
+    
+    # number of val (cond) bands  
+    Nbnds_elph = np.shape(elph_co)[-1]
+    
+    # number of modes
+    nmodes_elph = np.shape(elph_co)[0]
+    
+    # number of kpoints in the coarse grid
+    Nkpoints_coarse = np.shape(elph_co)[1]
+    
+    # nkpoints
+    elph_fine = np.zeros((nmodes_elph, Nkpoints_fine, Nbnds_elph, Nbnds_elph), dtype=np.complex)
+    
+    # reading coeffs file
+    coeffs = np.zeros((Nkpoints_coarse, Nkpoints_fine, Nbnds_elph, Nbnds_elph))
+    
+    arq_coeffs = open(file_coeffs)
+    
+    for line in arq_coeffs:
+        line_split = line.split()
+        if len(line) == 5: # ik_fine iband_fine ik_coarse iband_coarse i_spin (not used now)
+            ik_f = int(line_split[0])
+            ib_f = int(line_split[1])
+            ik_c = int(line_split[2])
+            ib_c = int(line_split[3])
+        else:
+            temp = line_split[0]
+            real_part = float(temp.split(',')[0][1:])
+            imaginary_part = float(temp.split(',')[1][:-1])
+            coeff_ij = real_part + 1.0j*imaginary_part
+            coeffs[ik_c, ik_f, ib_c, ib_f] = coeff_ij
+
+    # calculating coeffs in the fine grid
+    
+    for imode in range(nmodes_elph):
+        
+        for ik_f in range(Nkpoints_fine):
+            for ib1_f in range(Nbnds_elph):
+                for ib2_f in range(Nbnds_elph):
+                    
+                    # calculating elph_fine[imode, ik_f, ib1_f, ib2_f]
+                    temp_elph_fi = 0 + 0.0j
+                    
+                    for ik_c in range(Nkpoints_coarse):
+                        for ib1_c in range(Nbnds_elph):
+                            for ib2_c in range(Nbnds_elph):
+                                
+                                temp_elph_co = elph_co[imode, ik_c, ib1_c, ib2_c]
+                                c_f1_b1 = coeffs[ik_c, ik_f, ib1_c, ib1_f]
+                                c_f2_b2 = coeffs[ik_c, ik_f, ib2_c, ib2_f]
+                                
+                                temp_elph_fi += temp_elph_co * np.conj(c_f1_b1) * c_f2_b2
+                                
+                    elph_fine[imode, ik_f, ib1_f, ib2_f] = temp_elph_fi
+                                   
+    
+    return elph_fine
+    
+    
+
+
+    
+    
+    

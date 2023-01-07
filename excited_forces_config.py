@@ -34,6 +34,7 @@ el_ph_dir = './'
 kernel_file = 'bsemat.h5'
 
 # conditionals
+
 calc_modes_basis = False    # not being used yet
 
 write_DKernel = False    # not being used  yet
@@ -59,7 +60,22 @@ Acvk_directory = './' # directory where the Acvk files are
 
 # do not renormalize elph coefficients (make <n|dHqp|m> = <n|dHdft|m> for all n and m)
 no_renorm_elph = False
-print('!!!!!!!!!!', no_renorm_elph)
+# print('!!!!!!!!!!', no_renorm_elph)
+
+# make elph interpolation "a la BerkeleyGW code" using 
+# the "dtmat_non_bin_val" and "dtmat_non_bin_conds" files
+# those are output from the modified version of the absorption code
+elph_fine_a_la_bgw = False
+
+# parameters for interpolation 
+# in the absorption.inp file, are the following
+#  number_val_bands_coarse 10
+#  number_val_bands_fine 5
+#  number_cond_bands_coarse 8
+#  number_cond_bands_fine 5
+
+ncbands_co, nvbands_co = 0, 0
+nkpnts_co = 0
 
 def true_or_false(text, default_value):
     if text.lower() == 'true':
@@ -85,7 +101,9 @@ def read_input(input_file):
     global read_Acvk_pos, Acvk_directory
     global acoutic_sum_rule, use_hermicity_F
     global log_k_points
-    global no_renorm_elph       
+    global no_renorm_elph   
+    global elph_fine_a_la_bgw                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+    global nkpnts_co, nvbnds_co, ncbnds_co
 
     try:
         arq_in = open(input_file)
@@ -125,7 +143,13 @@ def read_input(input_file):
                     kernel_file = linha[1]
                 elif linha[0] == 'Acvk_directory':
                     Acvk_directory = linha[1]
-
+                if linha[0] == 'ncbnds_co':
+                    ncbnds_co = int(linha[1])
+                if linha[0] == 'nvbnds_co':
+                    nvbnds_co = int(linha[1])
+                if linha[0] == 'nkpnts_co':
+                    nkpnts_co = int(linha[1])
+                    
                 ######### conditionals #############################
 
                 elif linha[0] == 'calc_modes_basis':
@@ -152,6 +176,8 @@ def read_input(input_file):
                     read_Acvk_pos = true_or_false(linha[1], read_Acvk_pos)
                 elif linha[0] == 'no_renorm_elph':
                     no_renorm_elph = true_or_false(linha[1], no_renorm_elph)
+                elif linha[0] == 'elph_fine_a_la_bgw':
+                    elph_fine_a_la_bgw = true_or_false(linha[1], elph_fine_a_la_bgw)
 
 ########## did not recognize this line #############
 
