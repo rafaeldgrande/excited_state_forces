@@ -103,7 +103,7 @@ def read_input(input_file):
     global log_k_points
     global no_renorm_elph   
     global elph_fine_a_la_bgw                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-    global nkpnts_co, nvbnds_co, ncbnds_co
+    global nkpnts_co, nvbands_co, ncbands_co
 
     try:
         arq_in = open(input_file)
@@ -143,11 +143,11 @@ def read_input(input_file):
                     kernel_file = linha[1]
                 elif linha[0] == 'Acvk_directory':
                     Acvk_directory = linha[1]
-                if linha[0] == 'ncbnds_co':
-                    ncbnds_co = int(linha[1])
-                if linha[0] == 'nvbnds_co':
-                    nvbnds_co = int(linha[1])
-                if linha[0] == 'nkpnts_co':
+                elif linha[0] == 'ncbands_co':
+                    ncbands_co = int(linha[1])
+                elif linha[0] == 'nvbands_co':
+                    nvbands_co = int(linha[1])
+                elif linha[0] == 'nkpnts_co':
                     nkpnts_co = int(linha[1])
                     
                 ######### conditionals #############################
@@ -218,6 +218,5 @@ elif use_hermicity_F == True:
 
 if no_renorm_elph == True:
     print('Elph coefficients at gw level will be considered to be equal to coefficients calculated at DFT level')
-
 
 print('\n-------------------------------------------------------------\n\n')

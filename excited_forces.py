@@ -303,6 +303,9 @@ elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
 # filter data to get just g_c1c2 and g_v1v2
 elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
 
+# First let's put all k points from BSE grid in the first Brillouin zone
+ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
+
 # report_ram()
 # print('DELETING ELPH')
 del elph
@@ -324,9 +327,6 @@ if elph_fine_a_la_bgw == False:
     # is the same than the order of k points in the eigenvecs file
     # Maybe it would be necessary to check it later!
 
-    # First let's put all k points from BSE grid in the first Brillouin zone
-    ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
-
     # Now checking if everything is ok with ikBSE_to_ikDFPT list
     # if something is wrong kill the code
     check_k_points_BSE_DFPT()
@@ -336,8 +336,8 @@ else:
     print('Using interpolation "a la BerkeleyGW code"')
     print('Reading coefficients relating fine and coarse grids from files dtmat_non_bin_val and dtmat_non_bin_conds')
 
-    elph_cond = elph_interpolate_bgw(elph_cond, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE)
-    elph_val  = elph_interpolate_bgw(elph_val, 'dtmat_non_bin_val')
+    elph_cond = elph_interpolate_bgw(elph_cond, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE, BSE_params.Ncbnds)
+    elph_val  = elph_interpolate_bgw(elph_val, 'dtmat_non_bin_val', BSE_params.Nkpoints_BSE, BSE_params.Nvbnds)
 
     
     

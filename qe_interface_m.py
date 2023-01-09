@@ -409,7 +409,7 @@ def get_modes2cart_matrix(dyn_file, Nat, Nmodes):
     return modes2cart
 
 
-def elph_interpolate_bgw(elph_co, file_coeffs, Nkpoints_fine):
+def elph_interpolate_bgw(elph_co, file_coeffs, Nkpoints_fine, Nbnds_fine):
     
     """
     Make the interpolation of elph (cond or val) coeffs "a la BerkeleyGW".
@@ -464,14 +464,14 @@ def elph_interpolate_bgw(elph_co, file_coeffs, Nkpoints_fine):
     -0.000000   0.166667   0.500000
  
     """
-    # np.shape(elph_co) = (number of modes, number of k points, number of bands, number of bands)
+    # np.shape(elph) = (number of modes, number of k points, number of bands, number of bands)
     
     # # reading kpoints_coarse file    
     # kpoints_coarse = np.loadtxt('kpoints_coarse')
     # # each k point -> kpoints_coarse[ik] -> [kx, ky, kz]
     
     # number of val (cond) bands  
-    Nbnds_elph = np.shape(elph_co)[-1]
+    Nbnds_co = np.shape(elph_co)[-1]
     
     # number of modes
     nmodes_elph = np.shape(elph_co)[0]
@@ -480,50 +480,78 @@ def elph_interpolate_bgw(elph_co, file_coeffs, Nkpoints_fine):
     Nkpoints_coarse = np.shape(elph_co)[1]
     
     # nkpoints
-    elph_fine = np.zeros((nmodes_elph, Nkpoints_fine, Nbnds_elph, Nbnds_elph), dtype=np.complex)
+    elph_fine = np.zeros((nmodes_elph, Nkpoints_fine, Nbnds_fine, Nbnds_fine), dtype=np.complex)
     
     # reading coeffs file
-    coeffs = np.zeros((Nkpoints_coarse, Nkpoints_fine, Nbnds_elph, Nbnds_elph))
+    coeffs = np.zeros((Nkpoints_fine, Nbnds_co, Nbnds_fine), dtype=complex)
+
+    # list translating k points from the fine grid to k points to the coarse grid
+    fine_to_coarse = []
+    for ik_f in range(Nkpoints_fine):
+        fine_to_coarse.append([-1])
     
+    # small pre report
+    print('    Starting interpolation')
+    print(f'    Number of bands in the coarse grid {Nbnds_co}')
+    print(f'    Number of bands in the fine grid {Nbnds_fine}')
+    print(f'    Number of k points in the coarse grid {Nkpoints_coarse}')
+    print(f'    Number of k points in the fine grid {Nkpoints_fine}')
+    
+    print(f'Reading file {file_coeffs}')
     arq_coeffs = open(file_coeffs)
     
     for line in arq_coeffs:
         line_split = line.split()
-        if len(line) == 5: # ik_fine iband_fine ik_coarse iband_coarse i_spin (not used now)
-            ik_f = int(line_split[0])
-            ib_f = int(line_split[1])
-            ik_c = int(line_split[2])
-            ib_c = int(line_split[3])
-        else:
+        if len(line_split) == 5: # ik_fine iband_fine ik_coarse iband_coarse i_spin (not used now)
+            ik_f = int(line_split[0]) - 1
+            ib_f = int(line_split[1]) - 1
+            ik_c = int(line_split[2]) - 1
+            ib_c = int(line_split[3]) - 1
+            fine_to_coarse[ik_f] = ik_c
+        if len(line_split) == 1:
             temp = line_split[0]
             real_part = float(temp.split(',')[0][1:])
             imaginary_part = float(temp.split(',')[1][:-1])
             coeff_ij = real_part + 1.0j*imaginary_part
-            coeffs[ik_c, ik_f, ib_c, ib_f] = coeff_ij
+            coeffs[ik_f, ib_c, ib_f] = coeff_ij
 
     # calculating coeffs in the fine grid
+    
+    print('Starting interpolation')
+    
+    total_iterations = nmodes_elph * Nkpoints_fine * Nbnds_fine**2 * Nbnds_co**2
+    step_report = max(int(total_iterations / 20) - 1, 1)
+    contador = 0
+    print(f'I will perform {total_iterations} iterations')
     
     for imode in range(nmodes_elph):
         
         for ik_f in range(Nkpoints_fine):
-            for ib1_f in range(Nbnds_elph):
-                for ib2_f in range(Nbnds_elph):
+            ik_c = fine_to_coarse[ik_f]
+            if ik_c == -1:
+                print('WARNING!! Problem at elph coeffs!')
+            for ib1_f in range(Nbnds_fine):
+                for ib2_f in range(Nbnds_fine):
                     
                     # calculating elph_fine[imode, ik_f, ib1_f, ib2_f]
                     temp_elph_fi = 0 + 0.0j
                     
-                    for ik_c in range(Nkpoints_coarse):
-                        for ib1_c in range(Nbnds_elph):
-                            for ib2_c in range(Nbnds_elph):
+                    for ib1_c in range(Nbnds_co):
+                        for ib2_c in range(Nbnds_co):
+                            
+                            contador += 1
+                            if contador % step_report == 0:
+                                print(f'---------- {round(contador/total_iterations, 3)*100}% done')
                                 
-                                temp_elph_co = elph_co[imode, ik_c, ib1_c, ib2_c]
-                                c_f1_b1 = coeffs[ik_c, ik_f, ib1_c, ib1_f]
-                                c_f2_b2 = coeffs[ik_c, ik_f, ib2_c, ib2_f]
+                            temp_elph_co = elph_co[imode, ik_c, ib1_c, ib2_c]
+                            c_f1_b1 = coeffs[ik_f, ib1_c, ib1_f]
+                            c_f2_b2 = coeffs[ik_f, ib2_c, ib2_f]
                                 
-                                temp_elph_fi += temp_elph_co * np.conj(c_f1_b1) * c_f2_b2
+                            temp_elph_fi += temp_elph_co * np.conj(c_f1_b1) * c_f2_b2
                                 
                     elph_fine[imode, ik_f, ib1_f, ib2_f] = temp_elph_fi
                                    
+    print('Finished elph interpolation')
     
     return elph_fine
     
