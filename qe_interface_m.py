@@ -3,8 +3,11 @@
 import time
 import xml.etree.ElementTree as ET
 import numpy as np
+from datetime import datetime
+
 
 from excited_forces_config import *
+from excited_forces_m import *
 
 def indexes_x_in_list(what_i_want, list_i_get):
 
@@ -464,6 +467,9 @@ def elph_interpolate_bgw(elph_co, file_coeffs, Nkpoints_fine, Nbnds_fine):
     -0.000000   0.166667   0.500000
  
     """
+    
+    now_this_func = datetime.now()
+    
     # np.shape(elph) = (number of modes, number of k points, number of bands, number of bands)
     
     # # reading kpoints_coarse file    
@@ -520,8 +526,8 @@ def elph_interpolate_bgw(elph_co, file_coeffs, Nkpoints_fine, Nbnds_fine):
     print('Starting interpolation')
     
     total_iterations = nmodes_elph * Nkpoints_fine * Nbnds_fine**2 * Nbnds_co**2
-    step_report = max(int(total_iterations / 20) - 1, 1)
-    contador = 0
+    report_interval = step_report(total_iterations)
+    counter = 0
     print(f'I will perform {total_iterations} iterations')
     
     for imode in range(nmodes_elph):
@@ -539,10 +545,9 @@ def elph_interpolate_bgw(elph_co, file_coeffs, Nkpoints_fine, Nbnds_fine):
                     for ib1_c in range(Nbnds_co):
                         for ib2_c in range(Nbnds_co):
                             
-                            contador += 1
-                            if contador % step_report == 0:
-                                print(f'---------- {round(contador/total_iterations, 3)*100}% done')
-                                
+                            counter += 1
+                            report_iterations(counter, total_iterations, report_interval, now_this_func)
+                                                            
                             temp_elph_co = elph_co[imode, ik_c, ib1_c, ib2_c]
                             c_f1_b1 = coeffs[ik_f, ib1_c, ib1_f]
                             c_f2_b2 = coeffs[ik_f, ib2_c, ib2_f]

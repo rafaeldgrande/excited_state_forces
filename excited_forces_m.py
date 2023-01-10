@@ -10,6 +10,7 @@
 import numpy as np
 import xml.etree.ElementTree as ET
 import h5py
+from datetime import datetime
 
 from excited_forces_config import *
 
@@ -244,6 +245,8 @@ def calc_Dkinect_matrix_elem(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode,
 
 def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params):
 
+    now_this_func = datetime.now()
+
     print("\n\n     - Calculating RPA part")
 
     Nmodes = MF_params.Nmodes
@@ -264,14 +267,14 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
         arq_RPA_data.close()
 
     if just_RPA_diag == True:
+        
+        print('Calculating just diag RPA force matrix elements')
 
         # reporting
-        total_ite = Nmodes*Nkpoints*Ncbnds_sum*Nvbnds_sum
-        interval_report = max(int(np.sqrt(total_ite)), int(total_ite/20))
-        i_term = 0
-
-        print('Calculating just diag RPA force matrix elements')
-        print(f'Total terms to be calculated : {total_ite}\n')
+        total_iterations = Nmodes*Nkpoints*Ncbnds_sum*Nvbnds_sum
+        interval_report = step_report(total_iterations)
+        counter = 0
+        print(f'Total terms to be calculated : {total_iterations}')     
 
         for imode in range(Nmodes):
             temp_imode_just_diag = 0.0 + 0.0j
@@ -285,10 +288,9 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
                         temp_imode_just_diag += temp 
 
                         # reporting
-                        i_term += 1
-                        if i_term % interval_report == 0:
-                            print(
-                                f'{i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
+                        counter += 1
+                        report_iterations(counter, total_iterations, interval_report, now_this_func)
+
 
             Sum_DKinect_diag[imode] = temp_imode_just_diag
 
@@ -299,10 +301,10 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
         if use_hermicity_F == False:
 
             # reporting
-            total_ite = Nmodes*Nkpoints*(Ncbnds_sum*Nvbnds_sum)**2
-            interval_report = max(int(np.sqrt(total_ite)), int(total_ite/20))
-            i_term = 0
-            print(f'Total terms to be calculated : {total_ite}')
+            total_iterations = Nmodes*Nkpoints*(Ncbnds_sum*Nvbnds_sum)**2
+            interval_report = step_report(total_iterations)
+            counter = 0
+            print(f'Total terms to be calculated : {total_iterations}')
 
             for imode in range(Nmodes):
                 temp_imode = 0.0 + 0.0j
@@ -323,10 +325,8 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
                                             # ik, ic2, iv2] = temp
 
                                     # reporting
-                                    i_term += 1
-                                    if i_term % interval_report == 0:
-                                        print(
-                                            f'{i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
+                                    counter += 1
+                                    report_iterations(counter, total_iterations, interval_report, now_this_func)
 
                 Sum_DKinect_diag[imode] = temp_imode_just_diag
                 Sum_DKinect[imode]      = temp_imode
@@ -350,11 +350,10 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
                           for icp in range(Ncbnds_sum)]
 
             # reporting
-            total_ite = int(Nmodes*Nkpoints*len(indexes_cv)*(len(indexes_cv)+1) / 2)
-
-            interval_report = max(int(np.sqrt(total_ite)), int(total_ite/20))
-            i_term = 0
-            print(f'Total terms to be calculated : {total_ite}')
+            total_iterations = int(Nmodes*Nkpoints*len(indexes_cv)*(len(indexes_cv)+1) / 2)
+            interval_report = step_report(total_iterations)
+            counter = 0
+            print(f'Total terms to be calculated : {total_iterations}')
 
             for imode in range(Nmodes):
                 temp_imode_not_diag = 0.0 + 0.0j
@@ -386,10 +385,8 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
                             # temp + conj(temp)
 
                             # reporting
-                            i_term += 1
-                            if i_term % interval_report == 0:
-                                print(
-                                    f'       {i_term} of {int(total_ite)} calculated --------- {round(100*i_term/total_ite,1)} %')
+                            counter += 1
+                            report_iterations(counter, total_iterations, interval_report, now_this_func)
 
 
                 Sum_DKinect_diag[imode] = temp_imode_just_diag
@@ -399,3 +396,22 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
         print(f'RPA matrix elements written in file: RPA_matrix_elements.dat')
 
     return Sum_DKinect_diag, Sum_DKinect
+
+
+def step_report(total_iterations):
+    
+    return max(int(total_iterations / 20) - 1, 1)
+
+def report_iterations(counter_now, total_iterations, step_report, now_this_func):
+    
+    ''' This function reports in iterarations and estimates how much time
+    to finish some loop'''
+    
+    if counter_now % step_report == 0 or counter_now == 10000:
+        
+        # how much time in seconds
+        delta_T = (datetime.now() - now_this_func).total_seconds()
+        # print(delta_T) 
+        delta_T_remain = (total_iterations - counter_now) / counter_now * delta_T      
+        
+        print(f'{counter_now} of {total_iterations} calculated --------- {round(100*counter_now/total_iterations, 1)} % ------ elapsed {round(delta_T, 1)} s, remaining {round(delta_T_remain, 1)} s')
