@@ -54,7 +54,7 @@ def read_eqp_data(eqp_file, BSE_params):
             else: # it is val band
                 iband = Nval - iband_file + 1
                 if iband <= Nvbnds:
-                    #print('Val -> iband_file iband Nval', iband_file, iband, Nval)
+                    # print('Val -> ik, iband_file iband Nval', ik, iband_file, iband, Nval)
                     Edft_val[ik, iband - 1] = float(linha[2])
                     Eqp_val[ik, iband - 1] = float(linha[3])
 
@@ -273,16 +273,16 @@ def get_params_from_alternative_file(alternative_params_file):
 
     arq_kpoints_bse = open('kpoints_fine_bse')
 
-    # 1   0.00000   0.00000   0.00000
-    # 2   0.00000   0.00000   0.16667
-    # 3  -0.00000  -0.00000   0.33333
-    # 4  -0.00000   0.00000   0.50000
-    # 5  -0.00000   0.00000  -0.33333
+    #    0.00000   0.00000   0.00000
+    #    0.00000   0.00000   0.16667
+    #   -0.00000  -0.00000   0.33333
+    #   -0.00000   0.00000   0.50000
+    #   -0.00000   0.00000  -0.33333
 
 
     for line in arq_kpoints_bse:
         linha = line.split()
-        kx, ky, kz = float(linha[1]), float(linha[2]), float(linha[3])
+        kx, ky, kz = float(linha[0]), float(linha[1]), float(linha[2])
         Kpoints_bse.append([kx, ky, kz])
 
     Kpoints_bse = np.array(Kpoints_bse)    

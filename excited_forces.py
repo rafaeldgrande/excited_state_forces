@@ -299,6 +299,7 @@ Nkpoints_DFPT = len(Kpoints_in_elph_file)
 # apply acoustic sum rule
 # TODO -> maybe do the ASR just in elph_cond and elph_val variables
 elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
+print('!!!!!!', np.shape(elph))
 
 # filter data to get just g_c1c2 and g_v1v2
 elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)

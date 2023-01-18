@@ -343,19 +343,20 @@ def filter_elph_coeffs(elph, MF_params, BSE_params):
     Nval     = BSE_params.Nval
     
     if elph_fine_a_la_bgw == False:
-        Nkpoints     = BSE_params.Nkpoints_BSE
+        # Nkpoints     = BSE_params.Nkpoints_BSE
         Ncbnds_sum   = BSE_params.Ncbnds_sum
         Nvbnds_sum   = BSE_params.Nvbnds_sum
     else:
-        Nkpoints     = BSE_params.Nkpoints_coarse
+        # Nkpoints     = BSE_params.Nkpoints_coarse
         Ncbnds_sum   = BSE_params.Ncbnds_coarse
         Nvbnds_sum   = BSE_params.Nvbnds_coarse
 
+    Nbnds_in_xml_file = np.shape(elph)[2]
+    Nkpoints = np.shape(elph)[1]
+    Ncond_in_xml_file = Nbnds_in_xml_file - Nval
+
     elph_cond = np.zeros((Nmodes, Nkpoints, Ncbnds_sum, Ncbnds_sum), dtype=np.complex64)
     elph_val = np.zeros((Nmodes, Nkpoints, Nvbnds_sum, Nvbnds_sum), dtype=np.complex64)
-
-    Nbnds_in_xml_file = np.shape(elph)[2]
-    Ncond_in_xml_file = Nbnds_in_xml_file - Nval
 
     if Ncond_in_xml_file < Ncbnds_sum:
         print(f'Missing {Ncbnds_sum - Ncond_in_xml_file} cond bands from DFPT calculations. Missing coefficients will be set to 0.')

@@ -407,11 +407,11 @@ def report_iterations(counter_now, total_iterations, step_report, now_this_func)
     ''' This function reports in iterarations and estimates how much time
     to finish some loop'''
     
-    if counter_now % step_report == 0 or counter_now == 10000:
+    if counter_now % step_report == 0 or counter_now == 50000:
         
         # how much time in seconds
         delta_T = (datetime.now() - now_this_func).total_seconds()
         # print(delta_T) 
         delta_T_remain = (total_iterations - counter_now) / counter_now * delta_T      
         
-        print(f'{counter_now} of {total_iterations} calculated --------- {round(100*counter_now/total_iterations, 1)} % ------ elapsed {round(delta_T, 1)} s, remaining {round(delta_T_remain, 1)} s')
+        print(f'{counter_now} of {total_iterations} calculated | {round(100*counter_now/total_iterations, 1)} % | elapsed {round(delta_T, 1)} s, remaining {round(delta_T_remain, 1)} s')
