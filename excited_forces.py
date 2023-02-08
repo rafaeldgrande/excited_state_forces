@@ -48,7 +48,7 @@ def report_ram():
 
 class Parameters_BSE:
 
-    def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse):
+    def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse, rec_cell_vecs):
         self.Nkpoints_BSE = Nkpoints_BSE
         self.Kpoints_BSE = Kpoints_BSE
         self.Ncbnds = Ncbnds
@@ -59,6 +59,7 @@ class Parameters_BSE:
         self.Ncbnds_coarse = Ncbnds_coarse
         self.Nvbnds_coarse = Nvbnds_coarse
         self.Nkpoints_coarse = Nkpoints_coarse
+        self.rec_cell_vecs = rec_cell_vecs
 
 class Parameters_MF:
 
@@ -130,7 +131,7 @@ def get_BSE_MF_params():
         
 
     MF_params = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
-    BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse)
+    BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse, rec_cell_vecs)
 
 def report_expected_energies(Akcv, Omega):
 
@@ -162,20 +163,22 @@ def report_expected_energies(Akcv, Omega):
     print('    <KE>          = ', Mean_Ekin)
     print('    Omega - <KE>  = ', Omega - Mean_Ekin)
     if Calculate_Kernel == True:
-        print('    <Kx>          = ', Mean_Kx)
-        print('    <Kd>          = ', Mean_Kd)
+        print('    <Kx>          = ', np.real(Mean_Kx), np.imag(Mean_Kx),'j')
+        print('    <Kd>          = ', np.real(Mean_Kd), np.imag(Mean_Kd),'j')
         print('\n    DIFF          = ', Omega -
               (Mean_Ekin + Mean_Kd + Mean_Kx))
 
 
 def correct_comp_vector(comp):
     # component is in alat units
-    if comp < 0:
-        return comp + 1
-    elif comp > 1:
-        return comp - 1
-    else:
-        return comp
+    # return the component in the interval 0 < comp < 1
+    
+    # making -1 < comp < 1
+    comp = round(comp, 6) - int(round(comp, 6))
+    if comp < 0: # making comp 0 < comp < 1
+        comp += 1
+
+    return comp
 
 
 def find_kpoint(kpoint, K_list):
@@ -194,10 +197,13 @@ def translate_bse_to_dfpt_k_points():
     # ikBSE_to_ikDFPT[ikBSE] = ikDFPT
     # Means that the k point from eigenvectors.h5 with index ikBSE corresponds to
     # the k point with index ikDFPT from DFPT calculation
+    
+    #debug
+    arq_teste = open('Kpoints_in_elph_eigvecs_cart_basis', 'w')
 
     for ik in range(Nkpoints_BSE):
 
-        # getting vectors from eigenvectors.h5 file in cartesian basis
+        # getting vectors from eigenvectors.h5 file in latt vectors basis
         a1, a2, a3 = Kpoints_BSE[ik]
 
         # putting the vector in the first Brillouin zone
@@ -206,16 +212,23 @@ def translate_bse_to_dfpt_k_points():
         a3 = correct_comp_vector(a3)
 
         # vector in cartesian basis
-        vec_eigvecs = a1 * rec_cell_vecs[0] + a2 * rec_cell_vecs[1] + a3 * rec_cell_vecs[2]
+        # vec_eigvecs = a1 * rec_cell_vecs[0] + a2 * rec_cell_vecs[1] + a3 * rec_cell_vecs[2]
+        vec_eigvecs = np.array([a1, a2, a3])
+        
+        arq_teste.write(f'{vec_eigvecs[0]:.9f}   {vec_eigvecs[1]:.9f}   {vec_eigvecs[2]:.9f}\n')
+        
 
-        found_or_not = find_kpoint(vec_eigvecs, Kpoints_in_elph_file)
-        # if found the vec_eigvecs in the Kpoints_in_elph_file, then returns
-        # the index in the Kpoints_in_elph_file.
+        found_or_not = find_kpoint(vec_eigvecs, Kpoints_in_elph_file_cart)
+        # if found the vec_eigvecs in the Kpoints_in_elph_file_cart, then returns
+        # the index in the Kpoints_in_elph_file_cart.
         # if did not find it, then returns -1
 
         # the conversion list from one to another
         ikBSE_to_ikDFPT.append(found_or_not)
 
+    # debug
+    arq_teste.close()
+    
     return ikBSE_to_ikDFPT
 
 
@@ -256,6 +269,7 @@ def check_k_points_BSE_DFPT():
 
 
 ########## RUNNING CODE ###################
+
 start_time = time.clock_gettime(0)
 # Getting BSE and MF parameters
 # Reading eigenvecs.h5 file
@@ -268,6 +282,11 @@ if read_Acvk_pos == False:
 else:
     Akcv, OmegaA = get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints_BSE, Ncbnds, Nvbnds)
     Bkcv, OmegaB = get_exciton_info_alternative(Acvk_directory, jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+
+
+# Printing relevant information for this exciton
+summarize_Acvk(Akcv, BSE_params)
+summarize_Acvk(Bkcv, BSE_params)
 
 # getting info from eqp.dat (from absorption calculation)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
@@ -296,10 +315,36 @@ Displacements, Nirreps = get_patterns2(iq, MF_params)
 elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps)
 Nkpoints_DFPT = len(Kpoints_in_elph_file)
 
+# change basis for k points from dfpt calculations
+# those k points are in cartesian basis. we're changing 
+# it to reciprocal latt basis
+# mat_reclattvecs_to_cart = BSE_params.rec_cell_vecs
+
+mat_cart_to_reclattvecs = np.linalg.inv(BSE_params.rec_cell_vecs)
+
+Kpoints_in_elph_file_cart = []
+
+arq_kpoints_log = open('Kpoints_dfpt_cart_basis', 'w')
+
+for ik in range(Nkpoints_DFPT):
+
+    K_cart = mat_cart_to_reclattvecs @ Kpoints_in_elph_file[ik]
+    
+    arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
+
+    for icomp in range(3):
+        K_cart[icomp] = correct_comp_vector(K_cart[icomp])
+
+
+    Kpoints_in_elph_file_cart.append(K_cart)
+    
+Kpoints_in_elph_file_cart = np.array(Kpoints_in_elph_file_cart)
+    
+
 # apply acoustic sum rule
 # TODO -> maybe do the ASR just in elph_cond and elph_val variables
 elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
-print('!!!!!!', np.shape(elph))
+# print('!!!!!!', np.shape(elph))
 
 # filter data to get just g_c1c2 and g_v1v2
 elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
@@ -315,22 +360,27 @@ report_ram()
 if elph_fine_a_la_bgw == False:
     
     print('No interpolation on elph coeffs is used')
-    print('Checking if kpoints of DFPT and BSE agree with each other')
+    
+    if dont_check_kpts_bse_dfpt == False:
+        print('Checking if kpoints of DFPT and BSE agree with each other')
 
-    # Checking kpoints from DFPT and BSE calculations
-    # The kpoints in eigenvecs.h5 are not in the same order in the
-    # input for the fine grid calculation.
-    # The k points in BSE are reported in reciprocal lattice vectors basis
-    # and in DFPT those k points are reported in cartersian basis in units
-    # of reciprocal lattice
+        # Checking kpoints from DFPT and BSE calculations
+        # The kpoints in eigenvecs.h5 are not in the same order in the
+        # input for the fine grid calculation.
+        # The k points in BSE are reported in reciprocal lattice vectors basis
+        # and in DFPT those k points are reported in cartersian basis in units
+        # of reciprocal lattice
 
-    # It SEEMS that the order of k points in the eqp.dat (produced by the absorption code)
-    # is the same than the order of k points in the eigenvecs file
-    # Maybe it would be necessary to check it later!
+        # It SEEMS that the order of k points in the eqp.dat (produced by the absorption code)
+        # is the same than the order of k points in the eigenvecs file
+        # Maybe it would be necessary to check it later!
 
-    # Now checking if everything is ok with ikBSE_to_ikDFPT list
-    # if something is wrong kill the code
-    check_k_points_BSE_DFPT()
+        # Now checking if everything is ok with ikBSE_to_ikDFPT list
+        # if something is wrong kill the code
+        check_k_points_BSE_DFPT()
+    else:
+        print('As dont_check_kpts_bse_dfpt is true, I am not mapping k points from BSE with k points from DFPT.')
+        print('I am assuming they are informed in the same order in both calculations')
     
 else:
     
