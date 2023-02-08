@@ -148,7 +148,7 @@ def read_elph_xml(elph_xml_file):
         arq_kpoints = open('Kpoints_in_elph_file_'+irrep_name, 'w')
         for ik in range(len(Kpoints_in_elph_file)):
             kx, ky, kz = Kpoints_in_elph_file[ik]
-            arq_kpoints.write(f'{kx}  {ky}  {kz}  \n')
+            arq_kpoints.write(f'{kx:.9f}  {ky:.9f}  {kz:.9f}  \n')
         arq_kpoints.close()
 
 
@@ -560,10 +560,4 @@ def elph_interpolate_bgw(elph_co, file_coeffs, Nkpoints_fine, Nbnds_fine):
     print('Finished elph interpolation')
     
     return elph_fine
-    
-    
-
-
-    
-    
     
