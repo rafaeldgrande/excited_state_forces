@@ -1,6 +1,6 @@
 # IGNORE ERRORS
-
 IGNORE_ERRORS = False
+
 
 from scipy.constants import physical_constants
 import numpy as np
@@ -77,6 +77,15 @@ elph_fine_a_la_bgw = False
 ncbands_co, nvbands_co = 0, 0
 nkpnts_co = 0
 
+# write dK (derivative of kernel) matrix elements
+write_dK_mat = False
+
+# do not check kpoints between bgw and dfpt calculations
+# trust that both codes did the calculation in the same order
+# so we do not need to map one grid in another
+dont_check_kpts_bse_dfpt = False
+
+
 def true_or_false(text, default_value):
     if text.lower() == 'true':
         return True
@@ -104,6 +113,8 @@ def read_input(input_file):
     global no_renorm_elph   
     global elph_fine_a_la_bgw                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
     global nkpnts_co, nvbands_co, ncbands_co
+    global write_dKE_mat, write_dK_mat
+    global dont_check_kpts_bse_dfpt
 
     try:
         arq_in = open(input_file)
@@ -178,7 +189,11 @@ def read_input(input_file):
                     no_renorm_elph = true_or_false(linha[1], no_renorm_elph)
                 elif linha[0] == 'elph_fine_a_la_bgw':
                     elph_fine_a_la_bgw = true_or_false(linha[1], elph_fine_a_la_bgw)
-
+                elif linha[0] == 'write_dK_mat':
+                    write_dK_mat = true_or_false(linha[1], write_dK_mat)
+                elif linha[0] == 'dont_check_kpts_bse_dfpt':
+                    dont_check_kpts_bse_dfpt = true_or_false(linha[1], dont_check_kpts_bse_dfpt)
+                
 ########## did not recognize this line #############
 
                 elif linha[0][0] != '#':
