@@ -90,6 +90,11 @@ def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_param
 def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_params):
 
     print("\n\n    - Calculating Kernel part")
+    
+    if write_dK_mat == True:
+        print('Writing kernel derivatives in the file dK_mat.dat')
+        arq_dK_report = open('dK_mat.dat', 'w')
+        arq_dK_report.write('# imode ik1 ik2 iv1 iv2 ic1 ic2 <k1v1c1|d_(mode) K|k2v2c2> \n')
 
     Nmodes = MF_params.Nmodes
     Nkpoints = BSE_params.Nkpoints_BSE
@@ -126,7 +131,6 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
                                 indexes = ik1, ik2, iv1, iv2, ic1, ic2, imode
                                 dK = calc_DKernel_mat_elem(
                                     indexes, KernelMat, EDFT, EQP, ELPH, MF_params, BSE_params)
-
                                 temp_sum_imode += A_bra * dK * B_ket
                                     # DKernel[imode, ik1, ic1, iv1, ik2,
                                     #         ic2, iv2] = A_bra * dK * A_ket
@@ -136,7 +140,13 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
                                     print(
                                         f'        {i_term} of {total_ite} calculated --------- {round(100*i_term/total_ite,1)} %')
 
+                                if write_dK_mat == True:
+                                    arq_dK_report.write(f'{imode} {ik1+1} {ik2+1} {iv1+1} {iv2+1} {ic1+1} {ic2+1} {A_bra * dK * B_ket}\n')
+                                
         Sum_DKernel[imode] = temp_sum_imode
+
+    if write_dK_mat == True:
+        arq_dK_report.close()
     
     return Sum_DKernel
     
