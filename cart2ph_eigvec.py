@@ -71,7 +71,10 @@ for line in arq_forces:
             forces_cart.append([])
       else:
          for ii in range(2, len(line_split)):
-            forces_cart[ii-2].append(float(line_split[ii]))
+            try:
+               forces_cart[ii-2].append(float(line_split[ii]))
+            except:
+               forces_cart[ii-2].append(complex(line_split[ii]))
 
 arq_forces.close()
 
