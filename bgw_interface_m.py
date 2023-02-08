@@ -201,6 +201,11 @@ def get_params_from_eigenvecs_file(exciton_file):
         print('######################################################\n')
 ################################################################################################
 
+
+
+
+
+
     # writing k points info to file - DEBUG
 
     if log_k_points == True:
@@ -211,7 +216,7 @@ def get_params_from_eigenvecs_file(exciton_file):
 
         for ik in range(len(Kpoints_bse)):
             kx, ky, kz = Kpoints_bse[ik]
-            arq_kpoints.write(f'{kx}   {ky}   {kz}\n')
+            arq_kpoints.write(f'{kx:.9f}   {ky:.9f}   {kz:.9f}\n')
 
         arq_kpoints.close()
 
@@ -327,3 +332,30 @@ def get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints, Ncbnds, Nvbnds)
     print('Exciton energy (eV): '+str(exc_energy)+'\n\n')
 
     return Akcv, exc_energy
+
+def summarize_Acvk(Akcv, BSE_params):
+    
+    ''' Print just the relevant information about that exciton. Most of coefficients Acvk
+    are null'''
+    
+    tol_report = 1e-2
+    
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds = BSE_params.Ncbnds
+    Nvbnds = BSE_params.Nvbnds
+    Kpoints_BSE = BSE_params.Kpoints_BSE
+    
+    print('###############################################')
+    print('Showing relevant coeffs for this exciton')
+    print('kx  ky  kz  ic  iv  real(Acvk)   imag(Acvk)   abs(Acvk)')
+    
+    for ik in range(Nkpoints):
+        for iv in range(Nvbnds):
+            for ic in range(Ncbnds):
+                if abs(Akcv[ik, ic, iv]) >= tol_report:
+                    A = Akcv[ik, ic, iv]
+                    kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
+                    print(f'{kx}  {ky}   {kz}   {ic+1}   {iv+1}   {np.real(A)}    {np.imag(A)}    {abs(A)}')
+        
+    print('###############################################')
+    
