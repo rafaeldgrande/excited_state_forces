@@ -1,4 +1,5 @@
 
+print('hello')
 
 import time
 import xml.etree.ElementTree as ET
