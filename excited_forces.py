@@ -191,43 +191,52 @@ def find_kpoint(kpoint, K_list):
 
 
 def translate_bse_to_dfpt_k_points():
+
     ikBSE_to_ikDFPT = []
     # This list shows which k point from BSE corresponds to which
     # point from DFPT calculation.
     # ikBSE_to_ikDFPT[ikBSE] = ikDFPT
     # Means that the k point from eigenvectors.h5 with index ikBSE corresponds to
     # the k point with index ikDFPT from DFPT calculation
+    # We also can trust that everything is ok, and they have 1 to 1 correspondence
+    # and are given in the same order
+    # This is done with the flag trust_kpoints_order = True
     
-    #debug
-    arq_teste = open('Kpoints_in_elph_eigvecs_cart_basis', 'w')
+    if trust_kpoints_order == False:
+        #debug
+        arq_teste = open('Kpoints_in_elph_eigvecs_cart_basis', 'w')
 
-    for ik in range(Nkpoints_BSE):
+        for ik in range(Nkpoints_BSE):
 
-        # getting vectors from eigenvectors.h5 file in latt vectors basis
-        a1, a2, a3 = Kpoints_BSE[ik]
+            # getting vectors from eigenvectors.h5 file in latt vectors basis
+            a1, a2, a3 = Kpoints_BSE[ik]
 
-        # putting the vector in the first Brillouin zone
-        a1 = correct_comp_vector(a1)
-        a2 = correct_comp_vector(a2)
-        a3 = correct_comp_vector(a3)
+            # putting the vector in the first Brillouin zone
+            a1 = correct_comp_vector(a1)
+            a2 = correct_comp_vector(a2)
+            a3 = correct_comp_vector(a3)
 
-        # vector in cartesian basis
-        # vec_eigvecs = a1 * rec_cell_vecs[0] + a2 * rec_cell_vecs[1] + a3 * rec_cell_vecs[2]
-        vec_eigvecs = np.array([a1, a2, a3])
+            # vector in cartesian basis
+            # vec_eigvecs = a1 * rec_cell_vecs[0] + a2 * rec_cell_vecs[1] + a3 * rec_cell_vecs[2]
+            vec_eigvecs = np.array([a1, a2, a3])
+            
+            arq_teste.write(f'{vec_eigvecs[0]:.9f}   {vec_eigvecs[1]:.9f}   {vec_eigvecs[2]:.9f}\n')
+            
+
+            found_or_not = find_kpoint(vec_eigvecs, Kpoints_in_elph_file_cart)
+            # if found the vec_eigvecs in the Kpoints_in_elph_file_cart, then returns
+            # the index in the Kpoints_in_elph_file_cart.
+            # if did not find it, then returns -1
+
+            # the conversion list from one to another
+            ikBSE_to_ikDFPT.append(found_or_not)
+
+        # debug
+        arq_teste.close()
         
-        arq_teste.write(f'{vec_eigvecs[0]:.9f}   {vec_eigvecs[1]:.9f}   {vec_eigvecs[2]:.9f}\n')
-        
-
-        found_or_not = find_kpoint(vec_eigvecs, Kpoints_in_elph_file_cart)
-        # if found the vec_eigvecs in the Kpoints_in_elph_file_cart, then returns
-        # the index in the Kpoints_in_elph_file_cart.
-        # if did not find it, then returns -1
-
-        # the conversion list from one to another
-        ikBSE_to_ikDFPT.append(found_or_not)
-
-    # debug
-    arq_teste.close()
+    else:
+        for ik in range(len(Kpoints_in_elph_file_cart)):
+            ikBSE_to_ikDFPT.append(ik)
     
     return ikBSE_to_ikDFPT
 
@@ -263,9 +272,11 @@ def check_k_points_BSE_DFPT():
     if flag_missing_kpoints == False and flag_repeated_kpoints == False:
         print('Found no problem for k points from both DFPT and BSE calculations')
     else:
-        print('Quiting program! Please check the above warnings!')
         if IGNORE_ERRORS == False:
+            print('Quiting program! Please check the above warnings!')
             quit()
+        else:
+            print('Continuing calculation regardless of that!')
 
 
 ########## RUNNING CODE ###################
@@ -318,9 +329,9 @@ Nkpoints_DFPT = len(Kpoints_in_elph_file)
 # change basis for k points from dfpt calculations
 # those k points are in cartesian basis. we're changing 
 # it to reciprocal latt basis
-# mat_reclattvecs_to_cart = BSE_params.rec_cell_vecs
 
-mat_cart_to_reclattvecs = np.linalg.inv(BSE_params.rec_cell_vecs)
+mat_reclattvecs_to_cart = np.transpose(BSE_params.rec_cell_vecs)
+mat_cart_to_reclattvecs = np.linalg.inv(mat_reclattvecs_to_cart)
 
 Kpoints_in_elph_file_cart = []
 
@@ -361,7 +372,7 @@ if elph_fine_a_la_bgw == False:
     
     print('No interpolation on elph coeffs is used')
     
-    if dont_check_kpts_bse_dfpt == False:
+    if trust_kpoints_order == False:
         print('Checking if kpoints of DFPT and BSE agree with each other')
 
         # Checking kpoints from DFPT and BSE calculations
@@ -379,7 +390,7 @@ if elph_fine_a_la_bgw == False:
         # if something is wrong kill the code
         check_k_points_BSE_DFPT()
     else:
-        print('As dont_check_kpts_bse_dfpt is true, I am not mapping k points from BSE with k points from DFPT.')
+        print('As trust_kpoints_order is true, I am not mapping k points from BSE with k points from DFPT.')
         print('I am assuming they are informed in the same order in both calculations')
     
 else:

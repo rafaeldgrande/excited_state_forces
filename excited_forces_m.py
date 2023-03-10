@@ -214,7 +214,8 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
                                 aux_val_matrix[imode, ik, iv1, iv2] = elph
                             else:
                                 aux_val_matrix[imode, ik, iv1, iv2] = elph * deltaEqp / deltaEdft
-
+            else:
+                print(f'Kpoint {ik} not found. Skipping the calculation for this k point')
 
     return aux_cond_matrix, aux_val_matrix
 

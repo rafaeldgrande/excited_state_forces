@@ -1,5 +1,4 @@
 
-print('hello')
 
 import time
 import xml.etree.ElementTree as ET
@@ -561,4 +560,10 @@ def elph_interpolate_bgw(elph_co, file_coeffs, Nkpoints_fine, Nbnds_fine):
     print('Finished elph interpolation')
     
     return elph_fine
+    
+    
+
+
+    
+    
     
