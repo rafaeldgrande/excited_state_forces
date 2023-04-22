@@ -99,14 +99,33 @@ def get_kernel(kernel_file, factor_head):
         Kx =  -2*(Exchange[:,:,:,:,:,:,0])        
 
     Kd = Kd*factor_kernel
-    Kx = Kx*factor_kernel
+
+    if spin_triplet == True:
+        Kx = Kx * 0.0
+    else:
+        Kx = Kx*factor_kernel
 
     # end_time_func = time.clock_gettime(0)
     # print(f'Time spent on get_kernel function: '+report_time(start_time_func))
 
     return Kd, Kx
 
-
+def get_params_Kernel(kernel_file):
+    
+    """
+    Reads parameters for BSE calculation from Kernel file (bsemat.h5)
+    """
+    
+    f_hdf5 = h5py.File(kernel_file, 'r')
+    
+    Nkpoints_BSE = f_hdf5['/bse_header/kpoints/nk'][()]
+    Kpoints_BSE = f_hdf5['/bse_header/kpoints/kpts'][()]
+    Nvbnds = f_hdf5['/bse_header/bands/nvb'][()]
+    Ncbnds = f_hdf5['/bse_header/bands/ncb'][()]
+    
+    return Nkpoints_BSE, Kpoints_BSE, Nvbnds, Ncbnds
+    
+    
 
 def get_exciton_info(exciton_file, iexc):
 

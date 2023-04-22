@@ -85,6 +85,9 @@ write_dK_mat = False
 # so we do not need to map one grid in another
 trust_kpoints_order = False
 
+# is this calculation with spin triplet (True) or spin singlet (False)?
+spin_triplet = False
+
 
 def true_or_false(text, default_value):
     if text.lower() == 'true':
@@ -134,13 +137,13 @@ def read_input(input_file):
 
                 if linha[0] == 'iexc':
                     iexc = int(linha[1])
-                if linha[0] == 'jexc':
+                elif linha[0] == 'jexc':
                     jexc = int(linha[1])
-                if linha[0] == 'ncbnds_sum':
+                elif linha[0] == 'ncbnds_sum':
                     ncbnds_sum = int(linha[1])
-                if linha[0] == 'nvbnds_sum':
+                elif linha[0] == 'nvbnds_sum':
                     nvbnds_sum = int(linha[1])
-                if linha[0] == 'factor_head':
+                elif linha[0] == 'factor_head':
                     factor_head = float(linha[1])
                 elif linha[0] == 'eqp_file':
                     eqp_file = linha[1]
@@ -193,6 +196,8 @@ def read_input(input_file):
                     write_dK_mat = true_or_false(linha[1], write_dK_mat)
                 elif linha[0] == 'trust_kpoints_order':
                     trust_kpoints_order = true_or_false(linha[1], trust_kpoints_order)
+                elif linha[0] == 'spin_triplet':
+                    spin_triplet = true_or_false(linha[1], spin_triplet)
                 
 ########## did not recognize this line #############
 
