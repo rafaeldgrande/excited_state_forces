@@ -118,6 +118,7 @@ def read_input(input_file):
     global nkpnts_co, nvbands_co, ncbands_co
     global write_dKE_mat, write_dK_mat
     global trust_kpoints_order
+    global spin_triplet
 
     try:
         arq_in = open(input_file)
