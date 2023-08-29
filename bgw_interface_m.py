@@ -8,56 +8,122 @@ from excited_forces_config import *
 
 ################ GW related functions #####################
 
-def read_eqp_data(eqp_file, BSE_params):
+# def read_eqp_data(eqp_file, BSE_params):
 
-    """Reads quasiparticle and dft energies results from sigma calculations.
+#     """Reads quasiparticle and dft energies results from sigma calculations.
     
-    It is recommended to use the eqp.dat file from calculations using the
-    absorption.flavor.x code, as it is compatible with the Acvk coefficients
-    (same number of valence and conduction bands and same number of k points)
+#     It is recommended to use the eqp.dat file from calculations using the
+#     absorption.flavor.x code, as it is compatible with the Acvk coefficients
+#     (same number of valence and conduction bands and same number of k points)
+
+#     Parameters:
+#     eqp_file (string)
+
+#     Returns:
+#         arrays : Eqp_val, Eqp_cond, Edft_val, Edft_cond
+#     """
+
+#     Nkpoints = BSE_params.Nkpoints_BSE
+#     Ncbnds   = BSE_params.Ncbnds
+#     Nvbnds   = BSE_params.Nvbnds
+#     Nval     = BSE_params.Nval
+
+#     Eqp_val   = np.zeros((Nkpoints, Nvbnds), dtype=float)
+#     Edft_val  = np.zeros((Nkpoints, Nvbnds), dtype=float)
+#     Eqp_cond  = np.zeros((Nkpoints, Ncbnds), dtype=float)
+#     Edft_cond = np.zeros((Nkpoints, Ncbnds), dtype=float)
+
+#     print('Reading QP energies from eqp.dat file: ', eqp_file)
+#     arq = open(eqp_file)
+
+#     ik = -1
+
+#     for line in arq:
+#         linha = line.split()
+#         if linha[0] != '1':
+#             ik += 1
+#         else:
+#             iband_file = int(linha[1])
+
+#             if iband_file > Nval: # it is a cond band
+#                 iband = iband_file - Nval 
+#                 if iband <= Ncbnds:
+#                     #print('Cond -> iband_file iband Nval', iband_file, iband, Nval)
+#                     Edft_cond[ik, iband - 1] = float(linha[2])
+#                     Eqp_cond[ik, iband - 1] = float(linha[3])
+#             else: # it is val band
+#                 iband = Nval - iband_file + 1
+#                 if iband <= Nvbnds:
+#                     # print('Val -> ik, iband_file iband Nval', ik, iband_file, iband, Nval)
+#                     Edft_val[ik, iband - 1] = float(linha[2])
+#                     Eqp_val[ik, iband - 1] = float(linha[3])
+
+#     return Eqp_val, Eqp_cond, Edft_val, Edft_cond
+
+def read_eqp_data(eqp_file, BSE_params):
+    """
+    Read quasiparticle and DFT energies from sigma calculations from file eqp.dat. Needs to be 
+    the results on the fine grid. This file is produced by the absorption code, where it 
+    interpolates eqp_co.dat to a fine grid. 
 
     Parameters:
-    eqp_file (string)
+    eqp_file (str): Path to the eqp.dat file.
+    BSE_params (namedtuple): Named tuple containing the following fields:
+        - Nkpoints_BSE (int): Number of k-points used in the BSE calculations.
+        - Ncbnds (int): Number of conduction bands used in BSE calculations.
+        - Nvbnds (int): Number of valence bands used in BSE calculation.
+        - Nval (int): Total number of valence electrons.
 
     Returns:
-        arrays : Eqp_val, Eqp_cond, Edft_val, Edft_cond
+    Tuple containing the following arrays:
+        - Eqp_val (numpy array): Quasiparticle energies of valence bands for each k-point.
+        - Eqp_cond (numpy array): Quasiparticle energies of conduction bands for each k-point.
+        - Edft_val (numpy array): DFT energies of valence bands for each k-point.
+        - Edft_cond (numpy array): DFT energies of conduction bands for each k-point.
     """
-
+    
+    # Unpack the BSE parameters
     Nkpoints = BSE_params.Nkpoints_BSE
-    Ncbnds   = BSE_params.Ncbnds
-    Nvbnds   = BSE_params.Nvbnds
-    Nval     = BSE_params.Nval
-
-    Eqp_val   = np.zeros((Nkpoints, Nvbnds), dtype=float)
-    Edft_val  = np.zeros((Nkpoints, Nvbnds), dtype=float)
-    Eqp_cond  = np.zeros((Nkpoints, Ncbnds), dtype=float)
+    Ncbnds = BSE_params.Ncbnds
+    Nvbnds = BSE_params.Nvbnds
+    Nval = BSE_params.Nval
+    
+    # Initialize the arrays to store the energies
+    Eqp_val = np.zeros((Nkpoints, Nvbnds), dtype=float)
+    Eqp_cond = np.zeros((Nkpoints, Ncbnds), dtype=float)
+    Edft_val = np.zeros((Nkpoints, Nvbnds), dtype=float)
     Edft_cond = np.zeros((Nkpoints, Ncbnds), dtype=float)
+    
+    print(f'Reading QP energies from {eqp_file}')
+    
+    with open(eqp_file, 'r') as f:
+        # Start with k-point index -1, since the first line of the file
+        # does not contain energies
+        ik = -1
+        
+        for line in f:
+            linha = line.split()
+            # If the first entry in the line is not 1, we have a new k-point
+            if linha[0] != '1':
+                ik += 1
+            else:
+                iband_file = int(linha[1])
 
-    print('Reading QP energies from eqp.dat file: ', eqp_file)
-    arq = open(eqp_file)
-
-    ik = -1
-
-    for line in arq:
-        linha = line.split()
-        if linha[0] != '1':
-            ik += 1
-        else:
-            iband_file = int(linha[1])
-
-            if iband_file > Nval: # it is a cond band
-                iband = iband_file - Nval 
-                if iband <= Ncbnds:
-                    #print('Cond -> iband_file iband Nval', iband_file, iband, Nval)
-                    Edft_cond[ik, iband - 1] = float(linha[2])
-                    Eqp_cond[ik, iband - 1] = float(linha[3])
-            else: # it is val band
-                iband = Nval - iband_file + 1
-                if iband <= Nvbnds:
-                    # print('Val -> ik, iband_file iband Nval', ik, iband_file, iband, Nval)
-                    Edft_val[ik, iband - 1] = float(linha[2])
-                    Eqp_val[ik, iband - 1] = float(linha[3])
-
+                if iband_file > Nval:
+                    # This is a conduction band
+                    iband = iband_file - Nval 
+                    if iband <= Ncbnds:
+                        # Store the DFT and QP energies for the conduction band
+                        Edft_cond[ik, iband-1] = float(linha[2])
+                        Eqp_cond[ik, iband-1] = float(linha[3])
+                else:
+                    # This is a valence band
+                    iband = Nval - iband_file + 1
+                    if iband <= Nvbnds:
+                        # Store the DFT and QP energies for the valence band
+                        Edft_val[ik, iband-1] = float(linha[2])
+                        Eqp_val[ik, iband-1] = float(linha[3])
+    
     return Eqp_val, Eqp_cond, Edft_val, Edft_cond
 
 
@@ -66,12 +132,19 @@ def read_eqp_data(eqp_file, BSE_params):
 def get_kernel(kernel_file, factor_head):
 
     """
-    Reads the kernel matrix elements from BSE calculations
-    Return the direct (Kd) and exchange (Kx) kernels in Ry
-    """
+    Reads the kernel matrix elements from BSE calculations and returns the
+    direct (Kd) and exchange (Kx) kernels in Ry.
 
-    # start_time_func = time.clock_gettime(0)
-    print('\nReading kernel matrix elements from ', kernel_file)
+    Parameters:
+    kernel_file (str): path to the kernel file
+    factor_head (float): factor to be applied to the head part of the kernel
+    spin_triplet (bool): whether the calculation includes spin triplet
+
+    Returns:
+    Kd (ndarray): direct kernel matrix elements in Ry
+    Kx (ndarray): exchange kernel matrix elements in Ry
+    """
+    print(f'Reading kernel matrix elements from {kernel_file}')
 
     # Kd = head (G=G'=0) + wing (G=0 or G'=0) + body (otherwise) - see https://doi.org/10.1016/j.cpc.2011.12.006
 
