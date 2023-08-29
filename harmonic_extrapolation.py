@@ -3,7 +3,7 @@
 # standard values   
 dyn_file = 'dyn'
 file_out_QE = 'out'
-excitd_state_forces_file = 'forces_cart.out'
+excitd_state_forces_file = 'forces_cart.out-1'
 flavor = 2
 reinforce_ASR_excited_state_forces = True
 reinforce_ASR_dyn_mat = True
@@ -53,7 +53,7 @@ def read_dft_forces_qe(file, Natoms):
         print('Grep worked sucessfully!')
     except subprocess.CalledProcessError as e:
         print("Error executing grep:", e)
-        print("Did not find the forces!")
+        print("Did not find the DFT forces!")
         print("Returnin array of 0s")
         return dft_forces
         
@@ -72,10 +72,37 @@ def read_dft_forces_qe(file, Natoms):
         
     return dft_forces
 
+def check_string_atomic_pos_dyn_file(input_string):
+    # Split the string into individual elements
+    elements = input_string.split()
+
+    # Check if the string contains at least 5 elements
+    if len(elements) < 5:
+        return False
+
+    try:
+        # Check if the first two elements are integers
+        int(elements[0])
+        int(elements[1])
+
+        # Check if the last three elements are floats
+        float(elements[-3])
+        float(elements[-2])
+        float(elements[-1])
+
+        return True
+
+    except ValueError:
+        return False
+
 def read_dyn_matrix(dyn_file):
     
-    # we are reading the dynamical matrix 
+    # list with masses - used to make the displacements vector
+    # to not move the center of mass
+    masses = []
+    atoms_species = []
     
+    # we are reading the dynamical matrix 
     arq = open(dyn_file, "r")
     
     # read the first two lines
@@ -86,6 +113,7 @@ def read_dyn_matrix(dyn_file):
     # 5   48   0  15.4935509   0.0000000   0.0000000   0.0000000   0.0000000   0.0000000
     line_split = arq.readline().split()
     
+    # now I know the number of atoms 
     Natoms = int(line_split[1])
     
     # creating dyn matrix
@@ -93,7 +121,25 @@ def read_dyn_matrix(dyn_file):
     
     # reading the file
     while True:
-        line_split = arq.readline().split()
+        
+        line = arq.readline()
+        line_split = line.split()
+        
+        # getting masses
+        # identifying a line like this
+        # line = "         1  'Li  '    6326.33449141718"
+        # line.split() = ['1', "'Li", "'", '6326.33449141718']
+        # line.split()[1] = "'Li"
+        # line.split()[1].split("'") = ['', 'Li']
+        # len(line.split()[1].split("'")) = 2
+        if len(line_split) >= 2:
+            if len(line_split[1].split("'")) == 2:
+                masses.append(float(line_split[3]))
+            
+        # getting atomic species
+        if check_string_atomic_pos_dyn_file(line) == True:
+            atoms_species.append(int(line_split[1])-1)
+        
         
         # now we look for the following line
         # q = (    0.000000000   0.000000000   0.000000000 )
@@ -120,7 +166,7 @@ def read_dyn_matrix(dyn_file):
             
     arq.close()            
             
-    return Natoms, dyn_mat
+    return Natoms, dyn_mat, masses, atoms_species
 
 def read_excited_forces(excitd_state_forces_file, flavor):
     # flavor = 1 -> RPA_diag 
@@ -205,10 +251,29 @@ def ASR_dyn_mat(dyn_mat):
                         new_dyn_mat[i,j] = new_dyn_mat[i,j] - sum_dir / non_zero_vals
                 
     return new_dyn_mat
+
+def alternative_inversion(M):
+    
+    # Perform eigenvalue decomposition
+    eigenvalues, eigenvectors = np.linalg.eigh(M)
+
+    # Check if eigenvalues are close to zero (numerically)
+    close_to_zero = np.isclose(eigenvalues, 0.0, atol=1e-10)
+
+    if np.any(close_to_zero):
+        print("Matrix is not invertible due to near-zero eigenvalues.")
+    else:
+        # Calculate the inverse using eigenvalue decomposition
+        inverse_M = eigenvectors @ np.diag(1.0 / eigenvalues) @ eigenvectors.T
+
+        # print("Inverse of M:")
+        # print(inverse_M)
+        
+    return inverse_M
             
 
 # loading dynamical matrix
-Natoms, dyn_mat = read_dyn_matrix(dyn_file)
+Natoms, dyn_mat, masses, atoms_species = read_dyn_matrix(dyn_file)
 
 # converting from ry/bohr^2 to eV/angs^2
 dyn_mat = dyn_mat * ry2ev / bohr2ang**2
@@ -238,11 +303,12 @@ if reinforce_ASR_excited_state_forces == True:
 
 # K^{-1}
 # fix this inversion!!
-inv_dyn_mat = np.linalg.inv(dyn_mat)
+# inv_dyn_mat = np.linalg.inv(dyn_mat)
+inv_dyn_mat = alternative_inversion(dyn_mat)
 
 # Calculating displacements
 f_tot = dft_forces + excited_forces
-displacements = - inv_dyn_mat @ f_tot
+displacements = - np.real(inv_dyn_mat @ f_tot)
 
 # reinforcing that center of mass displacement is null
 sum_x = np.sum(displacements[0:3*Natoms:3])
@@ -254,6 +320,39 @@ for iatom in range(Natoms):
     displacements[iatom*3+1] = displacements[iatom*3+1] - sum_y / Natoms
     displacements[iatom*3+2] = displacements[iatom*3+2] - sum_z / Natoms
 
-print(displacements)
+# print(displacements)
 
-# TODO: write this displacements where the center of mass displacement is null!
+def make_CM_disp_null(displacements, masses, atoms_species):
+    
+    # first we calculate the total mass in this unit cell
+    Mtot = 0
+    for i_species in atoms_species:
+        Mtot += masses[i_species]
+        
+    # calculating the center of mass displacement
+    D = np.zeros((3))
+    for iatom in range(Natoms):
+        r = displacements[3*iatom:3*(iatom+1)]
+        mass = masses[atoms_species[iatom]]
+        D += r * mass 
+    
+    D = D / Mtot
+    
+    # now creating the Dreplicated, which is the same displacement
+    # for all atoms. Ex: D = [1,2,3], Drecplicated = [1,2,3,1,2,3,1,2,3...]
+    Dreplicated = np.tile(D, Natoms)
+    
+    return displacements - Dreplicated
+    
+        
+# print(make_CM_disp_null(displacements, masses, atoms_species))
+
+arq_out = open('displacements.dat', 'w')
+
+for iatom in range(Natoms):
+    r = displacements[3*iatom:3*(iatom+1)]
+    arq_out.write(f"{iatom+1}    {r[0]:.8f}     {r[1]:.8f}    {r[2]:.8f} \n")
+
+arq_out.close()
+
+print('Finished!')
