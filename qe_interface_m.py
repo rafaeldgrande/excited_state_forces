@@ -9,6 +9,11 @@ from datetime import datetime
 from excited_forces_config import *
 from excited_forces_m import *
 
+if run_parallel == True:
+    from multiprocessing import Pool
+    import multiprocessing
+
+
 def indexes_x_in_list(what_i_want, list_i_get):
 
     """
@@ -227,6 +232,26 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
             elph.append(elph_aux[ideg])
 
     elph = np.array(elph)
+
+    return elph, Kpoints_in_elph_file
+
+def process_irrep(irrep):
+    iq = 0 # todo: generalize it later
+    elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
+    print('    Reading file ', elph_xml_file, f'({irrep+1}/{Nirreps})')
+    elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)
+    return elph_aux
+
+def get_el_ph_coeffs_parallel(iq, Nirreps):
+    print('\n\nReading elph coefficients g_ij = <i|dH/dr|j>\n')
+
+    pool = multiprocessing.Pool()
+    results = pool.map(process_irrep, range(Nirreps))
+    pool.close()
+    pool.join()
+
+    elph = np.concatenate(results, axis=0)
+    Kpoints_in_elph_file = results[0][1]  # Assuming the Kpoints_in_elph_file is the same for all irreps
 
     return elph, Kpoints_in_elph_file
 
