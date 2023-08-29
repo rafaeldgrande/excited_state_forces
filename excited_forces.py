@@ -1,4 +1,13 @@
 
+TESTES_DEV = False
+
+run_parallel = False
+if run_parallel == True:
+    from multiprocessing import Pool
+    from multiprocessing import freeze_support
+
+
+
 # FIRST MESSAGE
 
 # excited state forces modules
@@ -323,7 +332,10 @@ iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-ze
 Displacements, Nirreps = get_patterns2(iq, MF_params)
 
 # get elph coefficients from .xml files
+# if run_parallel == False:
 elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps)
+# else:
+#     elph, Kpoints_in_elph_file = get_el_ph_coeffs_parallel(iq, Nirreps)
 Nkpoints_DFPT = len(Kpoints_in_elph_file)
 
 # change basis for k points from dfpt calculations
@@ -355,10 +367,33 @@ Kpoints_in_elph_file_cart = np.array(Kpoints_in_elph_file_cart)
 # apply acoustic sum rule
 # TODO -> maybe do the ASR just in elph_cond and elph_val variables
 elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
-# print('!!!!!!', np.shape(elph))
+print('!!!!!! SHAPE', np.shape(Eqp_val))
 
 # filter data to get just g_c1c2 and g_v1v2
-elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
+elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
+
+
+# # test -> reescale g's val to the linear coefficient of 
+# # scissors operator for CO. For val bands it is 0.21252216207735158
+# # and for cond bands is 0.07 for d = 1.12
+
+# # scissor operator fitting
+# z = np.poly1d(np.polyfit(Edft_val[0], Eqp_val[0] - Edft_val[0], 1))
+# alpha_val = z[1]
+# z = np.poly1d(np.polyfit(Edft_cond[0][2:], Eqp_cond[0][2:] - Edft_cond[0][2:], 1))
+# alpha_cond = z[1]
+
+# print('SCISSOR OPERATORS VAL ', alpha_val)
+# print('SCISSOR OPERATORS COND ', alpha_cond)
+
+# for irrep in range(6):
+#     for iband in range(5):
+#         elph_val[irrep, 0, iband, iband] = elph_val[irrep, 0, iband, iband] * (1.0 + alpha_val)
+        
+# for irrep in range(6):
+#     for iband in range(13):
+#         elph_cond[irrep, 0, iband, iband] = elph_cond[irrep, 0, iband, iband] * (1.0 + alpha_cond)
+
 
 # First let's put all k points from BSE grid in the first Brillouin zone
 ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
@@ -407,6 +442,15 @@ else:
 
 print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
 
+# creating KCV list with indexes ik, ic, iv (in this order) used to vectorize future sums
+KCV_list = []
+
+for ik in range(BSE_params.Nkpoints_BSE):
+    for ic in range(BSE_params.Ncbnds_sum):
+        for iv in range(BSE_params.Nvbnds_sum):
+            KCV_list.append((ik, ic, iv))            
+
+
 # Creating auxialiry quantities
 # aux_cond_matrix[imode, ik, ic1, ic2] = elph_cond[imode, ik, ic1, ic2] * deltaEqp / deltaEdft (if ic1 != ic2)
 # aux_val_matrix[imode, ik, iv1, iv2]  = elph_val[imode, ik, iv1, iv2]  * deltaEqp / deltaEdft (if iv1 != iv2)
@@ -419,9 +463,66 @@ aux_cond_matrix, aux_val_matrix = aux_matrix_elem(
 #     Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params)
 
 # instead of creating big matrix, calculate sums on the fly!
-Sum_DKinect_diag, Sum_DKinect = calc_Dkinect_matrix(
-    Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params)
 
+args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params)
+
+Sum_DKinect_diag, Sum_DKinect_just_offdiag = [], []
+
+if run_parallel == False:
+    
+##### test - run in a "dummy" way
+
+    # if __name__ == '__main__':
+    #     # from multiprocessing import Pool, cpu_count
+    #     from functools import partial
+        
+    #     # num_processes = 1 # cpu_count()
+
+    #     print('STEP 1')
+        
+    #     for imode in range(Nmodes):
+    #     # Create a partial function with fixed arguments using functools.partial
+    #         partial_func = partial(calc_Dkinect_matrix_elem, Akcv=Akcv, Bkcv=Bkcv, aux_cond_matrix=aux_cond_matrix, aux_val_matrix=aux_val_matrix, imode=imode)
+
+    #         print('STEP 3')
+    #         # Create a Pool object for parallel processing
+    #         with Pool(processes=num_processes) as pool:
+    #             # Use pool.map to apply the partial function to the args_list in parallel
+    #             results_just_diag = pool.map(partial_func, args_list_just_diag)
+    #             results_just_offdiag = pool.map(partial_func, args_list_just_offdiag)
+                
+    #         print('STEP 4')
+    #         # Compute the sum of the results
+    #         Sum_DKinect_diag.append(np.sum(np.array(results_just_diag)))
+    #         Sum_DKinect_just_offdiag.append(np.sum(np.array(results_just_offdiag)))
+        
+
+    Sum_DKinect_diag, Sum_DKinect = [], []
+    for imode in range(Nmodes):
+        Sum_DKinect_diag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_diag, imode))
+        Sum_DKinect.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_offdiag, imode))        
+    Sum_DKinect_diag, Sum_DKinect = np.array(Sum_DKinect_diag), np.array(Sum_DKinect)
+
+else:
+    if __name__ == '__main__':
+        # import multiprocessing
+        
+        Sum_DKinect_diag, Sum_DKinect = [], []
+        for imode in range(Nmodes):
+            Sum_DKinect_diag.append(calc_Dkinect_matrix_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_diag, imode))
+            Sum_DKinect.append(calc_Dkinect_matrix_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_offdiag, imode))
+            
+        Sum_DKinect_diag, Sum_DKinect = np.array(Sum_DKinect_diag), np.array(Sum_DKinect)
+
+        
+        
+        
+        
+    
+if TESTES_DEV == True:
+    Sum_DKinect_diag_test, Sum_DKinect_test = calc_Dkinect_matrix_ver2_master(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params, KCV_list, run_parallel)
+    
+print(Sum_DKinect_diag, type(Sum_DKinect_diag))
 
 # arq_f_disp = open('forces_vs_displacement.dat', 'w')
 # arq_f_disp.write('########## Forces in (eV/A) ################\n')
