@@ -88,6 +88,9 @@ trust_kpoints_order = False
 # is this calculation with spin triplet (True) or spin singlet (False)?
 spin_triplet = False
 
+# run in parallel flag
+run_parallel = False
+
 
 def true_or_false(text, default_value):
     if text.lower() == 'true':
@@ -119,6 +122,7 @@ def read_input(input_file):
     global write_dKE_mat, write_dK_mat
     global trust_kpoints_order
     global spin_triplet
+    global run_parallel
 
     try:
         arq_in = open(input_file)
@@ -199,6 +203,8 @@ def read_input(input_file):
                     trust_kpoints_order = true_or_false(linha[1], trust_kpoints_order)
                 elif linha[0] == 'spin_triplet':
                     spin_triplet = true_or_false(linha[1], spin_triplet)
+                elif linha[0] == 'run_parallel':
+                    run_parallel = true_or_false(linha[1], run_parallel)
                 
 ########## did not recognize this line #############
 
