@@ -12,7 +12,13 @@ import xml.etree.ElementTree as ET
 import h5py
 from datetime import datetime
 
+
 from excited_forces_config import *
+
+if run_parallel == True:
+    from multiprocessing import Pool, cpu_count
+    from functools import partial
+
 
 
 def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_params):
@@ -229,7 +235,21 @@ def delta(i, j):
 
 
 def dirac_delta_Edft(i, j, Edft, TOL_DEG):
-    if abs(Edft[0, i] - Edft[0, j]) > TOL_DEG:
+    """Dirac delta function in energy space based on the energy difference between two states.
+
+    Args:
+        i (int): index of the first state
+        j (int): index of the second state
+        Edft (ndarray): array of energies in eV
+        TOL_DEG (float): energy tolerance in eV
+
+    Returns:
+        float: 1.0 if |E_i - E_j| < TOL_DEG, 0.0 otherwise
+    """
+
+    energy_diff = abs(Edft[0, i] - Edft[0, j])
+    
+    if energy_diff > TOL_DEG:
         return 1.0
     else:
         return 0.0
@@ -253,7 +273,6 @@ def calc_Dkinect_matrix_elem(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode,
 
     return Dkin
 
-
 def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params):
 
     now_this_func = datetime.now()
@@ -267,9 +286,6 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
 
     Sum_DKinect_diag = np.zeros((Nmodes), dtype=complex)
     Sum_DKinect      = np.zeros((Nmodes), dtype=complex)
-
-    # Shape = (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
-    # DKinect = np.zeros(Shape, dtype=np.complex64)
 
     if report_RPA_data == True:
         arq_RPA_data = open('RPA_matrix_elements.dat', 'w')
@@ -294,7 +310,7 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
                 for ic1 in range(Ncbnds_sum):
                     for iv1 in range(Nvbnds_sum):
                         temp = calc_Dkinect_matrix_elem(
-                            Akcv, Bkcv, aux_cond_matrix, imode, ik, ic1, ic1, iv1, iv1)
+                            Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic1, iv1, iv1)
                         # DKinect[imode, ik, ic1, iv1, ik, ic1, iv1] = temp
                         temp_imode_just_diag += temp 
 
@@ -407,6 +423,294 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
         print(f'RPA matrix elements written in file: RPA_matrix_elements.dat')
 
     return Sum_DKinect_diag, Sum_DKinect
+
+def arg_lists_Dkinect(BSE_params):
+    
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds_sum = BSE_params.Ncbnds_sum
+    Nvbnds_sum = BSE_params.Nvbnds_sum
+    
+    args_list_just_offdiag = []    
+    args_list_just_diag = [(ik, ic1, ic1, iv1, iv1) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum)]
+
+    if just_RPA_diag == False:
+        indexes_cv = [(icp, ivp) for ivp in range(Nvbnds_sum) for icp in range(Ncbnds_sum)]
+        if use_hermicity_F == False:
+            for cv1 in indexes_cv:
+                for cv2 in indexes_cv:
+                    if cv1 != cv2:
+                        ic1, iv1 = cv1
+                        ic2, iv2 = cv2
+                        for ik in range(Nkpoints): 
+                            args_list_just_offdiag.append((ik, ic1, ic2, iv1, iv2))
+        else:
+            for i_cv1 in range(len(indexes_cv)):
+                for i_cv2 in range(i_cv1+1, len(indexes_cv)):
+                    ic1, iv1 = indexes_cv[i_cv1]
+                    ic2, iv2 = indexes_cv[i_cv2]
+                    for ik in range(Nkpoints): 
+                        args_list_just_offdiag.append((ik, ic1, ic2, iv1, iv2))
+
+        
+    return args_list_just_diag, args_list_just_offdiag
+
+
+def calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list, imode):
+
+    result = 0.0 + 0.0j
+    
+    for arg in args_list:
+        ik, ic1, ic2, iv1, iv2 = arg
+        result += calc_Dkinect_matrix_elem(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
+        
+    return result
+
+def calc_Dkinect_matrix_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list, imode):
+
+    
+    print('STEP 1')
+    # Create a partial function with fixed arguments using functools.partial
+    partial_func = partial(calc_Dkinect_matrix_elem, Akcv=Akcv, Bkcv=Bkcv, aux_cond_matrix=aux_cond_matrix, aux_val_matrix=aux_val_matrix, imode=imode)
+    
+    print('STEP 2')
+    # Get the number of available processes
+    num_processes = 1 # cpu_count()
+    
+    print('STEP 3')
+    # Create a Pool object for parallel processing
+    with Pool(processes=num_processes) as pool:
+        # Use pool.map to apply the partial function to the args_list in parallel
+        results = pool.map(partial_func, args_list)
+    
+    print('STEP 4')
+    # Compute the sum of the results
+    result = np.sum(np.array(results))
+    return result
+
+
+def calc_Dkinect_matrix_elem_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2):
+    """Calculates excited state force matrix elements."""
+
+    # calculate matrix element imode, ik, ic1, ic2, iv1, iv2
+    temp_cond = aux_cond_matrix[imode, ik, ic1, ic2] * delta(iv1, iv2)
+    temp_val = aux_val_matrix[imode, ik, iv1, iv2] * delta(ic1, ic2)
+
+    tempA = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])
+    Dkin = tempA * (temp_cond - temp_val)
+
+    return Dkin
+
+
+def calculate_temp(args):
+    imode, ik, ic1, ic2, iv1, iv2 = args
+    return calc_Dkinect_matrix_elem_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
+
+
+# def calc_Dkinect_matrix_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params):
+
+#     print("\n\n     - Calculating RPA part")
+
+#     Nmodes = MF_params.Nmodes
+#     Nkpoints = BSE_params.Nkpoints_BSE
+#     Ncbnds_sum = BSE_params.Ncbnds_sum
+#     Nvbnds_sum = BSE_params.Nvbnds_sum
+
+#     Sum_DKinect_diag = np.zeros((Nmodes), dtype=complex)
+#     Sum_DKinect      = np.zeros((Nmodes), dtype=complex)
+
+#     if just_RPA_diag == True:
+        
+#         print('Calculating just diag RPA force matrix elements - PARALLEL VERSION')
+                
+#         for imode in range(Nmodes):
+#             temp_imode_just_diag = 0.0 + 0.0j
+
+#             # Generate the list of arguments for the parallel execution
+#             args_list = [(imode, ik, ic1, ic1, iv1, iv1) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum)]
+
+#             # Parallel execution of calculate_temp function
+#             temp_list = pool.map(calculate_temp, args_list)
+#             temp_imode_just_diag = sum(temp_list)
+
+#             Sum_DKinect_diag[imode] = temp_imode_just_diag            
+            
+#     else:
+
+#         print('Calculating diag and offdiag RPA force matrix elements - PARALLEL VERSION')
+
+#         if use_hermicity_F == False:
+
+#             for imode in range(Nmodes):
+                
+#                 # Generate the list of arguments for the parallel execution
+#                 args_list = [(imode, ik, ic1, ic1, iv1, iv1) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum)]
+#                 args_list_include_offdiags = [(imode, ik, ic1, ic2, iv1, iv2) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for ic2 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum) for iv2 in range(Nvbnds_sum)]
+
+#                 # TODO - exclude all elements from args_list_include_offdiags that are present in args_list
+                
+#                 # Parallel execution of calculate_temp function
+#                 temp_list = pool.map(calculate_temp, args_list)
+#                 temp_imode_just_diag = sum(temp_list)  
+                
+#                 # Parallel execution of calculate_temp function
+#                 temp_list = pool.map(calculate_temp, args_list_include_offdiags)
+#                 temp_imode_just_diag_and_off_diag = sum(temp_list) 
+
+#                 Sum_DKinect_diag[imode] = temp_imode_just_diag
+#                 Sum_DKinect[imode]      = temp_imode_just_diag_and_off_diag
+
+#         # Creating a list of tuples with cond and val bands indexes
+#         # [(0,0), (0,1), (0,2), ... (Ncbnds-1, 0), (Ncbnds-1, 1), ..., (Ncbnds-1, Nvbnds-1)]
+#         # size of this list Nvbnds*Ncbnds
+
+#         # New block - now using the fact that F_cvc'v' = conj(F_c'v'cv)
+#         # Reduces the number of computed terms by about half
+
+#         # Cannot use this if iexc != jexc 
+#         # If use_hermicity_F == True and iexc != jexc
+#         # then I just make use_hermicity_F == False
+
+#         else:
+
+#             print('Using "hermicity" of force matrix elements - PARALLEL VERSION')
+
+#             indexes_cv = [(icp, ivp) for ivp in range(Nvbnds_sum) for icp in range(Ncbnds_sum)]
+
+#             for imode in range(Nmodes):
+                
+#                 # building arg list
+#                 args_list = [(imode, ik, ic1, ic1, iv1, iv1) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum)]
+#                 args_list_include_offdiags = []
+#                 for ik in range(Nkpoints):
+#                     for ind_cv1 in range(len(indexes_cv)):
+#                         ic1, iv1 = indexes_cv[ind_cv1]
+#                         for ind_cv2 in range(ind_cv1+1, len(indexes_cv)):
+#                             ic2, iv2 = indexes_cv[ind_cv2]
+#                             args_list_include_offdiags.append((imode, ik, ic1, ic2, iv1, iv2))
+                
+#                 # TODO - exclude all elements from args_list_include_offdiags that are present in args_list
+                
+#                 # Parallel execution of calculate_temp function
+#                 temp_list = pool.map(calculate_temp, args_list)
+#                 temp_imode_just_diag = sum(temp_list)  
+                
+#                 # Parallel execution of calculate_temp function
+#                 temp_list = pool.map(calculate_temp, args_list_include_offdiags)
+#                 temp_imode_just_diag_and_off_diag = 2*np.real(sum(temp_list)) 
+
+#                 Sum_DKinect_diag[imode] = temp_imode_just_diag
+#                 Sum_DKinect[imode]      = temp_imode_just_diag_and_off_diag    
+
+#     pool.close()
+#     pool.join()
+    
+    # return Sum_DKinect_diag, Sum_DKinect
+
+
+
+
+
+def calc_Dkinect_matrix_ver2_master(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params, KCV_list, run_parallel):
+
+    ''' Updated version of calc_Dkinect_matrix, trying to be more organized'''
+    
+    print("\n\n     - Calculating RPA part")
+
+    # getting variables
+    Nmodes = MF_params.Nmodes
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds_sum = BSE_params.Ncbnds_sum
+    Nvbnds_sum = BSE_params.Nvbnds_sum
+
+    Sum_DKinect_diag = np.zeros((Nmodes), dtype=complex)
+    Sum_DKinect      = np.zeros((Nmodes), dtype=complex)
+    
+    # Just diag mat elements 
+    for imode in range(Nmodes):
+        Sum_DKinect_diag[imode] = calc_Dkinect_matrix_RPA_just_diag(imode, Nkpoints, Ncbnds_sum, Nvbnds_sum, Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, KCV_list)
+    
+    if just_RPA_diag == False:    
+        
+        print('Calculating diag and offdiag RPA force matrix elements')
+        
+        if use_hermicity_F == False:
+            for imode in range(Nmodes):
+                Sum_DKinect[imode] = Sum_DKinect_diag[imode] + calc_Dkinect_matrix_RPA_just_offdiag(imode, Nkpoints, Ncbnds_sum, Nvbnds_sum, Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, KCV_list)
+            
+    print(Sum_DKinect_diag, type(Sum_DKinect_diag))
+    return Sum_DKinect_diag, Sum_DKinect
+
+def calc_Dkinect_matrix_RPA_just_diag(imode, Nkpoints, Ncbnds_sum, Nvbnds_sum, Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, KCV_list):
+    
+    ''' Calculate Dkinect matrix for the case just_RPA == True'''
+    
+    KCV_array = np.array(KCV_list)
+    ik_array = KCV_array[:, 0]
+    ic_array = KCV_array[:, 1]
+    iv_array = KCV_array[:, 2]
+    
+    calc_temp = np.vectorize(calc_Dkinect_matrix_elem, excluded=['Akcv', 'Bkcv', 'aux_cond_matrix', 'aux_val_matrix', 'imode'])
+
+    temp_imode_just_diag = calc_temp(Akcv=Akcv, Bkcv=Bkcv, aux_cond_matrix=aux_cond_matrix, aux_val_matrix=aux_val_matrix, imode=imode, ik=ik_array, ic1=ic_array, ic2=ic_array, iv1=iv_array, iv2=iv_array)
+                 
+    return np.sum(temp_imode_just_diag)
+
+
+def calc_Dkinect_matrix_RPA_just_offdiag(imode, Nkpoints, Ncbnds_sum, Nvbnds_sum, Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, KCV_list):
+    
+    ''' Calculate Dkinect matrix for the case just_RPA == True'''
+    
+    Total_ikcv = len(KCV_list)
+    CV_list = KCV_list[:Ncbnds_sum*Nvbnds_sum]
+    Total_icv = len(CV_list)
+    
+    # i am making Nkpoints * Total_icv * (Total_icv + 1) / 2 calculations
+    temp_imode_just_diag = np.zeros(Nkpoints * Total_icv * (Total_icv + 1) / 2, dtype = complex)
+    
+    
+    counter = -1
+    for ik in range(Nkpoints):
+        for icv in range(Total_icv):
+            _, ic1, iv1 = CV_list[icv]
+            for jcv in range(icv + 1, Total_icv):
+                _, ic2, iv2 = CV_list[jcv]
+                
+                counter += 1
+                temp_imode_just_diag[counter] = calc_Dkinect_matrix_elem(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
+                      
+    return np.sum(temp_imode_just_diag)
+
+
+
+
+
+
+def calc_Dkinect_matrix_elem_wrapper(args):
+    return calc_Dkinect_matrix_elem(*args)
+
+def calc_Dkinect_matrix_just_RPA_para_ver(imode, Nkpoints, Ncbnds_sum, Nvbnds_sum, Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, KCV_list):
+    Total_ikcv = len(KCV_list)
+    args_list = [(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic, ic, iv, iv) for ik, ic, iv in KCV_list]
+    with Pool() as pool:
+        temp_imode_just_diag = pool.map(calc_Dkinect_matrix_elem_wrapper, args_list)
+    return np.sum(temp_imode_just_diag)
+
+# def calc_Dkinect_matrix_just_RPA_para_ver(imode, Nkpoints, Ncbnds_sum, Nvbnds_sum, Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, KCV_list):
+    
+#     ''' Calculate Dkinect matrix for the case just_RPA == True
+#         - parallel version'''
+    
+#     Total_ikcv = len(KCV_list)
+#     temp_imode_just_diag = np.zeros(Total_ikcv, dtype = complex)
+    
+#     def calc_elem(idx):
+#         ik, ic, iv = KCV_list[idx]
+#         return calc_Dkinect_matrix_elem(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic, ic, iv, iv)
+    
+#     with Pool() as pool:
+#         result = pool.map(calc_elem, range(Total_ikcv))
+    
+#     return np.sum(result)
 
 
 def step_report(total_iterations):
