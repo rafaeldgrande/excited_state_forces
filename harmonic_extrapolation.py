@@ -3,10 +3,11 @@
 # standard values   
 dyn_file = 'dyn'
 file_out_QE = 'out'
-excitd_state_forces_file = 'forces_cart.out-1'
+excited_state_forces_file = 'forces_cart.out-1'
 flavor = 2
 reinforce_ASR_excited_state_forces = True
 reinforce_ASR_dyn_mat = True
+CM_disp_null = True
 
 import numpy as np
 import subprocess
@@ -168,12 +169,12 @@ def read_dyn_matrix(dyn_file):
             
     return Natoms, dyn_mat, masses, atoms_species
 
-def read_excited_forces(excitd_state_forces_file, flavor):
+def read_excited_forces(excited_state_forces_file, flavor):
     # flavor = 1 -> RPA_diag 
     # flavor = 2 -> RPA_diag_offiag 
     # flavor = 3 -> RPA_diag_Kernel
     
-    data = np.loadtxt(excitd_state_forces_file, usecols=flavor+1)
+    data = np.loadtxt(excited_state_forces_file, usecols=flavor+1)
     return data
     
 def sum_comp_vec(vector, dir):
@@ -270,57 +271,6 @@ def alternative_inversion(M):
         # print(inverse_M)
         
     return inverse_M
-            
-
-# loading dynamical matrix
-Natoms, dyn_mat, masses, atoms_species = read_dyn_matrix(dyn_file)
-
-# converting from ry/bohr^2 to eV/angs^2
-dyn_mat = dyn_mat * ry2ev / bohr2ang**2
-
-# apply acoustic sum rule on dyn_mat
-if reinforce_ASR_dyn_mat == True:
-    dyn_mat = ASR_dyn_mat(dyn_mat)
-
-# loading dft forces
-dft_forces = read_dft_forces_qe(file_out_QE, Natoms)     
-
-# converting from ry/bohr to eV/angs
-dft_forces = dft_forces * ry2ev / bohr2ang
-
-# loading excited state forces - already in eV/angs
-excited_forces = read_excited_forces(excitd_state_forces_file, flavor)
-
-# checking if excited state forces obey ASR
-check_ASR_vector(excited_forces)
-
-# reinforce ASR on excited state force vector
-if reinforce_ASR_excited_state_forces == True:
-    excited_forces = ASR_on_vector(excited_forces)
-
-# Now calculating displacements
-# x = - K^{-1} F
-
-# K^{-1}
-# fix this inversion!!
-# inv_dyn_mat = np.linalg.inv(dyn_mat)
-inv_dyn_mat = alternative_inversion(dyn_mat)
-
-# Calculating displacements
-f_tot = dft_forces + excited_forces
-displacements = - np.real(inv_dyn_mat @ f_tot)
-
-# reinforcing that center of mass displacement is null
-sum_x = np.sum(displacements[0:3*Natoms:3])
-sum_y = np.sum(displacements[1:3*Natoms:3])
-sum_z = np.sum(displacements[2:3*Natoms:3])
-
-for iatom in range(Natoms):
-    displacements[iatom*3] = displacements[iatom*3] - sum_x / Natoms
-    displacements[iatom*3+1] = displacements[iatom*3+1] - sum_y / Natoms
-    displacements[iatom*3+2] = displacements[iatom*3+2] - sum_z / Natoms
-
-# print(displacements)
 
 def make_CM_disp_null(displacements, masses, atoms_species):
     
@@ -343,9 +293,51 @@ def make_CM_disp_null(displacements, masses, atoms_species):
     Dreplicated = np.tile(D, Natoms)
     
     return displacements - Dreplicated
-    
-        
+
+# loading dynamical matrix
+Natoms, dyn_mat, masses, atoms_species = read_dyn_matrix(dyn_file)
+
+# converting from ry/bohr^2 to eV/angs^2
+dyn_mat = dyn_mat * ry2ev / bohr2ang**2
+
+# apply acoustic sum rule on dyn_mat
+if reinforce_ASR_dyn_mat == True:
+    dyn_mat = ASR_dyn_mat(dyn_mat)
+
+# loading dft forces
+dft_forces = read_dft_forces_qe(file_out_QE, Natoms)     
+
+# converting from ry/bohr to eV/angs
+dft_forces = dft_forces * ry2ev / bohr2ang
+
+# loading excited state forces - already in eV/angs
+excited_forces = read_excited_forces(excited_state_forces_file, flavor)
+
+# checking if excited state forces obey ASR
+check_ASR_vector(excited_forces)
+
+# reinforce ASR on excited state force vector
+if reinforce_ASR_excited_state_forces == True:
+    excited_forces = ASR_on_vector(excited_forces)
+
+# Now calculating displacements
+# x = - K^{-1} F
+
+# K^{-1}
+# fix this inversion!!
+# inv_dyn_mat = np.linalg.inv(dyn_mat)
+inv_dyn_mat = alternative_inversion(dyn_mat)
+
+# Calculating displacements
+f_tot = dft_forces + excited_forces
+displacements = - np.real(inv_dyn_mat @ f_tot)
+
+# print(displacements)
 # print(make_CM_disp_null(displacements, masses, atoms_species))
+
+if CM_disp_null == True:
+    displacements = make_CM_disp_null(displacements, masses, atoms_species)
+
 
 arq_out = open('displacements.dat', 'w')
 
