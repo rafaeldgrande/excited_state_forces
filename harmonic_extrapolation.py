@@ -321,7 +321,7 @@ if reinforce_ASR_excited_state_forces == True:
     excited_forces = ASR_on_vector(excited_forces)
 
 # Now calculating displacements
-# x = - K^{-1} F
+# x = K^{-1} F
 
 # K^{-1}
 # fix this inversion!!
@@ -330,7 +330,7 @@ inv_dyn_mat = alternative_inversion(dyn_mat)
 
 # Calculating displacements
 f_tot = dft_forces + excited_forces
-displacements = - np.real(inv_dyn_mat @ f_tot)
+displacements = np.real(inv_dyn_mat @ f_tot)
 
 # print(displacements)
 # print(make_CM_disp_null(displacements, masses, atoms_species))
