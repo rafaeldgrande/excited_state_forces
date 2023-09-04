@@ -298,11 +298,17 @@ get_BSE_MF_params()
 # Getting exciton info
 if read_Acvk_pos == False:
     Akcv, OmegaA = get_exciton_info(exciton_file, iexc)
-    Bkcv, OmegaB = get_exciton_info(exciton_file, jexc)
+    if iexc != jexc:  
+        Bkcv, OmegaB = get_exciton_info(exciton_file, jexc)
+    else:
+        Bkcv, OmegaB = Akcv, OmegaA
+        
 else:
     Akcv, OmegaA = get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints_BSE, Ncbnds, Nvbnds)
-    Bkcv, OmegaB = get_exciton_info_alternative(Acvk_directory, jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
-
+    if iexc != jexc:
+        Bkcv, OmegaB = get_exciton_info_alternative(Acvk_directory, jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+    else:
+        Bkcv, OmegaB = Akcv, OmegaA
 
 # Printing relevant information for this exciton
 summarize_Acvk(Akcv, BSE_params)
