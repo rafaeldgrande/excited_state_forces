@@ -55,7 +55,7 @@ def read_dft_forces_qe(file, Natoms):
     except subprocess.CalledProcessError as e:
         print("Error executing grep:", e)
         print("Did not find the DFT forces!")
-        print("Returnin array of 0s")
+        print("DFT forces are set to 0s. This is true if you are starting configurations is the DFT equilibrium")
         return dft_forces
         
     # filtering - gtting the first Natoms lines
@@ -294,6 +294,46 @@ def make_CM_disp_null(displacements, masses, atoms_species):
     
     return displacements - Dreplicated
 
+def estimate_energy_change(displacements, displacements_dft, excited_forces, dyn_mat):
+    
+    ''' The DFT energy approximatelly is given by
+    
+    Edft(x) = E0 + 1/2 k (x-x0)**2
+    where x0 is the DFT equilibrium position vector or expanded around xi
+    Edft(x) = Ei + k(xi-x0)(x-xi) + 1/2 k (x-xi)**2
+    xi is the initial position vector, Ei = E0 + 1/2 k (x-x0)**2
+    and -k(xi-x0) is equal to the DFT force when x=xi, so
+    Edft(x) = Ei + Fdft_i(x-xi) + 1/2 k (x-xi)**2
+    
+    The excited state energy is given by
+    Omega(x) = Omega_i - Fexc_i (x-xi)
+    
+    we calculated here x_eq that is due 
+    '''
+    
+    # first estimate the difference of DFT energy = x.T K x 
+    Delta_E_dft_i_to_0 = np.real(displacements_dft.T @ dyn_mat @ displacements_dft / 2)
+    
+    # then estimates the DFT energy difference from x_eq to x_i
+    Delta_E_dft_i_to_eq = np.real(displacements.T @ dyn_mat @ displacements / 2)
+    
+    # then estimates the Exciton energy difference from x_eq to x_i
+    # in this case the force is approximatelly constant so Delta E = - displacement . force
+    Delta_Omega_i_to_eq = np.real(- np.dot(displacements, excited_forces))
+      
+    print("""
+          
+x_i = initial position vector
+x_0 = Equilibrium position for DFT surface energy
+x_eq = Equilibrim position for Edft + Omega                                                                                                                                                               
+          
+          """)
+    print(f"How far from DFT minimum we are: E(xi) - E(x0) = {Delta_E_dft_i_to_0:.8f} eV.")
+    print(f"DFT energy change due to displacements: E(x_eq) - E(xi) = {Delta_E_dft_i_to_eq:.8f} eV")
+    print(f"Excitation energy change due to displacements: Omega(x_eq) - Omega(xi) = {Delta_Omega_i_to_eq:.8f} eV")
+    print(f"Total energy change: E+Omega(x_eq) - E+Omega(xi) = {(Delta_E_dft_i_to_eq + Delta_Omega_i_to_eq):.8f} eV")
+    
+                                                                                      
 # loading dynamical matrix
 Natoms, dyn_mat, masses, atoms_species = read_dyn_matrix(dyn_file)
 
@@ -328,6 +368,9 @@ if reinforce_ASR_excited_state_forces == True:
 # inv_dyn_mat = np.linalg.inv(dyn_mat)
 inv_dyn_mat = alternative_inversion(dyn_mat)
 
+# Checking how far we are from equilibrium in this approximation 
+displacements_dft = np.real(inv_dyn_mat @ dft_forces)
+
 # Calculating displacements
 f_tot = dft_forces + excited_forces
 displacements = np.real(inv_dyn_mat @ f_tot)
@@ -337,14 +380,20 @@ displacements = np.real(inv_dyn_mat @ f_tot)
 
 if CM_disp_null == True:
     displacements = make_CM_disp_null(displacements, masses, atoms_species)
+    displacements_dft = make_CM_disp_null(displacements_dft, masses, atoms_species)
 
+def write_displacements(displacements, arq_name):
+    print(f"Writing {displacements} file")
+    arq_out = open(arq_name, 'w')
 
-arq_out = open('displacements.dat', 'w')
+    for iatom in range(Natoms):
+        r = displacements[3*iatom:3*(iatom+1)]
+        arq_out.write(f"{iatom+1}    {r[0]:.8f}     {r[1]:.8f}    {r[2]:.8f} \n")
 
-for iatom in range(Natoms):
-    r = displacements[3*iatom:3*(iatom+1)]
-    arq_out.write(f"{iatom+1}    {r[0]:.8f}     {r[1]:.8f}    {r[2]:.8f} \n")
-
-arq_out.close()
+    arq_out.close()
+    
+write_displacements(displacements, 'displacements_Fdft_Fexcited.dat')
+write_displacements(displacements_dft, 'displacements_Fdft.dat')
+estimate_energy_change(displacements, displacements_dft, excited_forces, dyn_mat)
 
 print('Finished!')
