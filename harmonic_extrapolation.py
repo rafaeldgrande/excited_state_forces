@@ -216,7 +216,7 @@ def check_ASR_vector(vector):
 
         sum_dir = abs(sum_comp_vec(vector, dir))
 
-        print(f'Sum of {dir} components = {sum_dir:.6f}')
+        print(f'Sum of {dir} components = {sum_dir:.6f} eV/angstrom')
         if sum_dir >= zero_tol:
             print('WARNING: Does not obey ASR! Use reinforce_ASR_excited_state_forces = True')
 
@@ -358,6 +358,51 @@ x_eq = Equilibrim position for Edft + Omega
     print(f"DFT energy change due to displacements: E(x_eq) - E(xi) = {Delta_E_dft_i_to_eq:.8f} eV")
     print(f"Excitation energy change due to displacements: Omega(x_eq) - Omega(xi) = {Delta_Omega_i_to_eq:.8f} eV")
     print(f"Total energy change: E+Omega(x_eq) - E+Omega(xi) = {(Delta_E_dft_i_to_eq + Delta_Omega_i_to_eq):.8f} eV")
+    print("\n\n")
+    
+def are_parallel(vector1, vector2, tolerance=1e-6):
+    """
+    Check if two N-dimensional arrays (vectors) are parallel.
+
+    Parameters:
+    - vector1: NumPy array, the first vector.
+    - vector2: NumPy array, the second vector.
+    - tolerance: Float, a small positive value to account for numerical imprecisions.
+
+    Returns:
+    - True if the vectors are parallel, False otherwise.
+    """
+
+    # Check if the vectors have the same shape
+    if vector1.shape != vector2.shape:
+        return False
+
+    # Calculate the dot product of the two vectors
+    dot_product = np.dot(vector1, vector2)
+
+    # Calculate the magnitudes (lengths) of the vectors
+    magnitude1 = np.linalg.norm(vector1)
+    magnitude2 = np.linalg.norm(vector2)
+
+    # Check if the dot product is within a small tolerance of the expected value
+    expected_dot_product = magnitude1 * magnitude2
+    ratio = dot_product / expected_dot_product
+    if abs(dot_product - expected_dot_product) < tolerance:
+        return f'Yes!.  <u.v>/(|v||u|) = {ratio:.6f} \n'
+    else:
+        return f'No!.  <u.v>/(|v||u|) = {ratio:.6f} \n'
+    
+def print_info_displacements(displacements):
+    
+    print('Printing displacement and its modulus for each atom! Units: angstroms')
+    print('iatom  rx  ry  rz  |r|')
+
+    for iatom in range(Natoms):
+        r = displacements[3*iatom:3*(iatom+1)]
+        print(f' {iatom+1}  {r[0]:.6f}   {r[1]:.6f}   {r[2]:.6f}   {np.linalg.norm(r):.6f}')
+        
+    print("")
+        
     
                                                                                       
 # loading dynamical matrix
@@ -425,6 +470,12 @@ def write_displacements(displacements, arq_name):
     
 write_displacements(displacements, 'displacements_Fdft_Fexcited.dat')
 write_displacements(displacements_dft, 'displacements_Fdft.dat')
+
 estimate_energy_change(displacements, displacements_dft, excited_forces, dyn_mat)
 
-print('\nFinished!')
+print('Is (Fdft + Fexcited) parallel to displacement? ', are_parallel(displacements, f_tot, tolerance=1e-2))
+print('Is F_excited parallel to displacement? ', are_parallel(displacements, excited_forces, tolerance=1e-2))
+
+print_info_displacements(displacements)
+
+print('\n   Finished!')
