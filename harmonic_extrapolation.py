@@ -396,10 +396,18 @@ def print_info_displacements(displacements):
     
     print('Printing displacement and its modulus for each atom! Units: angstroms')
     print('iatom  rx  ry  rz  |r|')
+    
+    rmod = []
 
     for iatom in range(Natoms):
         r = displacements[3*iatom:3*(iatom+1)]
         print(f' {iatom+1}  {r[0]:.6f}   {r[1]:.6f}   {r[2]:.6f}   {np.linalg.norm(r):.6f}')
+        rmod.append(np.linalg.norm(r))
+        
+    print(f"Max displacement {max(rmod):.6f} angstroms for atom {rmod.index(max(rmod))+1}")
+    print(f"Min displacement {min(rmod):.6f} angstroms for atom {rmod.index(min(rmod))+1}")
+    print(f"Mean atomic displcements: {np.mean(rmod):.6f} angstroms")
+    print(f"Modulus of 3N displacement vector: {np.linalg.norm(displacements):.8f} angstroms")
         
     print("")
         
@@ -431,6 +439,13 @@ check_ASR_vector(excited_forces)
 # reinforce ASR on excited state force vector
 if reinforce_ASR_excited_state_forces == True:
     excited_forces = ASR_on_vector(excited_forces)
+    
+f_tot = dft_forces + excited_forces
+
+# printing information about DFT and Excited state forces
+print(f"\nModulus of 3N DFT forces vector: {np.linalg.norm(dft_forces):.8f} eV/angstrom")
+print(f"Modulus of 3N Excited state forces vector: {np.linalg.norm(excited_forces):.8f} eV/angstrom")
+print(f"Modulus of 3N DFT + Excited state (total force) force vector: {np.linalg.norm(f_tot):.8f} eV/angstrom\n")
 
 # Now calculating displacements
 # x = K^{-1} F
@@ -446,7 +461,6 @@ print('Calculating displacement due to DFT forces x1 = k^-1 Fdft')
 displacements_dft = np.real(inv_dyn_mat @ dft_forces)
 
 # Calculating displacements
-f_tot = dft_forces + excited_forces
 print('Calculating displacement due to total forces x2 = k^-1 (Fdft + Fexc)')
 displacements = np.real(inv_dyn_mat @ f_tot)
 
