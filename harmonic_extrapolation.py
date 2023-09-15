@@ -1,6 +1,7 @@
 
 
 # standard values   
+# TODO: make the code read a configuration file
 dyn_file = 'dyn'
 file_out_QE = 'out'
 excited_state_forces_file = 'forces_cart.out-1'
@@ -8,6 +9,29 @@ flavor = 2
 reinforce_ASR_excited_state_forces = True
 reinforce_ASR_dyn_mat = True
 CM_disp_null = True
+
+# Initial message
+print('####################################')
+print('Starting harmonic extrapolation code')
+print('####################################\n\n')
+
+print('Parameters:')
+print(f'dyn_file: {dyn_file}')
+print('   file that contains the force constant matrix produced by dynmat.x from QE')
+print(f'file_out_QE: {file_out_QE}')
+print('   output file from QE (pw.x, bands.x) that contains the dft forces on atoms. If not provided, DFT forces are assumed to be null')
+print(f'excited_state_forces_file: {excited_state_forces_file}')
+print(f'   output file from excited state forces code')
+print(f'flavor: {flavor}')
+print(f'   which flavor of excited state forces are we using? 1 - RPA_diag (IBL without kernel) or 2 - RPA_diag_offdiag (from prof. Strubbe thesis)')
+print(f'reinforce_ASR_excited_state_forces: {reinforce_ASR_excited_state_forces}')
+print('    Reinforce ASR on excited state force vectors, in case it was not done by the excited state forces code.')
+print(f'reinforce_ASR_dyn_mat: {reinforce_ASR_dyn_mat}')
+print('    Reinforce ASR and symmetry on the force constant matrix. We impose that the sums on matrix elements on a line/collumn is equal 0')
+print(f'CM_disp_null: ', CM_disp_null)
+print('    If true the displacements are such that the system center of mass does not move. (In future, I will fix the center of mass of a set of atoms, for example fix the center of mass of MA cation on MAPbI3!)')
+print('End of parameters \n')
+# TODO In future, I will fix the center of mass of a set of atoms, for example fix the center of mass of MA cation on MAPbI3!
 
 import numpy as np
 import subprocess
@@ -55,7 +79,7 @@ def read_dft_forces_qe(file, Natoms):
     except subprocess.CalledProcessError as e:
         print("Error executing grep:", e)
         print("Did not find the DFT forces!")
-        print("DFT forces are set to 0s. This is true if you are starting configurations is the DFT equilibrium")
+        print("DFT forces are set to 0s. This is true if you are starting configurations is the DFT equilibrium\n")
         return dft_forces
         
     # filtering - gtting the first Natoms lines
@@ -70,6 +94,8 @@ def read_dft_forces_qe(file, Natoms):
         dft_forces[iatom * 3] = fx
         dft_forces[iatom * 3 + 1] = fy
         dft_forces[iatom * 3 + 2] = fz
+
+    print("")
         
     return dft_forces
 
@@ -184,13 +210,15 @@ def sum_comp_vec(vector, dir):
 
 def check_ASR_vector(vector):
     
+    print('Checking if excited state forces obey ASR')
+    
     for dir in ['x', 'y', 'z']:
 
         sum_dir = abs(sum_comp_vec(vector, dir))
 
         print(f'Sum of {dir} components = {sum_dir:.6f}')
         if sum_dir >= zero_tol:
-            print('   Does not obey ASR! Use reinforce_ASR_excited_state_forces = True')
+            print('WARNING: Does not obey ASR! Use reinforce_ASR_excited_state_forces = True')
 
 def ASR_on_vector(vector):
     
@@ -208,7 +236,7 @@ def ASR_on_vector(vector):
 
 def ASR_dyn_mat(dyn_mat):
     
-    print('Reinforcing that dyn_mat is symmetric and obeys ASR!')
+    print('Reinforcing that dyn_mat is symmetric and obeys ASR. \n')
     
     new_dyn_mat = np.zeros(dyn_mat.shape, dtype=complex)
     
@@ -321,13 +349,11 @@ def estimate_energy_change(displacements, displacements_dft, excited_forces, dyn
     # in this case the force is approximatelly constant so Delta E = - displacement . force
     Delta_Omega_i_to_eq = np.real(- np.dot(displacements, excited_forces))
       
-    print("""
-          
+    print("""        
 x_i = initial position vector
 x_0 = Equilibrium position for DFT surface energy
-x_eq = Equilibrim position for Edft + Omega                                                                                                                                                               
-          
-          """)
+x_eq = Equilibrim position for Edft + Omega
+""")
     print(f"How far from DFT minimum we are: E(xi) - E(x0) = {Delta_E_dft_i_to_0:.8f} eV.")
     print(f"DFT energy change due to displacements: E(x_eq) - E(xi) = {Delta_E_dft_i_to_eq:.8f} eV")
     print(f"Excitation energy change due to displacements: Omega(x_eq) - Omega(xi) = {Delta_Omega_i_to_eq:.8f} eV")
@@ -335,6 +361,7 @@ x_eq = Equilibrim position for Edft + Omega
     
                                                                                       
 # loading dynamical matrix
+print(f'Loading force constant matrix from file {dyn_file} \n')
 Natoms, dyn_mat, masses, atoms_species = read_dyn_matrix(dyn_file)
 
 # converting from ry/bohr^2 to eV/angs^2
@@ -366,24 +393,28 @@ if reinforce_ASR_excited_state_forces == True:
 # K^{-1}
 # fix this inversion!!
 # inv_dyn_mat = np.linalg.inv(dyn_mat)
+print('\nInverting force constant matrix using spectrum decomposition.\n')
 inv_dyn_mat = alternative_inversion(dyn_mat)
 
 # Checking how far we are from equilibrium in this approximation 
+print('Calculating displacement due to DFT forces x1 = k^-1 Fdft')
 displacements_dft = np.real(inv_dyn_mat @ dft_forces)
 
 # Calculating displacements
 f_tot = dft_forces + excited_forces
+print('Calculating displacement due to total forces x2 = k^-1 (Fdft + Fexc)')
 displacements = np.real(inv_dyn_mat @ f_tot)
 
 # print(displacements)
 # print(make_CM_disp_null(displacements, masses, atoms_species))
 
 if CM_disp_null == True:
+    print('Making CM displacement to be null')
     displacements = make_CM_disp_null(displacements, masses, atoms_species)
     displacements_dft = make_CM_disp_null(displacements_dft, masses, atoms_species)
 
 def write_displacements(displacements, arq_name):
-    print(f"Writing {displacements} file")
+    print(f"Writing {arq_name} file")
     arq_out = open(arq_name, 'w')
 
     for iatom in range(Natoms):
@@ -396,4 +427,4 @@ write_displacements(displacements, 'displacements_Fdft_Fexcited.dat')
 write_displacements(displacements_dft, 'displacements_Fdft.dat')
 estimate_energy_change(displacements, displacements_dft, excited_forces, dyn_mat)
 
-print('Finished!')
+print('\nFinished!')
