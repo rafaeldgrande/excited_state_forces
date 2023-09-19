@@ -312,7 +312,8 @@ else:
 
 # Printing relevant information for this exciton
 summarize_Acvk(Akcv, BSE_params)
-summarize_Acvk(Bkcv, BSE_params)
+if iexc != jexc:
+    summarize_Acvk(Bkcv, BSE_params)
 
 # getting info from eqp.dat (from absorption calculation)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)

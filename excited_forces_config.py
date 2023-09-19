@@ -85,8 +85,11 @@ write_dK_mat = False
 # so we do not need to map one grid in another
 trust_kpoints_order = False
 
-# is this calculation with spin triplet (True) or spin singlet (False)?
+# is this calculation with spin triplet (True) or spin singlet (False)? K = Kd
 spin_triplet = False
+
+# is this calculation with local_fields flag? K = Kx
+local_fields = False
 
 # run in parallel flag
 run_parallel = False
@@ -122,6 +125,7 @@ def read_input(input_file):
     global write_dKE_mat, write_dK_mat
     global trust_kpoints_order
     global spin_triplet
+    global local_fields
     global run_parallel
 
     try:
@@ -203,6 +207,8 @@ def read_input(input_file):
                     trust_kpoints_order = true_or_false(linha[1], trust_kpoints_order)
                 elif linha[0] == 'spin_triplet':
                     spin_triplet = true_or_false(linha[1], spin_triplet)
+                elif linha[0] == 'local_fields':
+                    local_fields = true_or_false(linha[1], local_fields)
                 elif linha[0] == 'run_parallel':
                     run_parallel = true_or_false(linha[1], run_parallel)
                 
@@ -245,5 +251,11 @@ elif use_hermicity_F == True:
 
 if no_renorm_elph == True:
     print('Elph coefficients at gw level will be considered to be equal to coefficients calculated at DFT level')
+    
+if local_fields == True and spin_triplet == True:
+    print('Warning! Both spin_triplet and local_fields are true! Choose just one!')
+    print('Making local_fields = False and spin_triplet = False')
+    local_fields = False
+    spin_triplet = False
 
 print('\n-------------------------------------------------------------\n\n')

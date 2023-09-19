@@ -138,7 +138,8 @@ def get_kernel(kernel_file, factor_head):
     Parameters:
     kernel_file (str): path to the kernel file
     factor_head (float): factor to be applied to the head part of the kernel
-    spin_triplet (bool): whether the calculation includes spin triplet
+    spin_triplet (bool): whether the calculation includes spin triplet - K = Kd
+    local_fields (bool): in this case the kernel is just K = Kx
 
     Returns:
     Kd (ndarray): direct kernel matrix elements in Ry
@@ -171,7 +172,10 @@ def get_kernel(kernel_file, factor_head):
         Kd += (Body[:,:,:,:,:,:,0])
         Kx =  -2*(Exchange[:,:,:,:,:,:,0])        
 
-    Kd = Kd*factor_kernel
+    if local_fields == True:
+        Kd = Kd * 0
+    else:
+        Kd = Kd*factor_kernel
 
     if spin_triplet == True:
         Kx = Kx * 0.0
