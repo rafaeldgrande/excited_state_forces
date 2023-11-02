@@ -2,6 +2,7 @@
 
 # standard values   
 # TODO: make the code read a configuration file
+do_my_own_diagonalization = False
 dyn_file = 'dyn'
 file_out_QE = 'out'
 excited_state_forces_file = 'forces_cart.out-1'
@@ -9,6 +10,8 @@ flavor = 2
 reinforce_ASR_excited_state_forces = True
 reinforce_ASR_dyn_mat = True
 CM_disp_null = True
+eigvecs_file = 'eigvecs'
+atoms_file = 'atoms'
 
 # Initial message
 print('####################################')
@@ -62,6 +65,13 @@ ev2ry = 1/ry2ev
 bohr2ang = 0.529177
 ang2bohr = 1/bohr2ang
 zero_tol = 1e-6
+rec_cm2eV = 1.23984198e-4
+c = 2.99792458e10 # cm/s speed of light
+Na = 6.02214076e23 # Avogadro's number
+eV2J = 1.60217663e-19
+J2eV = 1/eV2J
+m2ang = 1e10
+
 
 def read_dft_forces_qe(file, Natoms):
     
@@ -291,6 +301,7 @@ def alternative_inversion(M):
 
     if np.any(close_to_zero):
         print("Matrix is not invertible due to near-zero eigenvalues.")
+        # print("I will replace eigenvalues 1/0.0 to ")
     else:
         # Calculate the inverse using eigenvalue decomposition
         inverse_M = eigenvectors @ np.diag(1.0 / eigenvalues) @ eigenvectors.T
@@ -406,71 +417,40 @@ def print_info_displacements(displacements):
         
     print(f"Max displacement {max(rmod):.6f} angstroms for atom {rmod.index(max(rmod))+1}")
     print(f"Min displacement {min(rmod):.6f} angstroms for atom {rmod.index(min(rmod))+1}")
-    print(f"Mean atomic displcements: {np.mean(rmod):.6f} angstroms")
+    print(f"Mean atomic displacements: {np.mean(rmod):.6f} angstroms")
     print(f"Modulus of 3N displacement vector: {np.linalg.norm(displacements):.8f} angstroms")
         
     print("")
-        
     
-                                                                                      
-# loading dynamical matrix
-print(f'Loading force constant matrix from file {dyn_file} \n')
-Natoms, dyn_mat, masses, atoms_species = read_dyn_matrix(dyn_file)
+def read_eigvecs_file(eigvecs_file, Natoms):
 
-# converting from ry/bohr^2 to eV/angs^2
-dyn_mat = dyn_mat * ry2ev / bohr2ang**2
+    print('Reading eigvecs file')
+    arq_eigvecs = open(eigvecs_file)
 
-# apply acoustic sum rule on dyn_mat
-if reinforce_ASR_dyn_mat == True:
-    dyn_mat = ASR_dyn_mat(dyn_mat)
+    eigvecs = np.zeros((3*Natoms, 3*Natoms))
+    i_eigvec = -1
+    freqs = [] # frequencies in cm-1
+    for line in arq_eigvecs:
+       line_split = line.split()
+       if len(line_split) > 0:
+          if line_split[0] == 'freq':
+             freqs.append(float(line_split[-2]))
+             i_eigvec += 1
+             i_atom_dir = -1
+          if line_split[0] == '(':
+             for i_dir in [1,3,5]:
+                i_atom_dir += 1
+                # eigvecs[-1].append(float(line_split[i_dir]))
+                eigvecs[i_atom_dir, i_eigvec] = float(line_split[i_dir])
 
-# loading dft forces
-dft_forces = read_dft_forces_qe(file_out_QE, Natoms)     
-
-# converting from ry/bohr to eV/angs
-dft_forces = dft_forces * ry2ev / bohr2ang
-
-# loading excited state forces - already in eV/angs
-excited_forces = read_excited_forces(excited_state_forces_file, flavor)
-
-# checking if excited state forces obey ASR
-check_ASR_vector(excited_forces)
-
-# reinforce ASR on excited state force vector
-if reinforce_ASR_excited_state_forces == True:
-    excited_forces = ASR_on_vector(excited_forces)
+    # for i_eigvec in range(len(eigvecs)):
+    #    eigvecs[i_eigvec] = np.array(eigvecs[i_eigvec])
+    #    # print('Norm = ', np.dot(eigvecs[i_eigvec], eigvecs[i_eigvec]))
     
-f_tot = dft_forces + excited_forces
-
-# printing information about DFT and Excited state forces
-print(f"\nModulus of 3N DFT forces vector: {np.linalg.norm(dft_forces):.8f} eV/angstrom")
-print(f"Modulus of 3N Excited state forces vector: {np.linalg.norm(excited_forces):.8f} eV/angstrom")
-print(f"Modulus of 3N DFT + Excited state (total force) force vector: {np.linalg.norm(f_tot):.8f} eV/angstrom\n")
-
-# Now calculating displacements
-# x = K^{-1} F
-
-# K^{-1}
-# fix this inversion!!
-# inv_dyn_mat = np.linalg.inv(dyn_mat)
-print('\nInverting force constant matrix using spectrum decomposition.\n')
-inv_dyn_mat = alternative_inversion(dyn_mat)
-
-# Checking how far we are from equilibrium in this approximation 
-print('Calculating displacement due to DFT forces x1 = k^-1 Fdft')
-displacements_dft = np.real(inv_dyn_mat @ dft_forces)
-
-# Calculating displacements
-print('Calculating displacement due to total forces x2 = k^-1 (Fdft + Fexc)')
-displacements = np.real(inv_dyn_mat @ f_tot)
-
-# print(displacements)
-# print(make_CM_disp_null(displacements, masses, atoms_species))
-
-if CM_disp_null == True:
-    print('Making CM displacement to be null')
-    displacements = make_CM_disp_null(displacements, masses, atoms_species)
-    displacements_dft = make_CM_disp_null(displacements_dft, masses, atoms_species)
+    arq_eigvecs.close()
+    print('Finished reading eigvecs file')
+    
+    return np.array(freqs), eigvecs
 
 def write_displacements(displacements, arq_name):
     print(f"Writing {arq_name} file")
@@ -482,14 +462,130 @@ def write_displacements(displacements, arq_name):
 
     arq_out.close()
     
-write_displacements(displacements, 'displacements_Fdft_Fexcited.dat')
-write_displacements(displacements_dft, 'displacements_Fdft.dat')
+def load_atoms(atoms_file):
+    # Mo 95.95
+    # S  32.06
+    # S  32.06
+    
+    Atoms, Masses = [], []
+    arq = open(atoms_file)
+    for line in arq:
+        linha = line.split()
+        Atoms.append(linha[0])
+        # masses in kg -> 1a.u. corresposnts to 1g/mol
+        Masses.append(float(linha[1]) * 1e-3 / Na)
+        
+    return Atoms, Masses
+        
 
-estimate_energy_change(displacements, displacements_dft, excited_forces, dyn_mat)
+Atoms, Masses = load_atoms(atoms_file)
+Natoms = len(Atoms)
 
-print('Is (Fdft + Fexcited) parallel to displacement? ', are_parallel(displacements, f_tot, tolerance=1e-2))
-print('Is F_excited parallel to displacement? ', are_parallel(displacements, excited_forces, tolerance=1e-2))
 
-print_info_displacements(displacements)
+# loading dft forces
+dft_forces = read_dft_forces_qe(file_out_QE, Natoms)     
+
+# converting from ry/bohr to eV/angs
+dft_forces = dft_forces * ry2ev / bohr2ang
+
+# loading excited state forces - already in eV/angs
+excited_forces = read_excited_forces(excited_state_forces_file, flavor)
+
+# checking if excited state forces obey ASR
+# check_ASR_vector(excited_forces)
+
+# # reinforce ASR on excited state force vector
+# if reinforce_ASR_excited_state_forces == True:
+#     excited_forces = ASR_on_vector(excited_forces)
+    
+f_tot = dft_forces + excited_forces
+
+# printing information about DFT and Excited state forces
+print(f"\nModulus of 3N DFT forces vector: {np.linalg.norm(dft_forces):.8f} eV/angstrom")
+print(f"Modulus of 3N Excited state forces vector: {np.linalg.norm(excited_forces):.8f} eV/angstrom")
+print(f"Modulus of 3N DFT + Excited state (total force) force vector: {np.linalg.norm(f_tot):.8f} eV/angstrom\n")
+    
+# load eigvecs from eigvecs file
+freqs, eigvecs = read_eigvecs_file(eigvecs_file, Natoms)
+    
+## normalize eigenvectors
+#for i_eigvec in range(len(eigvecs)):
+#    eigvecs[i_eigvec] = eigvecs[i_eigvec] / np.linalg.norm(eigvecs[i_eigvec])
+    
+# convert phonon frequencies to rad/s
+freq_rad_per_s = 2*np.pi*c*freqs
+    
+# we approximate Dij = Kij / sqrt(m_i * m_j) (just first neighbours interactions included)
+# use spectral decomposition to create the dynamical matrix
+# eigenvalues of D are omega**2
+dyn_mat_from_eigvecs = eigvecs @ np.diag(freq_rad_per_s**2) @ eigvecs.T
+    
+# create force constant matrix
+# Kij = Dij * sqrt(m_i * m_j)
+# Dij is in units of (rad/s)^2. 
+# I want Kij to be in units of eV/angs^2
+# Let's work with m in a.u. -> 1 a.u. = 1e-3 kg/Na = 1-3/(6.022*10^23) kg
+# So the unit of K is kg * rad^2 / s^2 = J / m^2
+force_constant_mat = np.zeros((3*Natoms, 3*Natoms))
+for i_atom in range(Natoms):
+    for i_dir in range(3):
+        i_ind = 3*i_atom + i_dir
+        for j_atom in range(Natoms):
+            for j_dir in range(3):
+                j_ind = 3*j_atom + j_dir
+                force_constant_mat[i_ind, j_ind] = dyn_mat_from_eigvecs[i_ind, j_ind] * np.sqrt(Masses[i_atom] * Masses[j_atom]) 
+
+# converting J/m^2 to eV/angs^2
+force_constant_mat = force_constant_mat * J2eV / m2ang**2
+
+# reinforce matrix to be symmetric
+# force_constant_mat = (force_constant_mat + force_constant_mat.T)/2
+    
+# cannot invert force constant matrix as some of its
+# eigenmodes have zero value. we solve F=kx, by
+# using k eigenvectors and eigenvalues
+eigenvalues, eigenvectors = np.linalg.eigh(force_constant_mat)
+
+# now we obtain the forces in eigenvecs basis
+forces_eigvecs_basis = np.zeros((f_tot.shape))
+
+for i_eigvec in range(len(eigenvectors)):
+    forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], f_tot)
+
+# now we calculate the displacement in eigvecs basis
+# if the phonon frequency is null (acoustic mode) then 
+# this component is null
+
+disp_eigvecs_basis = np.zeros((f_tot.shape))
+
+for i_eigvec in range(len(eigenvectors)):
+    if abs(eigenvalues[i_eigvec]) > zero_tol:
+        disp_eigvecs_basis[i_eigvec] = forces_eigvecs_basis[i_eigvec] / eigenvalues[i_eigvec]
+
+# now we calculate the displacements in cartesian basis
+disp_cart_basis = np.zeros((f_tot.shape))
+
+for i_eigvec in range(len(eigenvectors)):
+    if abs(eigenvalues[i_eigvec]) > zero_tol:
+        disp_cart_basis += disp_eigvecs_basis[i_eigvec] * eigenvectors[:, i_eigvec] 
+
+
+# print(make_CM_disp_null(displacements, masses, atoms_species))
+
+# if CM_disp_null == True:
+#     print('Making CM displacement to be null')
+#     displacements = make_CM_disp_null(displacements, masses, atoms_species)
+#     displacements_dft = make_CM_disp_null(displacements_dft, masses, atoms_species)
+    
+# write_displacements(disp_eigvecs_basis, 'displacements_eigvecs.dat')
+write_displacements(disp_cart_basis, 'displacements_cart.dat')
+# write_displacements(displacements_dft, 'displacements_Fdft.dat')
+
+# estimate_energy_change(displacements, displacements_dft, excited_forces, dyn_mat)
+
+print('Is (Fdft + Fexcited) parallel to displacement? ', are_parallel(disp_eigvecs_basis, f_tot, tolerance=1e-2))
+# print('Is F_excited parallel to displacement? ', are_parallel(displacements, excited_forces, tolerance=1e-2))
+
+# print_info_displacements(displacements)
 
 print('\n   Finished!')
