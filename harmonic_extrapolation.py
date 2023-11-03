@@ -2,16 +2,20 @@
 
 # standard values   
 # TODO: make the code read a configuration file
-file_out_QE = 'out'
+file_out_QE = 'out' # output from QE with DFT forces (optional. If the code doesn't find it the DFT forces are set to null)
 
-excited_state_forces_file = 'forces_cart.out-1'
+excited_state_forces_file = 'forces_cart.out-1' #  excited state forces file
 flavor = 2
 
 reinforce_CM_forces_null = True
 CM_disp_null = True
 
-eigvecs_file = 'eigvecs'
-atoms_file = 'atoms'
+eigvecs_file = 'eigvecs' # eigvecs file with phonon frequencies and dynamical matrix eigenvectors. This file is produced by dynmat.x through the variable fileig
+atoms_file = 'atoms' # file with atomic species and their masses in a.u.. The format of the file is the following:
+# Mo 95.95
+# S  32.06
+# S  32.06
+
 
 # Initial message
 print('####################################')
@@ -383,12 +387,23 @@ force_constant_mat = force_constant_mat * J2eV / m2ang**2
 print(f"Calculating the eigenvectors |ui> and eigenvalues lambda_i of the force constant matrix.")
 eigenvalues, eigenvectors = np.linalg.eigh(force_constant_mat)
 
+# How many acoustic modes?
+print(f"There are {np.count_nonzero(abs(eigenvalues) < zero_tol)} acoustic modes")
+
 # now we obtain the forces in eigenvecs basis
 print(f"Projecting forces in eigenvecs basis.")
 forces_eigvecs_basis = np.zeros((f_tot.shape))
 
+force_proj_acoustic_modes_null = True
 for i_eigvec in range(len(eigenvectors)):
     forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], f_tot)
+    if abs(eigenvalues[i_eigvec]) < zero_tol:
+        if abs(forces_eigvecs_basis[i_eigvec]) < zero_tol:
+            print(f'WARNING! <ui|F> != 0 for i = {i_eigvec} and lambda_i = 0 (acoustic mode). I still will make <ui|x> = 0')
+            force_proj_acoustic_modes_null = False
+
+if force_proj_acoustic_modes_null == True:
+    print("<ui|F> = 0 for all acoustic modes (lambda_i = 0)")
 
 # now we calculate the displacement in eigvecs basis
 # if the phonon frequency is null (acoustic mode) then 
