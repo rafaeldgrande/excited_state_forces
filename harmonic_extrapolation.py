@@ -7,8 +7,7 @@ file_out_QE = 'out' # output from QE with DFT forces (optional. If the code does
 excited_state_forces_file = 'forces_cart.out-1' #  excited state forces file
 flavor = 2
 
-reinforce_CM_forces_null = True
-CM_disp_null = True
+do_not_move_CM = True
 
 eigvecs_file = 'eigvecs' # eigvecs file with phonon frequencies and dynamical matrix eigenvectors. This file is produced by dynmat.x through the variable fileig
 atoms_file = 'atoms' # file with atomic species and their masses in a.u.. The format of the file is the following:
@@ -29,8 +28,6 @@ print(f'excited_state_forces_file: {excited_state_forces_file}')
 print(f'   output file from excited state forces code')
 print(f'flavor: {flavor}')
 print(f'   which flavor of excited state forces are we using? 1 - RPA_diag (IBL without kernel) or 2 - RPA_diag_offdiag (from prof. Strubbe thesis)')
-print(f'CM_disp_null: ', CM_disp_null)
-print('    If true the displacements are such that the system center of mass does not move. (In future, I will fix the center of mass of a set of atoms, for example fix the center of mass of MA cation on MAPbI3!)')
 print('End of parameters \n')
 # TODO In future, I will fix the center of mass of a set of atoms, for example fix the center of mass of MA cation on MAPbI3!
 
@@ -140,28 +137,6 @@ def sum_comp_vec(vector, dir):
     sum_dir = np.sum(vector[index_start:3*Natoms:3])
     return sum_dir
 
-def CM_force(force_vector):
-    
-    print('Checking if force on center of mass is zero. \n')
-
-    CM_force_null = True
-    
-    for dir in ['x', 'y', 'z']:
-
-        sum_dir = abs(sum_comp_vec(force_vector, dir))
-
-        print(f'Sum of {dir} components = {sum_dir:.8f} eV/angstrom')
-        if sum_dir >= zero_tol:
-            print('WARNING: Does not obey ASR!')
-            CM_force_null = False
-
-    if CM_force_null == False:
-        print('Force on center of mass is not zero. \n')
-        if reinforce_CM_forces_null == True:
-            print('Reinforcing that force on center of mass is null. \n')
-            return ASR_on_vector(force_vector)
-        else:
-            print('Not enforcing that force on center of mass is null. Check reinforce_CM_forces_null variable\n')
 
 def ASR_on_vector(vector):
     
@@ -423,6 +398,22 @@ disp_cart_basis = np.zeros((f_tot.shape))
 for i_eigvec in range(len(eigenvectors)):
     if abs(eigenvalues[i_eigvec]) > zero_tol:
         disp_cart_basis += disp_eigvecs_basis[i_eigvec] * eigenvectors[:, i_eigvec] 
+
+# displacements may still move center of mass.
+
+if do_not_move_CM == True:
+    print("Making sure CM displacement to be null")
+
+    Tot_mass = np.sum(np.array(Masses))
+
+    CM_disp = np.zeros((3), dtype=float)
+    for iatom in range(Natoms):
+        CM_disp += disp_cart_basis[3*iatom:3*(iatom+1)] * Masses[iatom] / Tot_mass
+
+    for iatom in range(Natoms):
+        for idir in range(3):
+            disp_cart_basis[3*iatom+idir] = disp_cart_basis[3*iatom+idir] - CM_disp[idir]
+        
 
 
     
