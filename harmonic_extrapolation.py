@@ -328,7 +328,8 @@ freq_rad_per_s = 2*np.pi*c*freqs
 # use spectral decomposition to create the dynamical matrix
 # eigenvalues of D are omega**2
 print(f"Creating dynamical matrix from eigenvectors using spectral decomposition.")
-dyn_mat_from_eigvecs = eigvecs @ np.diag(freq_rad_per_s**2) @ eigvecs.T
+dyn_mat_from_eigvecs = eigvecs @ np.diag(np.sign(freq_rad_per_s) * freq_rad_per_s**2) @ eigvecs.T
+# here multiplicating by np.sign(freq_rad_per_s) to preserve the sign of negative frequencies
     
 # reinforce the matrix to be symmetric
 print(f"Reinforcing the matrix to be symmetric. D = (D+D.T)/2")
@@ -400,7 +401,6 @@ for i_eigvec in range(len(eigenvectors)):
         disp_cart_basis += disp_eigvecs_basis[i_eigvec] * eigenvectors[:, i_eigvec] 
 
 # displacements may still move center of mass.
-
 if do_not_move_CM == True:
     print("Making sure CM displacement to be null")
 
