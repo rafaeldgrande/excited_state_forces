@@ -171,8 +171,13 @@ def estimate_energy_change(displacements, excited_forces, force_constant_mat):
     '''
 
     # Estimates the DFT energy difference from x_eq to x_i
-    Delta_E_dft_i_to_eq = np.real(displacements.T @ force_constant_mat @ displacements / 2)
-    
+    Delta_E_dft_i_to_eq_quad = np.real(displacements.T @ force_constant_mat @ displacements / 2)
+
+    # Estimates the DFT energy difference from x_eq to x_i
+    Delta_E_dft_i_to_eq_linear = np.real(- np.dot(displacements, dft_forces))
+
+    Delta_E_dft_i_to_eq = Delta_E_dft_i_to_eq_linear + Delta_E_dft_i_to_eq_quad
+
     # then estimates the Exciton energy difference from x_eq to x_i
     # in this case the force is approximatelly constant so Delta E = - displacement . force
     Delta_Omega_i_to_eq = np.real(- np.dot(displacements, excited_forces))
@@ -181,7 +186,9 @@ def estimate_energy_change(displacements, excited_forces, force_constant_mat):
 x_i = initial position vector
 x_eq = Equilibrim position for Edft + Omega in the harmonic approximation
           
-DFT energy change due to displacements: E(x_eq) - E(x_i) = {Delta_E_dft_i_to_eq:.8f} eV
+Linear term of DFT energy change (np.dot(Fdft, displacement)) = {Delta_E_dft_i_to_eq_linear:.8f} eV
+Quadratic term of DFT energy change (u K u.T / 2) = {(Delta_E_dft_i_to_eq_quad):.8f} eV
+DFT energy change due to displacements: E(x_eq) - E(x_i) = {(Delta_E_dft_i_to_eq):.8f} eV
 Excitation energy change due to displacements: Omega(x_eq) - Omega(x_i) = {Delta_Omega_i_to_eq:.8f} eV
 Total energy change: E+Omega(x_eq) - E+Omega(x_i) = {(Delta_E_dft_i_to_eq + Delta_Omega_i_to_eq):.8f} eV""")
     
