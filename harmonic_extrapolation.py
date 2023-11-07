@@ -15,6 +15,8 @@ atoms_file = 'atoms' # file with atomic species and their masses in a.u.. The fo
 # S  32.06
 # S  32.06
 
+limit_disp_eigvec_basis = 0.5
+
 
 # Initial message
 print('####################################')
@@ -397,7 +399,10 @@ disp_eigvecs_basis = np.zeros((f_tot.shape))
 
 for i_eigvec in range(len(eigenvectors)):
     if abs(eigenvalues[i_eigvec]) > zero_tol:
-        disp_eigvecs_basis[i_eigvec] = forces_eigvecs_basis[i_eigvec] / eigenvalues[i_eigvec]
+        temp_disp_eigvecs = forces_eigvecs_basis[i_eigvec] / eigenvalues[i_eigvec]
+        disp_eigvecs_basis[i_eigvec] = min(abs(temp_disp_eigvecs), abs(limit_disp_eigvec_basis)) * np.sign(temp_disp_eigvecs)
+        if abs(temp_disp_eigvecs) >= abs(limit_disp_eigvec_basis):
+            print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is larger than limit {limit_disp_eigvec_basis} angstroms! Making displacement for this component equal to {limit_disp_eigvec_basis} angstroms")
 
 # now we calculate the displacements in cartesian basis
 print("Projecting displacements in cartesian basis.")
