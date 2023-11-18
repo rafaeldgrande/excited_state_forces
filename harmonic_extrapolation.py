@@ -16,6 +16,7 @@ atoms_file = 'atoms' # file with atomic species and their masses in a.u.. The fo
 # S  32.06
 
 limit_disp_eigvec_basis = 0.5
+avoid_saddle_points = True
 
 
 # Initial message
@@ -140,22 +141,7 @@ def sum_comp_vec(vector, dir):
     return sum_dir
 
 
-def ASR_on_vector(vector):
-    
-    new_vector = np.zeros(vector.shape)
-    
-    for dir in ['x', 'y', 'z']:
-        index_start = ['x', 'y', 'z'].index(dir)
-
-        sum_dir = sum_comp_vec(vector, dir)
-        
-        for iatom in range(Natoms):
-            new_vector[index_start+iatom*3] = vector[index_start+iatom*3] - sum_dir / Natoms
-            
-    return new_vector
-
-
-def estimate_energy_change(displacements, excited_forces, force_constant_mat):
+def estimate_energy_change(displacements):
     
     ''' The DFT energy approximatelly is given by
     
@@ -184,15 +170,19 @@ def estimate_energy_change(displacements, excited_forces, force_constant_mat):
     # in this case the force is approximatelly constant so Delta E = - displacement . force
     Delta_Omega_i_to_eq = np.real(- np.dot(displacements, excited_forces))
       
-    print(f"""Energy changes
+    print(f"""Expected energy changes
 x_i = initial position vector
 x_eq = Equilibrim position for Edft + Omega in the harmonic approximation
           
-Linear term of DFT energy change (np.dot(Fdft, displacement)) = {Delta_E_dft_i_to_eq_linear:.8f} eV
-Quadratic term of DFT energy change (u K u.T / 2) = {(Delta_E_dft_i_to_eq_quad):.8f} eV
-DFT energy change due to displacements: E(x_eq) - E(x_i) = {(Delta_E_dft_i_to_eq):.8f} eV
-Excitation energy change due to displacements: Omega(x_eq) - Omega(x_i) = {Delta_Omega_i_to_eq:.8f} eV
-Total energy change: E+Omega(x_eq) - E+Omega(x_i) = {(Delta_E_dft_i_to_eq + Delta_Omega_i_to_eq):.8f} eV""")
+DFT energy changes in harmonic approximation:
+Linear term of DFT energy change Edft1 = - dot_product(Fdft, displacement) = {Delta_E_dft_i_to_eq_linear:.8f} eV
+Quadratic term of DFT energy change Edft2 = (u K u.T / 2) = {(Delta_E_dft_i_to_eq_quad):.8f} eV
+DFT energy change due to displacements: Edft(x_eq) - Edft(x_i) = Edft1 + Edft2 = {(Delta_E_dft_i_to_eq):.8f} eV
+
+Exciton energy changes considering excited state forces to be constant:
+Excitation energy change due to displacements: Omega(x_eq) - Omega(x_i) = - dot_product(Excited_state_force, displacement) = {Delta_Omega_i_to_eq:.8f} eV
+
+Total energy change: Edft+Omega(x_eq) - Edft+Omega(x_i) = {(Delta_E_dft_i_to_eq + Delta_Omega_i_to_eq):.8f} eV""")
     
 def are_parallel(vector1, vector2, tolerance=1e-6):
     """
@@ -299,7 +289,6 @@ def load_atoms(atoms_file):
         Masses.append(float(linha[1]) * 1e-3 / Na)
         
     return Atoms, Masses
-        
 
 # Loading atoms informations
 Atoms, Masses = load_atoms(atoms_file)
@@ -313,13 +302,6 @@ dft_forces = dft_forces * ry2ev / bohr2ang
 
 # loading excited state forces - already in eV/angs
 excited_forces = read_excited_forces(excited_state_forces_file, flavor)
-
-# checking if excited state forces obey ASR
-# check_ASR_vector(excited_forces)
-
-# # reinforce ASR on excited state force vector
-# if reinforce_ASR_excited_state_forces == True:
-#     excited_forces = ASR_on_vector(excited_forces)
     
 f_tot = dft_forces + excited_forces
     
@@ -403,6 +385,11 @@ for i_eigvec in range(len(eigenvectors)):
         disp_eigvecs_basis[i_eigvec] = min(abs(temp_disp_eigvecs), abs(limit_disp_eigvec_basis)) * np.sign(temp_disp_eigvecs)
         if abs(temp_disp_eigvecs) >= abs(limit_disp_eigvec_basis):
             print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is larger than limit {limit_disp_eigvec_basis} angstroms! Making displacement for this component equal to {limit_disp_eigvec_basis} angstroms")
+        if eigenvalues[i_eigvec] < 0:
+            if avoid_saddle_points == True:
+                print('WARNING: Some eigenvalues are negative. Making the correspondent displacement component go in the opposite direction.')
+                disp_eigvecs_basis[i_eigvec] = -disp_eigvecs_basis[i_eigvec]
+                
 
 # now we calculate the displacements in cartesian basis
 print("Projecting displacements in cartesian basis.")
@@ -444,8 +431,30 @@ print('Is (Fdft + Fexcited) parallel to displacement? ', are_parallel(disp_cart_
 print('Is F_excited parallel to displacement? ', are_parallel(disp_cart_basis, excited_forces, tolerance=1e-2))
 print("")
 print_info_displacements(disp_cart_basis)
-estimate_energy_change(disp_cart_basis, excited_forces, force_constant_mat)
-print("")
+estimate_energy_change(disp_cart_basis)
+
+print("\n\n\n")
+print("What if displacements are parallel to excited forces?")
+print("Printing information supossing displacements parallel to excited forces and same modulus of calculated displacements.\n")
+displacements_parallel_excited_state_forces = excited_forces / np.linalg.norm(excited_forces) * np.linalg.norm(disp_cart_basis)
+estimate_energy_change(displacements_parallel_excited_state_forces)
+
+print("\n\n")
+
+print("What if displacements are parallel to dft forces?")
+print("Printing information supossing displacements parallel to dft forces and same modulus of calculated displacements.\n")
+displacements_parallel_dft_forces = dft_forces / np.linalg.norm(dft_forces) * np.linalg.norm(disp_cart_basis)
+estimate_energy_change(displacements_parallel_dft_forces)
+print("\n\n\n")
+
+print("\n\n")
+
+print("What if displacements are parallel to total (dft + excited) forces?")
+print("Printing information supossing displacements parallel to dft forces and same modulus of calculated displacements.\n")
+displacements_parallel_total_forces = f_tot / np.linalg.norm(f_tot) * np.linalg.norm(disp_cart_basis)
+estimate_energy_change(displacements_parallel_total_forces)
+print("\n\n\n")
+
 
 
 print('####################################')
