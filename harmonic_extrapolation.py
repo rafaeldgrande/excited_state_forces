@@ -17,6 +17,7 @@ atoms_file = 'atoms' # file with atomic species and their masses in a.u.. The fo
 
 limit_disp_eigvec_basis = 0.5
 avoid_saddle_points = True
+exciton_per_unit_cell = 1
 
 
 # Initial message
@@ -301,7 +302,7 @@ dft_forces = read_dft_forces_qe(file_out_QE, Natoms)
 dft_forces = dft_forces * ry2ev / bohr2ang
 
 # loading excited state forces - already in eV/angs
-excited_forces = read_excited_forces(excited_state_forces_file, flavor)
+excited_forces = read_excited_forces(excited_state_forces_file, flavor) * exciton_per_unit_cell
     
 f_tot = dft_forces + excited_forces
     
