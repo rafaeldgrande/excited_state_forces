@@ -360,10 +360,14 @@ print(f"There are {np.count_nonzero(abs(eigenvalues) < zero_tol)} acoustic modes
 # now we obtain the forces in eigenvecs basis
 print(f"Projecting forces in eigenvecs basis.")
 forces_eigvecs_basis = np.zeros((f_tot.shape))
+dft_forces_eigvecs_basis = np.zeros((dft_forces.shape))
+excited_forces_eigvecs_basis = np.zeros((excited_forces.shape))
 
 force_proj_acoustic_modes_null = True
 for i_eigvec in range(len(eigenvectors)):
     forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], f_tot)
+    dft_forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], dft_forces)
+    excited_forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], excited_forces)
     if abs(eigenvalues[i_eigvec]) < zero_tol:
         if abs(forces_eigvecs_basis[i_eigvec]) < zero_tol:
             print(f'WARNING! <ui|F> != 0 for i = {i_eigvec} and lambda_i = 0 (acoustic mode). I still will make <ui|x> = 0')
@@ -413,12 +417,9 @@ if do_not_move_CM == True:
         for idir in range(3):
             disp_cart_basis[3*iatom+idir] = disp_cart_basis[3*iatom+idir] - CM_disp[idir]
         
-
-
     
-write_displacements(disp_cart_basis, 'displacements_cart.dat')
+write_displacements(disp_cart_basis, 'displacements_Newton_method.dat')
 # write_displacements(displacements_dft, 'displacements_Fdft.dat')
-
 
 print("\n\nSome extra information:")
 # printing information about DFT and Excited state forces
@@ -433,30 +434,56 @@ print("")
 print_info_displacements(disp_cart_basis)
 estimate_energy_change(disp_cart_basis)
 
-print("\n\n\n")
-print("What if displacements are parallel to excited forces?")
-print("Printing information supossing displacements parallel to excited forces and same modulus of calculated displacements.\n")
-displacements_parallel_excited_state_forces = excited_forces / np.linalg.norm(excited_forces) * np.linalg.norm(disp_cart_basis)
-estimate_energy_change(displacements_parallel_excited_state_forces)
 
-print("\n\n")
+# writing displacements parallel to forces
+# in this case |x> = alpha |F> and the optimum alpha is given by 
+# alpha = sum_i (F_i)^2 / sum_i  lambda_i (F_i)^2 = |F|^2 / sum_i  lambda_i (F_i)^2
+def optimal_displacement_factor(force):
 
+    numerator = np.dot(force, force)
+    # sum_i lambda_i F_i^2
+    denominator = np.sum(force**2 * eigenvalues)
+
+    if numerator > 0:
+        # |F|^2 / sum_i  lambda_i (F_i)^2
+        return  np.dot(force, force) / denominator
+    else:
+        return 0.0
+
+
+# parallel to total (dft + excited) force
+print('')
+print(100*'#')
+print("What if displacements are parallel to total force?")
+print("supossing |x> = alpha |Ftot>, where alpha = |Ftot|^2 / sum_i lambda_i Ftot_i^2")
+displacements_parallel = f_tot * optimal_displacement_factor(forces_eigvecs_basis)
+estimate_energy_change(displacements_parallel)
+write_displacements(displacements_parallel, 'displacements_parallel_ftot.dat')
+print(100*'#')
+
+# parallel to excited state force
+print('')
+print(100*'#')
+print("What if displacements are parallel to excited state forces?")
+print("supossing |x> = alpha |Fex>, where alpha = |Fex|^2 / sum_i lambda_i Fex_i^2")
+displacements_parallel = excited_forces * optimal_displacement_factor(excited_forces_eigvecs_basis)
+estimate_energy_change(displacements_parallel)
+write_displacements(displacements_parallel, 'displacements_parallel_fex.dat')
+print(100*'#')
+
+# parallel to DFT force
+print('')
+print(100*'#')
 print("What if displacements are parallel to dft forces?")
-print("Printing information supossing displacements parallel to dft forces and same modulus of calculated displacements.\n")
-displacements_parallel_dft_forces = dft_forces / np.linalg.norm(dft_forces) * np.linalg.norm(disp_cart_basis)
-estimate_energy_change(displacements_parallel_dft_forces)
-print("\n\n\n")
+print("supossing |x> = alpha |Fdft>, where alpha = |Fdft|^2 / sum_i lambda_i Fdft_i^2")
+displacements_parallel = dft_forces * optimal_displacement_factor(dft_forces_eigvecs_basis)
+estimate_energy_change(displacements_parallel)
+write_displacements(displacements_parallel, 'displacements_parallel_fdft.dat')
+print(100*'#')
 
-print("\n\n")
-
-print("What if displacements are parallel to total (dft + excited) forces?")
-print("Printing information supossing displacements parallel to dft forces and same modulus of calculated displacements.\n")
-displacements_parallel_total_forces = f_tot / np.linalg.norm(f_tot) * np.linalg.norm(disp_cart_basis)
-estimate_energy_change(displacements_parallel_total_forces)
-print("\n\n\n")
-
-
-
-print('####################################')
+print('\n\n')
+print(100*'#')
+print(100*'#')
 print('Finished!')
-print('####################################\n\n')
+print(100*'#')
+print(100*'#')
