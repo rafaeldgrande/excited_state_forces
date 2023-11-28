@@ -18,12 +18,70 @@ atoms_file = 'atoms' # file with atomic species and their masses in a.u.. The fo
 limit_disp_eigvec_basis = 0.5
 avoid_saddle_points = True
 exciton_per_unit_cell = 1
+minimize_just_excited_state = False
+
+def true_or_false(text, default_value):
+    if text.lower() == 'true':
+        return True
+    elif text.lower() == 'false':
+        return False
+    else:
+        return default_value
+
+def read_input(input_file):
+
+    # getting necessary info
+    global file_out_QE, excited_state_forces_file, flavor
+    global do_not_move_CM, eigvecs_file, atoms_file
+    global limit_disp_eigvec_basis, avoid_saddle_points
+    global exciton_per_unit_cell, minimize_just_excited_state
+
+    try:
+        arq_in = open(input_file)
+        print(f'Reading input file {input_file}')
+        did_I_find_the_file = True
+    except:
+        did_I_find_the_file = False
+        print(f'WARNING! - Input file {input_file} not found!')
+        print('Using default values for configuration')
+
+    if did_I_find_the_file == True:    
+        for line in arq_in:
+            linha = line.split()
+            if len(linha) >= 2:
+                if linha[0] == 'file_out_QE':
+                    file_out_QE = linha[1]
+                elif linha[0] == 'excited_state_forces_file':
+                    excited_state_forces_file = linha[1]
+                elif linha[0] == 'flavor':
+                    flavor = int(linha[1])
+                elif linha[0] == 'do_not_move_CM':
+                    do_not_move_CM = true_or_false(linha[1], do_not_move_CM)
+                elif linha[0] == 'eigvecs_file':
+                    eigvecs_file = linha[1]
+                elif linha[0] == 'atoms_file':
+                    atoms_file = linha[1]
+                elif linha[0] == 'limit_disp_eigvec_basis':
+                    limit_disp_eigvec_basis = float(linha[1])
+                elif linha[0] == 'avoid_saddle_points':
+                    avoid_saddle_points = true_or_false(linha[1], avoid_saddle_points)
+                elif linha[0] == 'exciton_per_unit_cell':
+                    exciton_per_unit_cell = float(linha[1])
+                elif linha[0] == 'minimize_just_excited_state':
+                    minimize_just_excited_state = true_or_false(linha[1], minimize_just_excited_state)
+
+    arq_in.close()
+
 
 
 # Initial message
-print('####################################')
+print(100*'#')
 print('Starting harmonic extrapolation code')
-print('####################################\n\n')
+print(100*'#')
+print('\n\n')
+
+print('Reading input file')
+read_input('harmonic_approx.inp')
 
 print('Parameters:')
 print(f'file_out_QE: {file_out_QE}')
@@ -267,7 +325,8 @@ def read_eigvecs_file(eigvecs_file, Natoms):
     return np.array(freqs), eigvecs
 
 def write_displacements(displacements, arq_name):
-    print(f"Writing {arq_name} file")
+    print(f"Modulus of displacement = {np.linalg.norm(displacements):.6f} angstroms")
+    print(f"Writing displacements in {arq_name} file")
     arq_out = open(arq_name, 'w')
 
     for iatom in range(Natoms):
@@ -291,6 +350,30 @@ def load_atoms(atoms_file):
         
     return Atoms, Masses
 
+def optimal_displacement_factor(force):
+
+    modF = np.dot(force, force)
+
+    if modF > 0:
+
+        # sum_i lambda_i F_i^2
+        denominator = np.sum(force**2 * eigenvalues)
+
+        if modF > 0:
+            # |F|^2 / sum_i  lambda_i (F_i)^2
+            factor = modF / denominator
+        else:
+            factor = 0.0
+
+        # limit displacement modulus to be at most 0.5 * sqrt(Natoms)
+        factor = min(0.5 * np.sqrt(Natoms), abs(factor)) * np.sign(factor)
+        
+        return factor / np.sqrt(modF)
+
+    else:
+
+        return 0
+
 # Loading atoms informations
 Atoms, Masses = load_atoms(atoms_file)
 Natoms = len(Atoms)
@@ -304,7 +387,10 @@ dft_forces = dft_forces * ry2ev / bohr2ang
 # loading excited state forces - already in eV/angs
 excited_forces = read_excited_forces(excited_state_forces_file, flavor) * exciton_per_unit_cell
     
-f_tot = dft_forces + excited_forces
+if minimize_just_excited_state == True:
+    f_tot = excited_forces
+else:
+    f_tot = dft_forces + excited_forces
     
 # load eigvecs from eigvecs file
 freqs, eigvecs = read_eigvecs_file(eigvecs_file, Natoms)
@@ -439,18 +525,6 @@ estimate_energy_change(disp_cart_basis)
 # writing displacements parallel to forces
 # in this case |x> = alpha |F> and the optimum alpha is given by 
 # alpha = sum_i (F_i)^2 / sum_i  lambda_i (F_i)^2 = |F|^2 / sum_i  lambda_i (F_i)^2
-def optimal_displacement_factor(force):
-
-    numerator = np.dot(force, force)
-    # sum_i lambda_i F_i^2
-    denominator = np.sum(force**2 * eigenvalues)
-
-    if numerator > 0:
-        # |F|^2 / sum_i  lambda_i (F_i)^2
-        return  np.dot(force, force) / denominator
-    else:
-        return 0.0
-
 
 # parallel to total (dft + excited) force
 print('')
