@@ -6,7 +6,7 @@ atomic_pos_file = 'Atoms_info' # file with atomic species and their masses in a.
 #  Li   0.000000000   0.000000000   0.000000000
 #  F    -2.02948455    2.02948455    2.02948455
 
-T = 300000000000 # temperature in K
+T = 300 # temperature in K
 seed = 1234
 
 # Tolerance for values to be considered zero
