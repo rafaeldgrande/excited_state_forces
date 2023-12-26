@@ -72,7 +72,8 @@ for line in arq:
     atomic_pos.append(y)
     atomic_pos.append(z)
     atomic_simb.append(line_split[0])
-    Masses.append(float(line_split[1]))
+    # masses in kg -> 1a.u. corresposnts to 1g/mol
+    Masses.append(float(line_split[1]) * 1e-3 / Na)
 arq.close()
 
 Natoms = len(atomic_simb) 
@@ -132,8 +133,9 @@ displacements = np.zeros(3*Natoms)
 # and u_i is an eigenvector of the force constant matrix 
 for i_eigvec in range(len(eigenvalues)):
     if eigenvalues[i_eigvec] > zero_tol:
-        print(f'i_eigvec = {i_eigvec} and <x^2> = {np.sqrt(kb * T / eigenvalues[i_eigvec]):.8f}')
-        delta_x = np.random.normal(0, np.sqrt(kb * T / eigenvalues[i_eigvec]))
+        sigma = np.sqrt(kb * T / eigenvalues[i_eigvec])
+        delta_x = np.random.normal(0, sigma)
+        print(f'i_eigvec = {i_eigvec}  sqrt(kb*T/lambda_i) = {sigma:.8f}   delta_x = {delta_x:.8f}   lambda_i = {eigenvalues[i_eigvec]:.8f}')     
         displacements += eigenvectors[i_eigvec] * delta_x   
 
 print(f'Modulus of 3N displacements = {np.linalg.norm(displacements):.8f} angstroms')
