@@ -413,9 +413,23 @@ Emin_gap_dft = Edft_cond[ik, ic] - Edft_val[ik, ic]
 Emin_gap_qp = Eqp_cond[ik, ic] - Eqp_val[ik, ic]
 print(f'Highest value of Acvk for exciton {iexc}')
 print(f'occurs at k point {Kpoints_BSE[ik][0]:4f}  {Kpoints_BSE[ik][1]:4f}  {Kpoints_BSE[ik][2]:4f}')
-print(f'At this point the gas is equal to')
+print(f'At this point the gap is equal to')
 print(f'at DFT level: {Emin_gap_dft} eV')
 print(f'at GW level:  {Emin_gap_qp} eV')
+
+# use modified Acvk
+
+if use_Acvk_single_transition == True:
+    print('WARNING! use_Acvk_single_transition flag is True')
+    print('We are making new_Acvk = delta(c0v0k0,c0v0k0), where c0v0k0 is the transition where Acvk is maximum')
+    ik, ic, iv = index_of_max_abs_value_Akcv
+    Akcv = np.zeros(Akcv.shape, dtype=complex)
+    Akcv[ik, ic, iv] = 1.0 + 0.0j
+    if iexc != jexc:
+        Bkcv = np.zeros(Akcv.shape, dtype=complex)
+        Bkcv[ik, ic, iv] = 1.0 + 0.0j     
+
+
 
 print('Derivatives for Emin gap for different modes')
 # this diagonal matrix element is the same at qp and dft levels in our approximation 
@@ -423,7 +437,7 @@ der_E_gap_dr = elph_cond[:, ik, ic, ic] - elph_val[:, ik, ic, ic]
 max_der_E_gap_dr = np.max(np.abs(der_E_gap_dr))
 for imode in range(Nmodes):
     if np.abs(der_E_gap_dr[imode]) >= max_der_E_gap_dr * 0.1:
-        print(f'mode {imode} : {der_E_gap_dr[imode]:.5f} eV/angs')
+        print(f'mode {imode} : {der_E_gap_dr[imode]:.8f} eV/angs')
 
 
 # report_ram()
