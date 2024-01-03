@@ -168,14 +168,14 @@ def report_expected_energies(Akcv, Omega):
                                         Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
 
     print('Exciton energies (eV): ')
-    print('    Omega         = ', Omega)
-    print('    <KE>          = ', Mean_Ekin)
-    print('    Omega - <KE>  = ', Omega - Mean_Ekin)
+    print(f'    Omega         =  {Omega:.6f}')
+    print(f'    <KE>          =  {Mean_Ekin:.6f}')
+    print(f'    Omega - <KE>  =  {(Omega - Mean_Ekin):.6f}')
     if Calculate_Kernel == True:
-        print('    <Kx>          = ', np.real(Mean_Kx), np.imag(Mean_Kx),'j')
-        print('    <Kd>          = ', np.real(Mean_Kd), np.imag(Mean_Kd),'j')
-        print('\n    DIFF          = ', Omega -
-              (Mean_Ekin + Mean_Kd + Mean_Kx))
+        print(f'    <Kx>          =  {np.real(Mean_Kx):.6f} + {np.imag(Mean_Kx):.6f} j')
+        print(f'    <Kd>          =  {np.real(Mean_Kd):.6f} + {np.imag(Mean_Kd):.6f} j')
+        DIFF = Omega - (Mean_Ekin + Mean_Kd + Mean_Kx)
+        print(f'\n    DIFF          = {DIFF:.6f} \n\n')
 
 
 def correct_comp_vector(comp):
@@ -311,9 +311,9 @@ else:
         Bkcv, OmegaB = Akcv, OmegaA
 
 # Printing relevant information for this exciton
-summarize_Acvk(Akcv, BSE_params)
+index_of_max_abs_value_Akcv = summarize_Acvk(Akcv, BSE_params)
 if iexc != jexc:
-    summarize_Acvk(Bkcv, BSE_params)
+    index_of_max_abs_value_Bkcv = summarize_Acvk(Bkcv, BSE_params)
 
 # getting info from eqp.dat (from absorption calculation)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
@@ -369,12 +369,12 @@ for ik in range(Nkpoints_DFPT):
     Kpoints_in_elph_file_cart.append(K_cart)
     
 Kpoints_in_elph_file_cart = np.array(Kpoints_in_elph_file_cart)
-    
+arq_kpoints_log.close()   
 
 # apply acoustic sum rule
 # TODO -> maybe do the ASR just in elph_cond and elph_val variables
 elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
-print('!!!!!! SHAPE', np.shape(Eqp_val))
+# print('!!!!!! SHAPE', np.shape(Eqp_val))
 
 # filter data to get just g_c1c2 and g_v1v2
 elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
@@ -404,6 +404,27 @@ elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params)
 
 # First let's put all k points from BSE grid in the first Brillouin zone
 ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
+
+
+# summarize transition energies and derivatives of (Ec-Ev)
+# index_of_max_abs_value_Akcv
+ik, ic, iv = index_of_max_abs_value_Akcv
+Emin_gap_dft = Edft_cond[ik, ic] - Edft_val[ik, ic]
+Emin_gap_qp = Eqp_cond[ik, ic] - Eqp_val[ik, ic]
+print(f'Highest value of Acvk for exciton {iexc}')
+print(f'occurs at k point {Kpoints_BSE[ik][0]:4f}  {Kpoints_BSE[ik][1]:4f}  {Kpoints_BSE[ik][2]:4f}')
+print(f'At this point the gas is equal to')
+print(f'at DFT level: {Emin_gap_dft} eV')
+print(f'at GW level:  {Emin_gap_qp} eV')
+
+print('Derivatives for Emin gap for different modes')
+# this diagonal matrix element is the same at qp and dft levels in our approximation 
+der_E_gap_dr = elph_cond[:, ik, ic, ic] - elph_val[:, ik, ic, ic]
+max_der_E_gap_dr = np.max(np.abs(der_E_gap_dr))
+for imode in range(Nmodes):
+    if np.abs(der_E_gap_dr[imode]) >= max_der_E_gap_dr * 0.1:
+        print(f'mode {imode} : {der_E_gap_dr[imode]:.5f} eV/angs')
+
 
 # report_ram()
 # print('DELETING ELPH')
@@ -521,15 +542,11 @@ else:
             
         Sum_DKinect_diag, Sum_DKinect = np.array(Sum_DKinect_diag), np.array(Sum_DKinect)
 
-        
-        
-        
-        
     
 if TESTES_DEV == True:
     Sum_DKinect_diag_test, Sum_DKinect_test = calc_Dkinect_matrix_ver2_master(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params, KCV_list, run_parallel)
     
-print(Sum_DKinect_diag, type(Sum_DKinect_diag))
+# print(Sum_DKinect_diag, type(Sum_DKinect_diag))
 
 # arq_f_disp = open('forces_vs_displacement.dat', 'w')
 # arq_f_disp.write('########## Forces in (eV/A) ################\n')
@@ -554,8 +571,6 @@ print(Sum_DKinect_diag, type(Sum_DKinect_diag))
 
 # arq_f_disp.close()
 
-
-
 del aux_cond_matrix, aux_val_matrix
 
 # Kernel derivatives
@@ -570,8 +585,6 @@ if Calculate_Kernel == True:
     del Kx, Kd
 
 print("Calculating sums")
-
-
 
 if Calculate_Kernel == True:
     Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)
@@ -661,11 +674,9 @@ else:
 
 for iatom in range(Nat):
     for idir in range(3):
-        text = str(iatom+1)+' '+DIRECTION[idir]+' '
-        text += str(F_cart_KE_IBL[iatom, idir])+' '
-        text += str(F_cart_KE_David[iatom, idir])+' '
+        text = f'{iatom+1}  {DIRECTION[idir]}  {F_cart_KE_IBL[iatom, idir]:.8f}  {F_cart_KE_David[iatom, idir]:.8f}'
         if Calculate_Kernel == True:
-            text += str(F_cart_Kernel_IBL[iatom, idir])+' '
+            text += f'  {F_cart_Kernel_IBL[iatom, idir]:.8f} '
 
         print(text)
         arq_out.write(text+'\n')
