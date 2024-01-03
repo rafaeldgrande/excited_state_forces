@@ -94,6 +94,9 @@ local_fields = False
 # run in parallel flag
 run_parallel = False
 
+# modify Acvk to be Acvk = delta_(cvk,cvk)
+# where cvk is the transition for which Acvk is originally maximum
+use_Acvk_single_transition = False
 
 def true_or_false(text, default_value):
     if text.lower() == 'true':
@@ -127,6 +130,7 @@ def read_input(input_file):
     global spin_triplet
     global local_fields
     global run_parallel
+    global use_Acvk_single_transition
 
     try:
         arq_in = open(input_file)
@@ -211,6 +215,8 @@ def read_input(input_file):
                     local_fields = true_or_false(linha[1], local_fields)
                 elif linha[0] == 'run_parallel':
                     run_parallel = true_or_false(linha[1], run_parallel)
+                elif linha[0] == 'use_Acvk_single_transition':
+                    use_Acvk_single_transition = true_or_false(linha[1], use_Acvk_single_transition)
                 
 ########## did not recognize this line #############
 
