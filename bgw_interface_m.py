@@ -241,8 +241,6 @@ def get_exciton_info(exciton_file, iexc):
         print('Flavor in BGW: real')
         Akcv = eigenvecs[0,iexc-1,:,:,:,0,0]
 
-    print("    Max real value of Akcv: ", np.max(np.real(Akcv)))
-    print("    Max imag value of Akcv: ", np.max(np.imag(Akcv)))
     print('\n\n')
 
     return Akcv, Omega
@@ -297,11 +295,6 @@ def get_params_from_eigenvecs_file(exciton_file):
         print('######################################################\n')
 ################################################################################################
 
-
-
-
-
-
     # writing k points info to file - DEBUG
 
     if log_k_points == True:
@@ -327,15 +320,15 @@ def get_params_from_eigenvecs_file(exciton_file):
     print(f'    Number of val bands        = {Nvbnds}')
     print(f'    Valence band index         = {Nval}')
     print('\n')
-    print(f'    Lattice parameter (a.u.)   = {alat}')
+    print(f'    Lattice parameter (a.u.)   = {alat:.8f}')
     print(f'    Lattice vectors (in lattice parameter units): ')
-    print(f'          a1 = ({cell_vecs[0, 0]}, {cell_vecs[0, 1]}, {cell_vecs[0, 2]})')
-    print(f'          a2 = ({cell_vecs[1, 0]}, {cell_vecs[1, 1]}, {cell_vecs[1, 2]})')
-    print(f'          a3 = ({cell_vecs[2, 0]}, {cell_vecs[2, 1]}, {cell_vecs[2, 2]})')
+    print(f'          a1 = ({cell_vecs[0, 0]:.8f}, {cell_vecs[0, 1]:.8f}, {cell_vecs[0, 2]:.8f})')
+    print(f'          a2 = ({cell_vecs[1, 0]:.8f}, {cell_vecs[1, 1]:.8f}, {cell_vecs[1, 2]:.8f})')
+    print(f'          a3 = ({cell_vecs[2, 0]:.8f}, {cell_vecs[2, 1]:.8f}, {cell_vecs[2, 2]:.8f})')
     print(f'    Reciprocal lattice vectors (2 * pi / lattice parameter):')
-    print(f'          b1 = ({rec_cell_vecs[0, 0]}, {rec_cell_vecs[0, 1]}, {rec_cell_vecs[0, 2]})')
-    print(f'          b2 = ({rec_cell_vecs[1, 0]}, {rec_cell_vecs[1, 1]}, {rec_cell_vecs[1, 2]})')
-    print(f'          b3 = ({rec_cell_vecs[2, 0]}, {rec_cell_vecs[2, 1]}, {rec_cell_vecs[2, 2]})')
+    print(f'          b1 = ({rec_cell_vecs[0, 0]:.8f}, {rec_cell_vecs[0, 1]:.8f}, {rec_cell_vecs[0, 2]:.8f})')
+    print(f'          b2 = ({rec_cell_vecs[1, 0]:.8f}, {rec_cell_vecs[1, 1]:.8f}, {rec_cell_vecs[1, 2]:.8f})')
+    print(f'          b3 = ({rec_cell_vecs[2, 0]:.8f}, {rec_cell_vecs[2, 1]:.8f}, {rec_cell_vecs[2, 2]:.8f})')
     print(f'\n\n')
 
 
@@ -434,24 +427,35 @@ def summarize_Acvk(Akcv, BSE_params):
     ''' Print just the relevant information about that exciton. Most of coefficients Acvk
     are null'''
     
-    tol_report = 1e-2
-    
     Nkpoints = BSE_params.Nkpoints_BSE
     Ncbnds = BSE_params.Ncbnds
     Nvbnds = BSE_params.Nvbnds
     Kpoints_BSE = BSE_params.Kpoints_BSE
+
+    maxAcvk = np.max(np.abs(Akcv))
+    index_of_max_abs_value = np.argmax(np.abs(Akcv))
+    index_of_max_abs_value = np.unravel_index(np.argmax(np.abs(Akcv), axis=None), np.abs(Akcv).shape)
+    tol_report = 0.5 * maxAcvk
+
     
     print('###############################################')
-    print('Showing relevant coeffs for this exciton')
+    print('Showing most relevant coeffs for this exciton')
+    print(f'Highest coefficient: |Acvk| = {maxAcvk:.6f}')
+    ik, ic, iv = index_of_max_abs_value
+    kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
     print('kx  ky  kz  ic  iv  real(Acvk)   imag(Acvk)   abs(Acvk)')
-    
+    A = Akcv[ik, ic, iv]
+    print(f'{kx:.4f}  {ky:.4f}   {kz:.4f}   {ic+1}   {iv+1}   {np.real(A):.6f}    {np.imag(A):.6f}    {abs(A):.6f}')
+
+    print('Showing coeffs |Acvk| > max|Acvk| / 2')
     for ik in range(Nkpoints):
         for iv in range(Nvbnds):
             for ic in range(Ncbnds):
-                if abs(Akcv[ik, ic, iv]) >= tol_report:
+                if abs(Akcv[ik, ic, iv]) > tol_report:
                     A = Akcv[ik, ic, iv]
                     kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
-                    print(f'{kx}  {ky}   {kz}   {ic+1}   {iv+1}   {np.real(A)}    {np.imag(A)}    {abs(A)}')
+                    print(f'{kx:.4f}  {ky:.4f}   {kz:.4f}   {ic+1}   {iv+1}   {np.real(A):.6f}    {np.imag(A):.6f}    {abs(A):.6f}')
         
     print('###############################################')
     
+    return index_of_max_abs_value
