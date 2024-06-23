@@ -280,9 +280,15 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
 
         shape_elph = np.shape(elph)
         Nbnds_in_xml = shape_elph[2]
+        
+        Total_operations = Nbnds_in_xml**2 
+        operations_done_by_now = 0
 
         for iband1 in range(Nbnds_in_xml):
             for iband2 in range(Nbnds_in_xml):
+                
+                if operations_done_by_now % 5 == 0:
+                    print(f"{operations_done_by_now / Total_operations * 100:.2f}% Done")
                 # sum_elph = elph[0, 0, iband1, iband2] + elph[1, 0, iband1, iband2]
 
                 # elph[0, 0, iband1, iband2] = elph[0, 0, iband1, iband2] - sum_elph / 2
@@ -314,6 +320,9 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
                     for i_dir in range(3):
                         mod_sum_report_offdiag.append(abs(sum_elph[i_dir]))
                         mod_sum_report_offdiag_afterASR.append(abs(sum_elph_afterASR[i_dir]))
+                        
+                operations_done_by_now += 1
+                
 
         mean_val = np.mean(mod_sum_report_diag)
         max_val  = np.max(mod_sum_report_diag)

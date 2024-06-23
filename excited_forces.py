@@ -372,13 +372,14 @@ Kpoints_in_elph_file_cart = np.array(Kpoints_in_elph_file_cart)
 arq_kpoints_log.close()   
 
 # apply acoustic sum rule
-# TODO -> maybe do the ASR just in elph_cond and elph_val variables
-elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
+# elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
 # print('!!!!!! SHAPE', np.shape(Eqp_val))
 
 # filter data to get just g_c1c2 and g_v1v2
 elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
 
+elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
+elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
 
 # # test -> reescale g's val to the linear coefficient of 
 # # scissors operator for CO. For val bands it is 0.21252216207735158
