@@ -2,7 +2,8 @@
 Excited state forces code. Calculate forces after excitation by combining results from GW/BSE and DFPT calculations
 
 
+The exicted force expression is given by
 
-Important notes (to be organized later)
+$ F = \sum_{\nu cvc'v' k} A_{cvk} A^*_{c'v'k} (g^{\nu}_{cc'k}-g^{\nu}_{vv'k}) \hat{\nu}$
 
-1 - Use the same scf calculation as starting point for both gw/bse and DFPT workflows. If you use two different scf calculations (even with the same input file), it is possible that the eigencvecs from one calculation to other are different from each other by a phase factor or different signs.
+where $\hat{\nu}$ is one displacement pattern (a phonon mode for example), A_{cvk} is the exciton coefficient obtained from the Bethe-Salpeter Equation and g^{\nu}_{ijk} is the electron-phonon coefficient $\langle ik | \partial_{\nu} V | ij \rangle$.
