@@ -1,0 +1,26 @@
+
+verbosity 3
+
+diagonalization
+
+number_val_bands_coarse 5
+number_val_bands_fine 5
+number_cond_bands_coarse 13
+number_cond_bands_fine 13
+
+no_symmetries_coarse_grid
+no_symmetries_fine_grid
+no_symmetries_shifted_grid
+
+cell_box_truncation
+screening_semiconductor
+eqp_co_corrections
+
+use_momentum
+polarization 0.0 0.0 1.0
+
+gaussian_broadening
+energy_resolution 0.03
+delta_frequency 0.001
+
+write_eigenvectors 20

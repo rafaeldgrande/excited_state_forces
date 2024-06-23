@@ -1,0 +1,10 @@
+
+epsilon_cutoff 10.0
+
+degeneracy_check_override
+
+cell_box_truncation
+
+begin qpoints
+ 0.0 0.0 0.0 1.0 1
+end

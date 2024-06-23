@@ -1,0 +1,38 @@
+&CONTROL
+    prefix = 'CO'
+    calculation = 'scf'
+    wf_collect = .true.
+    outdir = './'
+    wfcdir = './'
+    tprnfor =  .true.
+    pseudo_dir = '../'
+/
+&SYSTEM
+    ibrav = 1
+    A = 10
+    nat = 2
+    ntyp = 2
+    nbnd = 20
+    ecutwfc = 100.0
+    occupations = 'smearing'
+    smearing = 'gaussian'
+    degauss = 0.001
+/
+&ELECTRONS
+    electron_maxstep = 100
+    mixing_mode = 'plain'
+    mixing_beta = 0.7
+    mixing_ndim = 8
+    diagonalization = 'david'
+    diago_david_ndim = 4
+    diago_full_acc = .true.
+/
+ATOMIC_SPECIES
+    C  12.011   C.upf
+    O  15.999   O.upf
+ATOMIC_POSITIONS angstrom
+C             5.0    5.0    5.56
+O             5.0    5.0    4.44
+K_POINTS crystal
+1
+0 0 0 1

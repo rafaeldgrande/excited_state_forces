@@ -1,0 +1,9 @@
+
+number_val_bands 5
+number_cond_bands 13
+
+cell_box_truncation
+
+no_symmetries_coarse_grid
+
+screening_semiconductor

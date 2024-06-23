@@ -1,0 +1,4 @@
+iexc 1
+eqp_file         eqp.dat
+exciton_file     eigenvectors.h5
+el_ph_dir        LiF.phsave/

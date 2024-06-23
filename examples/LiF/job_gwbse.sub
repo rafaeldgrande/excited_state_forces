@@ -1,0 +1,76 @@
+#!/bin/bash
+
+#SBATCH --nodes=2                     # Numero de nos
+#####SBATCH --ntasks=24
+#SBATCH --ntasks-per-node=56
+####SBATCH --mem-per-cpu=4.5GB
+####SBATCH --exclusive
+#####SBATCH --nodelist=mrcd[89-90]   # nodes with 32 cpus -> 89-92 and 114
+
+
+#SBATCH --partition test # short ###dstrubbe.q
+#SBATCH --time=0:30:00
+
+#SBATCH --job-name=testworkflow
+#SBATCH --export=ALL
+#SBATCH --output=myjob_%j.stdout
+
+#SBATCH --mail-user=rdelgrande@ucmerced.edu
+#SBATCH --mail-type=ALL
+
+export OMP_NUM_THREADS=1
+BGWBIN="/home/rrodriguesdelgrand/programs/BerkeleyGW-4.0/bin"
+
+echo "now working in dir $(pwd)"
+#echo "**************START**************** "
+#date
+start_time=`date +%s.%N`
+
+
+module load quantum-espresso
+
+cd 1-scf_fi/
+srun -n 56 pw.x < scf.in &> scf.out
+srun -n 2 pw2bgw.x < pw2bgw.in &> pw2bgw.out
+srun ph.x < ph.in &> ph.out 
+cd ../
+
+cd 2-wfn/
+cp ../1-scf_fi/$PREFIX.save/charge-density.hdf5 $PREFIX.save/
+cp ../1-scf_fi/$PREFIX.save/data-file-schema.xml $PREFIX.save/
+srun -n 56 pw.x < bands.in &> bands.out
+srun -n 2 pw2bgw.x < pw2bgw.in &> pw2bgw.out 
+cd ../
+
+cd 3-wfnq/
+cp ../1-scf_fi/$PREFIX.save/charge-density.hdf5 $PREFIX.save/
+cp ../1-scf_fi/$PREFIX.save/data-file-schema.xml $PREFIX.save/
+srun -n 56 pw.x < bands.in &> bands.out
+srun -n 2 pw2bgw.x < pw2bgw.in &> pw2bgw.out
+cd ../
+
+cd 4-wfn_co/
+cp ../1-scf_fi/$PREFIX.save/charge-density.hdf5 $PREFIX.save/
+cp ../1-scf_fi/$PREFIX.save/data-file-schema.xml $PREFIX.save/
+srun -n 56 pw.x < bands.in &> bands.out
+srun -n 2 pw2bgw.x < pw2bgw.in &> pw2bgw.out
+cd ../
+
+module reset
+module load berkeleygw
+
+cd 5-epsilon/
+srun epsilon.cplx.x &> epsilon.out
+cd ../
+
+cd 6-sigma/
+srun sigma.cplx.x &> sigma.out 
+cd ../
+
+cd 7-kernel/
+srun kernel.cplx.x &> kernel.out 
+cd ../
+
+cd 8-absorption/
+srun absorption.cplx.x &> absorption.out 
+cd ../

@@ -1,0 +1,13 @@
+phonon_calc
+$inputph
+    verbosity = 'high'
+    prefix = 'CO'
+    outdir = './'
+    fildyn = 'dyn'
+    fildvscf = 'dvscf'
+    electron_phonon='simple'
+    tr2_ph=1.0d-18
+    trans=.true.
+    nogg=.true.
+/
+0.0 0.0 0.0
