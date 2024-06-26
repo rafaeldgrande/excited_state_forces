@@ -36,10 +36,13 @@ def indexes_x_in_list(what_i_want, list_i_get):
     return indexes
 
 
-def get_patterns2(iq, MF_params):
+def get_displacement_patterns(iq, MF_params):
 
     """Reads displacements patterns from patterns.X.xml files, 
     where X is the q vector for this displacement.
+    Quantum espresso applies those displacement patterns in DFPT calculations
+    based on the system symmetry. If QE guesses it has no symmetry, then the
+    displacement patterns are simply to move each atom in the x, y, z directions.
     """
 
     Nat    = MF_params.Nat
@@ -235,7 +238,6 @@ def get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list):  # suitable for xml files w
             print('    Reading file ', elph_xml_file, f'({irrep+1}/{Nirreps})')
             start_time_loop = datetime.now()
             elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)
-            # print('Shape elph_aux', np.shape(elph_aux))
 
             for ideg in range(len(elph_aux)):
                 elph.append(elph_aux[ideg])
@@ -245,26 +247,17 @@ def get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list):  # suitable for xml files w
         print('Reading selected ELPH coefficients files. Total = ', len(dfpt_irreps_list))
         print('Indexes of files that I will read: ', dfpt_irreps_list)
         counter_files = 0
-        elph_reduced = []
         for irrep in dfpt_irreps_list:
-            elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
+            elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep}.xml'  # here irrep doesnt have +1 because values from dfpt_irreps_list are 1-indexed
             print('    Reading file ', elph_xml_file, f'({counter_files+1}/{len(dfpt_irreps_list)})')
+            start_time_loop = datetime.now()
             elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)
-            elph_reduced.append(elph_aux)
             counter_files += 1
             
             for ideg in range(len(elph_aux)):
-                elph_reduced.append(elph_aux[ideg])
+                elph.append(elph_aux[ideg])
                 
             print_elapsed_time_min(start_time_loop)
-            
-        shape_elph_element = np.shape(elph_reduced[0])
-            
-        for irrep in range(Nirreps):
-            if irrep not in dfpt_irreps_list:
-                elph.append(np.zeros(shape_elph_element))
-            else:
-                elph.append(elph_reduced[dfpt_irreps_list.index(irrep)])
 
     elph = np.array(elph)
     print('Finished reading elph coeffients')

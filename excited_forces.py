@@ -337,7 +337,13 @@ else:
 
 # get displacement patterns
 iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-zero center of mass momentum
-Displacements, Nirreps = get_patterns2(iq, MF_params)
+Displacements, Nirreps = get_displacement_patterns(iq, MF_params)
+
+# when one wants to use just some irreps, we need to remove the other not used
+if len(dfpt_irreps_list) != 0:
+    Displacements = Displacements[dfpt_irreps_list, :, :]
+    MF_params.Nmodes = len(dfpt_irreps_list)
+    Nmodes = len(dfpt_irreps_list)
 
 # get elph coefficients from .xml files
 # if run_parallel == False:
@@ -370,14 +376,11 @@ if log_k_points == True:
         arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
     arq_kpoints_log.close()   
 
-# apply acoustic sum rule
-# elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)
-# print('!!!!!! SHAPE', np.shape(Eqp_val))
 
 # filter data to get just g_c1c2 and g_v1v2
 elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
 
-# impose acoustic sum rule over elph coefficients
+# apply acoustic sum rule over elph coefficients
 elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
 elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
 
