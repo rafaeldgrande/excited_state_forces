@@ -225,11 +225,15 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
     for irrep in range(Nirreps):
         elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
         print('    Reading file ', elph_xml_file, f'({irrep+1}/{Nirreps})')
+        date_now_function = datetime.now()
         elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)
         # print('Shape elph_aux', np.shape(elph_aux))
 
         for ideg in range(len(elph_aux)):
             elph.append(elph_aux[ideg])
+            
+        print('    Done in ', datetime.now() - date_now_function)
+            
 
     elph = np.array(elph)
 

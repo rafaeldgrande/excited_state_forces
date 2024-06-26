@@ -1,5 +1,6 @@
 
 TESTES_DEV = False
+verbosity = 'high'
 
 run_parallel = False
 if run_parallel == True:
@@ -340,6 +341,7 @@ Displacements, Nirreps = get_patterns2(iq, MF_params)
 
 # get elph coefficients from .xml files
 # if run_parallel == False:
+
 elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps)
 # else:
 #     elph, Kpoints_in_elph_file = get_el_ph_coeffs_parallel(iq, Nirreps)
@@ -347,29 +349,26 @@ Nkpoints_DFPT = len(Kpoints_in_elph_file)
 
 # change basis for k points from dfpt calculations
 # those k points are in cartesian basis. we're changing 
-# it to reciprocal latt basis
+# it to reciprocal lattice basis
 
 mat_reclattvecs_to_cart = np.transpose(BSE_params.rec_cell_vecs)
 mat_cart_to_reclattvecs = np.linalg.inv(mat_reclattvecs_to_cart)
 
 Kpoints_in_elph_file_cart = []
 
-arq_kpoints_log = open('Kpoints_dfpt_cart_basis', 'w')
-
 for ik in range(Nkpoints_DFPT):
-
     K_cart = mat_cart_to_reclattvecs @ Kpoints_in_elph_file[ik]
-    
-    arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
-
     for icomp in range(3):
         K_cart[icomp] = correct_comp_vector(K_cart[icomp])
-
-
     Kpoints_in_elph_file_cart.append(K_cart)
     
 Kpoints_in_elph_file_cart = np.array(Kpoints_in_elph_file_cart)
-arq_kpoints_log.close()   
+
+if log_k_points == True:
+    arq_kpoints_log = open('Kpoints_dfpt_cart_basis', 'w')
+    for K_cart in Kpoints_in_elph_file_cart:
+        arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
+    arq_kpoints_log.close()   
 
 # apply acoustic sum rule
 # elph = impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule)

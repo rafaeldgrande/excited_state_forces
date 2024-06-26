@@ -51,7 +51,7 @@ acoutic_sum_rule = True
 use_hermicity_F = True     # Use the fact that F_cvc'v' = conj(F_c'v'cv)
 # Reduces the number of computed terms by about half
 
-log_k_points = True     # Write k points used in BSE and DFPT calculations
+log_k_points = False     # Write k points used in BSE and DFPT calculations
 
 # reads Acvk coeffs from files produced by my modified version of 
 # summarize_eigenvectors.x
