@@ -342,7 +342,7 @@ Displacements, Nirreps = get_patterns2(iq, MF_params)
 # get elph coefficients from .xml files
 # if run_parallel == False:
 
-elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps)
+elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list)
 # else:
 #     elph, Kpoints_in_elph_file = get_el_ph_coeffs_parallel(iq, Nirreps)
 Nkpoints_DFPT = len(Kpoints_in_elph_file)
