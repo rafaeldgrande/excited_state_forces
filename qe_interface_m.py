@@ -13,6 +13,10 @@ if run_parallel == True:
     from multiprocessing import Pool
     import multiprocessing
 
+def print_elapsed_time_min(start_time):
+    elapsed_time = datetime.now() - start_time    
+    time_minutes = elapsed_time.total_seconds() / 60.
+    print(f'    Done in {time_minutes:.2f} min')
 
 def indexes_x_in_list(what_i_want, list_i_get):
 
@@ -213,29 +217,58 @@ def read_elph_xml(elph_xml_file):
     return elph_aux, np.array(Kpoints_in_elph_file)
 
 
-def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7 
+def get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list):  # suitable for xml files written from qe 6.7 
 
     """ Reads all elph.iq.ipert.xml files and returns the electron-phonon coefficients
     elph[Nmodes, Nk, Nbnds_in_xml, Nbnds_in_xml] """
 
     print('\n\nReading elph coeficients g_ij = <i|dH/dr|j>\n')
+    
+    start_time_function = datetime.now()
 
     elph = []
 
-    for irrep in range(Nirreps):
-        elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
-        print('    Reading file ', elph_xml_file, f'({irrep+1}/{Nirreps})')
-        date_now_function = datetime.now()
-        elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)
-        # print('Shape elph_aux', np.shape(elph_aux))
+    if len(dfpt_irreps_list) == 0:
+        print('Reading all ELPH coefficients files. Total = ', Nirreps)
+        for irrep in range(Nirreps):
+            elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
+            print('    Reading file ', elph_xml_file, f'({irrep+1}/{Nirreps})')
+            start_time_loop = datetime.now()
+            elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)
+            # print('Shape elph_aux', np.shape(elph_aux))
 
-        for ideg in range(len(elph_aux)):
-            elph.append(elph_aux[ideg])
+            for ideg in range(len(elph_aux)):
+                elph.append(elph_aux[ideg])
+                
+            print_elapsed_time_min(start_time_loop)
+    else:
+        print('Reading selected ELPH coefficients files. Total = ', len(dfpt_irreps_list))
+        print('Indexes of files that I will read: ', dfpt_irreps_list)
+        counter_files = 0
+        elph_reduced = []
+        for irrep in dfpt_irreps_list:
+            elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
+            print('    Reading file ', elph_xml_file, f'({counter_files+1}/{len(dfpt_irreps_list)})')
+            elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)
+            elph_reduced.append(elph_aux)
+            counter_files += 1
             
-        print('    Done in ', datetime.now() - date_now_function)
+            for ideg in range(len(elph_aux)):
+                elph_reduced.append(elph_aux[ideg])
+                
+            print_elapsed_time_min(start_time_loop)
             
+        shape_elph_element = np.shape(elph_reduced[0])
+            
+        for irrep in range(Nirreps):
+            if irrep not in dfpt_irreps_list:
+                elph.append(np.zeros(shape_elph_element))
+            else:
+                elph.append(elph_reduced[dfpt_irreps_list.index(irrep)])
 
     elph = np.array(elph)
+    print('Finished reading elph coeffients')
+    print_elapsed_time_min(start_time_function)
 
     return elph, Kpoints_in_elph_file
 

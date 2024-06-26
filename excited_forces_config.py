@@ -98,6 +98,9 @@ run_parallel = False
 # where cvk is the transition for which Acvk is originally maximum
 use_Acvk_single_transition = False
 
+# List of ELPH to be read. If list is empty, then all are read
+dfpt_irreps_list = []
+
 def true_or_false(text, default_value):
     if text.lower() == 'true':
         return True
@@ -131,6 +134,7 @@ def read_input(input_file):
     global local_fields
     global run_parallel
     global use_Acvk_single_transition
+    global dfpt_irreps_list
 
     try:
         arq_in = open(input_file)
@@ -217,6 +221,9 @@ def read_input(input_file):
                     run_parallel = true_or_false(linha[1], run_parallel)
                 elif linha[0] == 'use_Acvk_single_transition':
                     use_Acvk_single_transition = true_or_false(linha[1], use_Acvk_single_transition)
+                elif linha[0] == 'dfpt_irreps_list':
+                    for i in range(1, len(linha)):
+                        dfpt_irreps_list.append(int(linha[i]))
                 
 ########## did not recognize this line #############
 

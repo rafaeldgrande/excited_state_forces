@@ -377,32 +377,11 @@ if log_k_points == True:
 # filter data to get just g_c1c2 and g_v1v2
 elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
 
+# impose acoustic sum rule over elph coefficients
 elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
 elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
 
-# # test -> reescale g's val to the linear coefficient of 
-# # scissors operator for CO. For val bands it is 0.21252216207735158
-# # and for cond bands is 0.07 for d = 1.12
-
-# # scissor operator fitting
-# z = np.poly1d(np.polyfit(Edft_val[0], Eqp_val[0] - Edft_val[0], 1))
-# alpha_val = z[1]
-# z = np.poly1d(np.polyfit(Edft_cond[0][2:], Eqp_cond[0][2:] - Edft_cond[0][2:], 1))
-# alpha_cond = z[1]
-
-# print('SCISSOR OPERATORS VAL ', alpha_val)
-# print('SCISSOR OPERATORS COND ', alpha_cond)
-
-# for irrep in range(6):
-#     for iband in range(5):
-#         elph_val[irrep, 0, iband, iband] = elph_val[irrep, 0, iband, iband] * (1.0 + alpha_val)
-        
-# for irrep in range(6):
-#     for iband in range(13):
-#         elph_cond[irrep, 0, iband, iband] = elph_cond[irrep, 0, iband, iband] * (1.0 + alpha_cond)
-
-
-# First let's put all k points from BSE grid in the first Brillouin zone
+# Let's put all k points from BSE grid in the first Brillouin zone
 ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
 
 
