@@ -459,7 +459,7 @@ def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum):
         # building diagonal terms
         for icvk1 in indexes_limited_BSE_sum:
             ik1, ic1, iv1 = icvk1
-            args_list_just_diag.append((ik, ic1, ic1, iv1, iv1))
+            args_list_just_diag.append((ik1, ic1, ic1, iv1, iv1))
 
         if just_RPA_diag == False:
             if use_hermicity_F == False:
@@ -468,14 +468,14 @@ def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum):
                     for icvk2 in indexes_limited_BSE_sum:
                         ik2, ic2, iv2 = icvk2
                         if ik1 == ik2:
-                            args_list_just_offdiag.append((ik, ic1, ic2, iv1, iv2))
+                            args_list_just_offdiag.append((ik1, ic1, ic2, iv1, iv2))
             else:
                 for icvk_index1 in range(indexes_limited_BSE_sum):
                     ik1, ic1, iv1 = indexes_limited_BSE_sum[icvk_index1]
                     for icvk_index2 in range(icvk_index1+1, indexes_limited_BSE_sum):  
                         ik2, ic2, iv2 = indexes_limited_BSE_sum[icvk_index2]
                         if ik1 == ik2:
-                            args_list_just_offdiag.append((ik, ic1, ic2, iv1, iv2))
+                            args_list_just_offdiag.append((ik1, ic1, ic2, iv1, iv2))
                         
     return args_list_just_diag, args_list_just_offdiag
 
