@@ -426,6 +426,7 @@ if use_Acvk_single_transition == True:
 
 print('Derivatives (g_cc - g_vv) for Emin gap for different modes. Printing more relevant ones.')
 # this diagonal matrix element is the same at qp and dft levels in our approximation 
+ik, ic, iv = index_of_max_abs_value_Akcv
 der_E_gap_dr = elph_cond[:, ik, ic, ic] - elph_val[:, ik, ic, ic]
 max_der_E_gap_dr = np.max(np.abs(der_E_gap_dr))
 for imode in range(Nmodes):
