@@ -101,6 +101,18 @@ use_Acvk_single_transition = False
 # List of ELPH to be read. If list is empty, then all are read
 dfpt_irreps_list = []
 
+# If true limit sum of excited state forces to be done only on coefficients ik, ic, iv
+# listed in file "indexes_limited_sum_BSE.dat". The file has the following format
+# 1 1 1
+# 1 1 2
+# 1 1 3
+# 1 2 1
+# 1 2 2
+# 1 2 3
+# where the first collumn is the ik, the second is the ic, and the third is the iv
+# this is useful when one know a priori which transitions are the most relevant
+limit_BSE_sum = False
+
 def true_or_false(text, default_value):
     if text.lower() == 'true':
         return True
@@ -108,6 +120,7 @@ def true_or_false(text, default_value):
         return False
     else:
         return default_value
+
 
 
 def read_input(input_file):
@@ -135,6 +148,7 @@ def read_input(input_file):
     global run_parallel
     global use_Acvk_single_transition
     global dfpt_irreps_list
+    global limit_BSE_sum
 
     try:
         arq_in = open(input_file)
@@ -224,6 +238,8 @@ def read_input(input_file):
                 elif linha[0] == 'dfpt_irreps_list':
                     for i in range(1, len(linha)):
                         dfpt_irreps_list.append(int(linha[i]))
+                elif linha[0] == 'limit_BSE_sum':
+                    limit_BSE_sum = true_or_false(linha[1], limit_BSE_sum)
                 
 ########## did not recognize this line #############
 

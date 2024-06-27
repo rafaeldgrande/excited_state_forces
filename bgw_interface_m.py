@@ -422,6 +422,24 @@ def get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints, Ncbnds, Nvbnds)
 
     return Akcv, exc_energy
 
+def top_n_indexes(array, N):
+    # Flatten the array
+    flat_array = array.flatten()
+    
+    # Get the indexes of the top N values in the flattened array
+    flat_indexes = np.argpartition(flat_array, -N)[-N:]
+    
+    # Sort these indexes by the values they point to, in descending order
+    sorted_indexes = flat_indexes[np.argsort(-flat_array[flat_indexes])]
+    
+    # Convert the 1D indexes back to 3D indexes
+    top_indexes = np.unravel_index(sorted_indexes, array.shape)
+    
+    # Combine the indexes into a list of tuples
+    top_indexes = list(zip(*top_indexes))
+    
+    return top_indexes
+
 def summarize_Acvk(Akcv, BSE_params):
     
     ''' Print just the relevant information about that exciton. Most of coefficients Acvk
@@ -440,22 +458,31 @@ def summarize_Acvk(Akcv, BSE_params):
     
     print('###############################################')
     print('Showing most relevant coeffs for this exciton')
-    print(f'Highest coefficient: |Acvk| = {maxAcvk:.6f}')
-    ik, ic, iv = index_of_max_abs_value
-    kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
-    print('kx  ky  kz  ic  iv  real(Acvk)   imag(Acvk)   abs(Acvk)')
-    A = Akcv[ik, ic, iv]
-    print(f'{kx:.4f}  {ky:.4f}   {kz:.4f}   {ic+1}   {iv+1}   {np.real(A):.6f}    {np.imag(A):.6f}    {abs(A):.6f}')
+    # print(f'Highest coefficient: |Acvk| = {maxAcvk:.6f}')
+    # ik, ic, iv = index_of_max_abs_value
+    # kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
+    # print('kx  ky  kz  ic  iv  real(Acvk)   imag(Acvk)   abs(Acvk)')
+    # A = Akcv[ik, ic, iv]
+    # print(f'{kx:.4f}  {ky:.4f}   {kz:.4f}   {ic+1}   {iv+1}   {np.real(A):.6f}    {np.imag(A):.6f}    {abs(A):.6f}')
 
-    print('Showing coeffs |Acvk| > max|Acvk| / 2')
-    for ik in range(Nkpoints):
-        for iv in range(Nvbnds):
-            for ic in range(Ncbnds):
-                if abs(Akcv[ik, ic, iv]) > tol_report:
-                    A = Akcv[ik, ic, iv]
-                    kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
-                    print(f'{kx:.4f}  {ky:.4f}   {kz:.4f}   {ic+1}   {iv+1}   {np.real(A):.6f}    {np.imag(A):.6f}    {abs(A):.6f}')
+    # print('Showing coeffs |Acvk| > max|Acvk| / 2')
+    # for ik in range(Nkpoints):
+    #     for iv in range(Nvbnds):
+    #         for ic in range(Ncbnds):
+    #             if abs(Akcv[ik, ic, iv]) > tol_report:
+    #                 A = Akcv[ik, ic, iv]
+    #                 kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
+    #                 print(f'{kx:.4f}  {ky:.4f}   {kz:.4f}   {ic+1}   {iv+1}   {np.real(A):.4f}    {np.imag(A):.4f}    {abs(A):.4f}')
         
+    print('kx        ky        kz        ic   iv   real(Acvk)   imag(Acvk)   abs(Acvk)')
+    top_indexes = top_n_indexes(np.abs(Akcv), 10)
+    
+    for index_Acvk in top_indexes:
+        ik, ic, iv = index_Acvk
+        A = Akcv[index_Acvk]
+        kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
+        print(f'{kx:8.4f}  {ky:8.4f}  {kz:8.4f}  {ic+1:<3} {iv+1:<3} {np.real(A):10.4f}  {np.imag(A):10.4f}  {abs(A):10.4f}')    
+    
     print('###############################################')
     
     return index_of_max_abs_value

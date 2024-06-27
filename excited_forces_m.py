@@ -424,34 +424,59 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
 
     return Sum_DKinect_diag, Sum_DKinect
 
-def arg_lists_Dkinect(BSE_params):
+def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum):
     
     Nkpoints = BSE_params.Nkpoints_BSE
     Ncbnds_sum = BSE_params.Ncbnds_sum
     Nvbnds_sum = BSE_params.Nvbnds_sum
     
-    args_list_just_offdiag = []    
-    args_list_just_diag = [(ik, ic1, ic1, iv1, iv1) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum)]
+    args_list_just_offdiag = []
+    
+    if limit_BSE_sum == False:
+        args_list_just_diag = [(ik, ic1, ic1, iv1, iv1) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum)]
 
-    if just_RPA_diag == False:
-        indexes_cv = [(icp, ivp) for ivp in range(Nvbnds_sum) for icp in range(Ncbnds_sum)]
-        if use_hermicity_F == False:
-            for cv1 in indexes_cv:
-                for cv2 in indexes_cv:
-                    if cv1 != cv2:
-                        ic1, iv1 = cv1
-                        ic2, iv2 = cv2
+        if just_RPA_diag == False:
+            indexes_cv = [(icp, ivp) for ivp in range(Nvbnds_sum) for icp in range(Ncbnds_sum)]
+            if use_hermicity_F == False:
+                for cv1 in indexes_cv:
+                    for cv2 in indexes_cv:
+                        if cv1 != cv2:
+                            ic1, iv1 = cv1
+                            ic2, iv2 = cv2
+                            for ik in range(Nkpoints): 
+                                args_list_just_offdiag.append((ik, ic1, ic2, iv1, iv2))
+            else:
+                for i_cv1 in range(len(indexes_cv)):
+                    for i_cv2 in range(i_cv1+1, len(indexes_cv)):
+                        ic1, iv1 = indexes_cv[i_cv1]
+                        ic2, iv2 = indexes_cv[i_cv2]
                         for ik in range(Nkpoints): 
                             args_list_just_offdiag.append((ik, ic1, ic2, iv1, iv2))
-        else:
-            for i_cv1 in range(len(indexes_cv)):
-                for i_cv2 in range(i_cv1+1, len(indexes_cv)):
-                    ic1, iv1 = indexes_cv[i_cv1]
-                    ic2, iv2 = indexes_cv[i_cv2]
-                    for ik in range(Nkpoints): 
-                        args_list_just_offdiag.append((ik, ic1, ic2, iv1, iv2))
 
+    else:
+        args_list_just_diag = []
         
+        # building diagonal terms
+        for icvk1 in indexes_limited_BSE_sum:
+            ik1, ic1, iv1 = icvk1
+            args_list_just_diag.append((ik, ic1, ic1, iv1, iv1))
+
+        if just_RPA_diag == False:
+            if use_hermicity_F == False:
+                for icvk1 in indexes_limited_BSE_sum:
+                    ik1, ic1, iv1 = icvk1
+                    for icvk2 in indexes_limited_BSE_sum:
+                        ik2, ic2, iv2 = icvk2
+                        if ik1 == ik2:
+                            args_list_just_offdiag.append((ik, ic1, ic2, iv1, iv2))
+            else:
+                for icvk_index1 in range(indexes_limited_BSE_sum):
+                    ik1, ic1, iv1 = indexes_limited_BSE_sum[icvk_index1]
+                    for icvk_index2 in range(icvk_index1+1, indexes_limited_BSE_sum):  
+                        ik2, ic2, iv2 = indexes_limited_BSE_sum[icvk_index2]
+                        if ik1 == ik2:
+                            args_list_just_offdiag.append((ik, ic1, ic2, iv1, iv2))
+                        
     return args_list_just_diag, args_list_just_offdiag
 
 

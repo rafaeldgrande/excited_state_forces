@@ -319,6 +319,17 @@ if iexc != jexc:
 # getting info from eqp.dat (from absorption calculation)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
 
+# summarize transition energies and derivatives of (Ec-Ev)
+# index_of_max_abs_value_Akcv
+ik, ic, iv = index_of_max_abs_value_Akcv
+Emin_gap_dft = Edft_cond[ik, ic] - Edft_val[ik, ic]
+Emin_gap_qp = Eqp_cond[ik, ic] - Eqp_val[ik, ic]
+print(f'Highest value of Acvk for exciton {iexc}')
+print(f'occurs at k point {Kpoints_BSE[ik][0]:4f}  {Kpoints_BSE[ik][1]:4f}  {Kpoints_BSE[ik][2]:4f}')
+print(f'At this point the gap is equal to')
+print(f'at DFT level: {Emin_gap_dft} eV')
+print(f'at GW level:  {Emin_gap_qp} eV')
+
 # Getting kernel info from bsemat.h5 file
 if Calculate_Kernel == True:
     Kd, Kx = get_kernel(kernel_file, factor_head)
@@ -332,6 +343,18 @@ if iexc != jexc:
 else:
     print(f'Exciton {iexc}')
     report_expected_energies(Akcv, OmegaA)
+    
+# limited sums of BSE coefficients
+indexes_limited_BSE_sum = []
+if limit_BSE_sum == True:
+    print('Using limited sum of BSE coefficients')
+    arq = open("indexes_limited_sum_BSE.dat")
+    for line in arq:
+        line_split = line.split()
+        ik, ic, iv = int(line_split[0]), int(line_split[1]), int(line_split[2])
+        indexes_limited_BSE_sum.append([ik, ic, iv])
+
+    arq.close()
 
 # Getting elph coefficients
 
@@ -387,18 +410,6 @@ elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
 # Let's put all k points from BSE grid in the first Brillouin zone
 ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
 
-
-# summarize transition energies and derivatives of (Ec-Ev)
-# index_of_max_abs_value_Akcv
-ik, ic, iv = index_of_max_abs_value_Akcv
-Emin_gap_dft = Edft_cond[ik, ic] - Edft_val[ik, ic]
-Emin_gap_qp = Eqp_cond[ik, ic] - Eqp_val[ik, ic]
-print(f'Highest value of Acvk for exciton {iexc}')
-print(f'occurs at k point {Kpoints_BSE[ik][0]:4f}  {Kpoints_BSE[ik][1]:4f}  {Kpoints_BSE[ik][2]:4f}')
-print(f'At this point the gap is equal to')
-print(f'at DFT level: {Emin_gap_dft} eV')
-print(f'at GW level:  {Emin_gap_qp} eV')
-
 # use modified Acvk
 
 if use_Acvk_single_transition == True:
@@ -413,12 +424,12 @@ if use_Acvk_single_transition == True:
 
 
 
-print('Derivatives for Emin gap for different modes')
+print('Derivatives (g_cc - g_vv) for Emin gap for different modes. Printing more relevant ones.')
 # this diagonal matrix element is the same at qp and dft levels in our approximation 
 der_E_gap_dr = elph_cond[:, ik, ic, ic] - elph_val[:, ik, ic, ic]
 max_der_E_gap_dr = np.max(np.abs(der_E_gap_dr))
 for imode in range(Nmodes):
-    if np.abs(der_E_gap_dr[imode]) >= max_der_E_gap_dr * 0.1:
+    if np.abs(der_E_gap_dr[imode]) >= max_der_E_gap_dr * 0.5:
         print(f'mode {imode} : {der_E_gap_dr[imode]:.8f} eV/angs')
 
 
@@ -467,12 +478,12 @@ else:
 print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
 
 # creating KCV list with indexes ik, ic, iv (in this order) used to vectorize future sums
-KCV_list = []
+# KCV_list = []
 
-for ik in range(BSE_params.Nkpoints_BSE):
-    for ic in range(BSE_params.Ncbnds_sum):
-        for iv in range(BSE_params.Nvbnds_sum):
-            KCV_list.append((ik, ic, iv))            
+# for ik in range(BSE_params.Nkpoints_BSE):
+#     for ic in range(BSE_params.Ncbnds_sum):
+#         for iv in range(BSE_params.Nvbnds_sum):
+#             KCV_list.append((ik, ic, iv))            
 
 
 # Creating auxialiry quantities
@@ -488,7 +499,7 @@ aux_cond_matrix, aux_val_matrix = aux_matrix_elem(
 
 # instead of creating big matrix, calculate sums on the fly!
 
-args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params)
+args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum)
 
 Sum_DKinect_diag, Sum_DKinect_just_offdiag = [], []
 
@@ -539,8 +550,8 @@ else:
         Sum_DKinect_diag, Sum_DKinect = np.array(Sum_DKinect_diag), np.array(Sum_DKinect)
 
     
-if TESTES_DEV == True:
-    Sum_DKinect_diag_test, Sum_DKinect_test = calc_Dkinect_matrix_ver2_master(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params, KCV_list, run_parallel)
+# if TESTES_DEV == True:
+#     Sum_DKinect_diag_test, Sum_DKinect_test = calc_Dkinect_matrix_ver2_master(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params, KCV_list, run_parallel)
     
 # print(Sum_DKinect_diag, type(Sum_DKinect_diag))
 
