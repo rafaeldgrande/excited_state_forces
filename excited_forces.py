@@ -351,7 +351,7 @@ if limit_BSE_sum == True:
     arq = open("indexes_limited_sum_BSE.dat")
     for line in arq:
         line_split = line.split()
-        ik, ic, iv = int(line_split[0]), int(line_split[1]), int(line_split[2])
+        ik, ic, iv = int(line_split[0])-1, int(line_split[1])-1, int(line_split[2])-1
         indexes_limited_BSE_sum.append([ik, ic, iv])
 
     arq.close()
