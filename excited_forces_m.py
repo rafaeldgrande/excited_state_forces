@@ -487,14 +487,14 @@ def calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, 
     counter_now = 0
     total_iterations = len(args_list)
     when_function_started = datetime.now()
-    step_report = step_report(total_iterations)
+    step_report_here = step_report(total_iterations)
     
     for arg in args_list:
         ik, ic1, ic2, iv1, iv2 = arg
         result += calc_Dkinect_matrix_elem(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
         
         counter_now += 1
-        report_iterations(counter_now, total_iterations, step_report, when_function_started)
+        report_iterations(counter_now, total_iterations, step_report_here, when_function_started)
     return result
 
 def calc_Dkinect_matrix_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list, imode):
