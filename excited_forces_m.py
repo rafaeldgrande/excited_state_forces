@@ -484,10 +484,16 @@ def calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, 
 
     result = 0.0 + 0.0j
     
+    counter_now = 0
+    total_iterations = len(args_list)
+    when_function_started = datetime.now()
+    
     for arg in args_list:
         ik, ic1, ic2, iv1, iv2 = arg
         result += calc_Dkinect_matrix_elem(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
         
+        counter_now += 1
+        report_iterations(counter_now, total_iterations, step_report, when_function_started)
     return result
 
 def calc_Dkinect_matrix_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list, imode):
@@ -742,15 +748,20 @@ def step_report(total_iterations):
     
     return max(int(total_iterations / 20) - 1, 1)
 
-def report_iterations(counter_now, total_iterations, step_report, now_this_func):
+def report_iterations(counter_now, total_iterations, step_report, when_function_started):
     
     ''' This function reports in iterarations and estimates how much time
-    to finish some loop'''
+    to finish some loop
+    counter_now: current iteration
+    total_iterations: total number of iterations
+    step_report: number of iterations between each report 
+    when_function_started: time when the function was started
+    '''
     
-    if counter_now % step_report == 0 or counter_now == 50000:
+    if counter_now % step_report == 0 or counter_now == 10 or counter_now == 10000:
         
         # how much time in seconds
-        delta_T = (datetime.now() - now_this_func).total_seconds()
+        delta_T = (datetime.now() - when_function_started).total_seconds()
         # print(delta_T) 
         delta_T_remain = (total_iterations - counter_now) / counter_now * delta_T      
         

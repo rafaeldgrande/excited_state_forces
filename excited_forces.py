@@ -368,6 +368,7 @@ if len(dfpt_irreps_list) != 0:
     Displacements = Displacements[dfpt_irreps_list, :, :]
     MF_params.Nmodes = len(dfpt_irreps_list)
     Nmodes = len(dfpt_irreps_list)
+    print(f"Not using all irreps. Setting Nmodes to {Nmodes}.")
 
 # get elph coefficients from .xml files
 # if run_parallel == False:
@@ -514,8 +515,15 @@ args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params, inde
 
 print("")
 Sum_DKinect_diag, Sum_DKinect_offdiag = [], []
+
+print('\n\nCalculating diagonal matrix elements <kcv|dH/dx_mu|kcv>')
 for imode in range(Nmodes):
+    print(f"Calculating mode {imode} of {Nmodes}")
     Sum_DKinect_diag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_diag, imode))
+   
+print("\n\nCalculating off-diagonal matrix elements <kcv|dH/dx_mu|kc'v'>") 
+for imode in range(Nmodes):
+    print(f"Calculating mode {imode} of {Nmodes}")
     Sum_DKinect_offdiag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_offdiag, imode))        
 
 Sum_DKinect_diag, Sum_DKinect_offdiag = np.array(Sum_DKinect_diag), np.array(Sum_DKinect_offdiag)
@@ -544,8 +552,8 @@ report_ram()
 
 # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 
-Sum_DKinect_diag    = -Sum_DKinect_diag*Ry2eV/bohr2A
-Sum_DKinect_offdiag = -Sum_DKinect_offdiag*Ry2eV/bohr2A
+Sum_DKinect_diag    = -Sum_DKinect_diag * Ry2eV / bohr2A
+Sum_DKinect_offdiag = -Sum_DKinect_offdiag * Ry2eV / bohr2A
 
 if Calculate_Kernel == True:
     Sum_DKernel = -Sum_DKernel*Ry2eV/bohr2A
@@ -562,9 +570,7 @@ if Calculate_Kernel == True:
     if max(abs(np.imag(Sum_DKernel))) >= 1e-6:
         print('WARNING: Imaginary part of Kernel forces >= 10^-6 eV/angs!')
 
-# Show just real part of numbers (default)
-
-                                                                                                                                                                                                                                                                                                                                    
+# Show just real part of numbers (default)                                                                                                                                                                                                                                                                                                                        
 if show_imag_part == False:
     Sum_DKinect_diag = np.real(Sum_DKinect_diag)
     Sum_DKinect_offdiag = np.real(Sum_DKinect_offdiag)
@@ -578,7 +584,7 @@ print("Calculating forces in cartesian basis")
 
 if show_imag_part == True:
     F_cart_KE_IBL = np.zeros((Nat, 3), dtype=complex)  # IBL just diag RPA
-    # david thesis - diag + offdiag from kinect part
+    # david thesis = diag + offdiag from kinect part
     F_cart_KE_David = np.zeros((Nat, 3), dtype=complex)
     if Calculate_Kernel == True:
         # Ismail-Beigi and Louie's paper
