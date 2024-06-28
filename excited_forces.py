@@ -324,11 +324,11 @@ Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
 ik, ic, iv = index_of_max_abs_value_Akcv
 Emin_gap_dft = Edft_cond[ik, ic] - Edft_val[ik, ic]
 Emin_gap_qp = Eqp_cond[ik, ic] - Eqp_val[ik, ic]
-print(f'Highest value of Acvk for exciton {iexc}')
+print(f'\n\nHighest value of Acvk for exciton {iexc}')
 print(f'occurs at k point {Kpoints_BSE[ik][0]:4f}  {Kpoints_BSE[ik][1]:4f}  {Kpoints_BSE[ik][2]:4f}')
 print(f'At this point the gap is equal to')
-print(f'at DFT level: {Emin_gap_dft} eV')
-print(f'at GW level:  {Emin_gap_qp} eV')
+print(f'at DFT level: {Emin_gap_dft:4f} eV')
+print(f'at GW level:  {Emin_gap_qp:4f} eV\n\n')
 
 # Getting kernel info from bsemat.h5 file
 if Calculate_Kernel == True:
@@ -347,13 +347,14 @@ else:
 # limited sums of BSE coefficients
 indexes_limited_BSE_sum = []
 if limit_BSE_sum == True:
-    print('Using limited sum of BSE coefficients')
+    print('\n\nUsing limited sum of BSE coefficients. Reading transition to be used from indexes_limited_sum_BSE.dat file.')
     arq = open("indexes_limited_sum_BSE.dat")
     for line in arq:
         line_split = line.split()
         ik, ic, iv = int(line_split[0])-1, int(line_split[1])-1, int(line_split[2])-1
         indexes_limited_BSE_sum.append([ik, ic, iv])
 
+    print('Total of transition used:', len(indexes_limited_BSE_sum))
     arq.close()
 
 # Getting elph coefficients
@@ -430,8 +431,8 @@ ik, ic, iv = index_of_max_abs_value_Akcv
 der_E_gap_dr = elph_cond[:, ik, ic, ic] - elph_val[:, ik, ic, ic]
 max_der_E_gap_dr = np.max(np.abs(der_E_gap_dr))
 for imode in range(Nmodes):
-    if np.abs(der_E_gap_dr[imode]) >= max_der_E_gap_dr * 0.5:
-        print(f'mode {imode} : {der_E_gap_dr[imode]:.8f} eV/angs')
+    if np.abs(der_E_gap_dr[imode]) >= max_der_E_gap_dr * 0.8:
+        print(f'mode {imode} : {np.real(der_E_gap_dr[imode]):.6f} eV/angs')
 
 
 # report_ram()
@@ -476,7 +477,7 @@ else:
     
 ########## Calculating stuff ############
 
-print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
+print("\n\nCalculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
 
 # creating KCV list with indexes ik, ic, iv (in this order) used to vectorize future sums
 # KCV_list = []
@@ -491,6 +492,13 @@ print("Calculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>
 # aux_cond_matrix[imode, ik, ic1, ic2] = elph_cond[imode, ik, ic1, ic2] * deltaEqp / deltaEdft (if ic1 != ic2)
 # aux_val_matrix[imode, ik, iv1, iv2]  = elph_val[imode, ik, iv1, iv2]  * deltaEqp / deltaEdft (if iv1 != iv2)
 # If ic1 == ic2 (iv1 == iv2), then the matrix elements are just the elph coefficients"""
+if no_renorm_elph == False:
+    print('Renormalizing ELPH coefficients') 
+    print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
+    print('and <n|dHqp|m> = <n|dHdft|m> otherwise')
+else:
+    print('Not Renormalizing ELPH coefficients. Using <n|dHqp|m> = <n|dHdft|m> for all n and m')
+
 aux_cond_matrix, aux_val_matrix = aux_matrix_elem(
     elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
 
@@ -500,85 +508,19 @@ aux_cond_matrix, aux_val_matrix = aux_matrix_elem(
 
 # instead of creating big matrix, calculate sums on the fly!
 
+print('Creating list of indexes kcv for which sums are calculated')
 args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum)
 
-Sum_DKinect_diag, Sum_DKinect_just_offdiag = [], []
 
-if run_parallel == False:
-    
-##### test - run in a "dummy" way
+print("")
+Sum_DKinect_diag, Sum_DKinect_offdiag = [], []
+for imode in range(Nmodes):
+    Sum_DKinect_diag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_diag, imode))
+    Sum_DKinect_offdiag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_offdiag, imode))        
 
-    # if __name__ == '__main__':
-    #     # from multiprocessing import Pool, cpu_count
-    #     from functools import partial
-        
-    #     # num_processes = 1 # cpu_count()
+Sum_DKinect_diag, Sum_DKinect_offdiag = np.array(Sum_DKinect_diag), np.array(Sum_DKinect_offdiag)
 
-    #     print('STEP 1')
-        
-    #     for imode in range(Nmodes):
-    #     # Create a partial function with fixed arguments using functools.partial
-    #         partial_func = partial(calc_Dkinect_matrix_elem, Akcv=Akcv, Bkcv=Bkcv, aux_cond_matrix=aux_cond_matrix, aux_val_matrix=aux_val_matrix, imode=imode)
-
-    #         print('STEP 3')
-    #         # Create a Pool object for parallel processing
-    #         with Pool(processes=num_processes) as pool:
-    #             # Use pool.map to apply the partial function to the args_list in parallel
-    #             results_just_diag = pool.map(partial_func, args_list_just_diag)
-    #             results_just_offdiag = pool.map(partial_func, args_list_just_offdiag)
-                
-    #         print('STEP 4')
-    #         # Compute the sum of the results
-    #         Sum_DKinect_diag.append(np.sum(np.array(results_just_diag)))
-    #         Sum_DKinect_just_offdiag.append(np.sum(np.array(results_just_offdiag)))
-        
-
-    Sum_DKinect_diag, Sum_DKinect = [], []
-    for imode in range(Nmodes):
-        Sum_DKinect_diag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_diag, imode))
-        Sum_DKinect.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_offdiag, imode))        
-    Sum_DKinect_diag, Sum_DKinect = np.array(Sum_DKinect_diag), np.array(Sum_DKinect)
-
-else:
-    if __name__ == '__main__':
-        # import multiprocessing
-        
-        Sum_DKinect_diag, Sum_DKinect = [], []
-        for imode in range(Nmodes):
-            Sum_DKinect_diag.append(calc_Dkinect_matrix_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_diag, imode))
-            Sum_DKinect.append(calc_Dkinect_matrix_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_offdiag, imode))
-            
-        Sum_DKinect_diag, Sum_DKinect = np.array(Sum_DKinect_diag), np.array(Sum_DKinect)
-
-    
-# if TESTES_DEV == True:
-#     Sum_DKinect_diag_test, Sum_DKinect_test = calc_Dkinect_matrix_ver2_master(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params, KCV_list, run_parallel)
-    
-# print(Sum_DKinect_diag, type(Sum_DKinect_diag))
-
-# arq_f_disp = open('forces_vs_displacement.dat', 'w')
-# arq_f_disp.write('########## Forces in (eV/A) ################\n')
-# arq_f_disp.write('# disp_pattern F_diag F_diag_offdiag\n')
-
-# for imode in range(Nmodes):
-
-#     sum_temp = 0.0 + 0.0j
-#     for ik in range(Nkpoints_BSE):
-#         for ic in range(Ncbnds):
-#             for iv in range(Nvbnds):
-#                 sum_temp += DKinect[imode, ik, ic, iv, ik, ic, iv]
-
-#     Sum_DKinect_diag[imode] = sum_temp
-
-#     # sum of off-diagonal part + sum of diagonal part
-#     Sum_DKinect[imode] = np.sum(DKinect[imode])
-
-#     arq_f_disp.write(
-#         f'{imode+1}   {Sum_DKinect_diag[imode]}    {Sum_DKinect[imode] }\n')
-
-
-# arq_f_disp.close()
-
+# dont need aux_cond_matrix, aux_val_matrix anymores
 del aux_cond_matrix, aux_val_matrix
 
 # Kernel derivatives
@@ -590,11 +532,9 @@ if Calculate_Kernel == True:
 
     DKernel = calc_deriv_Kernel((Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_params)
 
+    # dont need the kernel matrix anymore
     del Kx, Kd
-
-print("Calculating sums")
-
-if Calculate_Kernel == True:
+    
     Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)
 
     for imode in range(Nmodes):
@@ -604,8 +544,8 @@ report_ram()
 
 # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 
-Sum_DKinect_diag = -Sum_DKinect_diag*Ry2eV/bohr2A
-Sum_DKinect      = -Sum_DKinect*Ry2eV/bohr2A
+Sum_DKinect_diag    = -Sum_DKinect_diag*Ry2eV/bohr2A
+Sum_DKinect_offdiag = -Sum_DKinect_offdiag*Ry2eV/bohr2A
 
 if Calculate_Kernel == True:
     Sum_DKernel = -Sum_DKernel*Ry2eV/bohr2A
@@ -615,8 +555,8 @@ if Calculate_Kernel == True:
 if max(abs(np.imag(Sum_DKinect_diag))) >= 1e-6:
     print('WARNING: Imaginary part of kinectic diagonal forces >= 10^-6 eV/angs!')
 
-if max(abs(np.imag(Sum_DKinect))) >= 1e-6:
-    print('WARNING: Imaginary part of kinectic forces >= 10^-6 eV/angs!')
+if max(abs(np.imag(Sum_DKinect_offdiag))) >= 1e-6:
+    print('WARNING: Imaginary part of kinectic offdiagonal forces >= 10^-6 eV/angs!')
 
 if Calculate_Kernel == True:
     if max(abs(np.imag(Sum_DKernel))) >= 1e-6:
@@ -627,7 +567,7 @@ if Calculate_Kernel == True:
                                                                                                                                                                                                                                                                                                                                     
 if show_imag_part == False:
     Sum_DKinect_diag = np.real(Sum_DKinect_diag)
-    Sum_DKinect = np.real(Sum_DKinect)
+    Sum_DKinect_offdiag = np.real(Sum_DKinect_offdiag)
 
     if Calculate_Kernel == True:
         Sum_DKernel = np.real(Sum_DKernel)
@@ -654,15 +594,11 @@ else:
 
 for iatom in range(Nat):
     for imode in range(Nmodes):
-        F_cart_KE_IBL[iatom] += Displacements[imode,
-                                              iatom] * Sum_DKinect_diag[imode]
-        F_cart_KE_David[iatom] += Displacements[imode,
-                                                iatom] * Sum_DKinect[imode]
+        F_cart_KE_IBL[iatom]   += Displacements[imode,iatom] * Sum_DKinect_diag[imode]
+        F_cart_KE_David[iatom] += Displacements[imode,iatom] * (Sum_DKinect_offdiag[imode] + Sum_DKinect_diag[imode])
 
-        if Calculate_Kernel == True:
-            F_cart_Kernel_IBL[iatom] = F_cart_Kernel_IBL[iatom] + Displacements[imode,
-                                                                                iatom] * (Sum_DKernel[imode] + Sum_DKinect_diag[imode])
-
+        if Calculate_Kernel == True: 
+            F_cart_Kernel_IBL[iatom] = F_cart_Kernel_IBL[iatom] + Displacements[imode,iatom] * (Sum_DKernel[imode] + Sum_DKinect_diag[imode])
             # need to make x = x + y, instead of x += y because numpy complains that x+=y does not work when type(x)=!type(y) (one is complex and the other is real - float)
 
 
@@ -673,21 +609,24 @@ arq_out = open('forces_cart.out', 'w')
 
 print('\n\nForces (eV/ang)\n')
 
-if Calculate_Kernel == True:
-    print('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel')
-    arq_out.write('# Atom  dir  RPA_diag RPA_diag_offiag RPA_diag_Kernel \n')
+if Calculate_Kernel:
+    header = '# Atom  dir  RPA_diag        RPA_diag_offiag RPA_diag_Kernel'
+    print(header)
+    arq_out.write(header + '\n')
 else:
-    print('# Atom  dir  RPA_diag RPA_diag_offiag ')
-    arq_out.write('# Atom  dir  RPA_diag RPA_diag_offiag \n')
+    header = '# Atom  dir  RPA_diag        RPA_diag_offiag'
+    print(header)
+    arq_out.write(header + '\n')
 
 for iatom in range(Nat):
     for idir in range(3):
-        text = f'{iatom+1}  {DIRECTION[idir]}  {F_cart_KE_IBL[iatom, idir]:.8f}  {F_cart_KE_David[iatom, idir]:.8f}'
-        if Calculate_Kernel == True:
-            text += f'  {F_cart_Kernel_IBL[iatom, idir]:.8f} '
-
+        if Calculate_Kernel:
+            text = f'{iatom+1:<5} {DIRECTION[idir]:<5} {F_cart_KE_IBL[iatom, idir]:<15.8f} {F_cart_KE_David[iatom, idir]:<15.8f} {F_cart_Kernel_IBL[iatom, idir]:<15.8f}'
+        else:
+            text = f'{iatom+1:<5} {DIRECTION[idir]:<5} {F_cart_KE_IBL[iatom, idir]:<15.8f} {F_cart_KE_David[iatom, idir]:<15.8f}'
+        
         print(text)
-        arq_out.write(text+'\n')
+        arq_out.write(text + '\n')
 
 arq_out.close()
 

@@ -374,7 +374,7 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
         print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
 
     else:
-        print('\nNot applying acoustic sum rule')
+        print('\nNot applying acoustic sum rule. In the end check the force on the system center of mass.')
 
     return elph
 
