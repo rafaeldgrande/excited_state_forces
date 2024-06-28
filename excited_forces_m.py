@@ -487,6 +487,7 @@ def calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, 
     counter_now = 0
     total_iterations = len(args_list)
     when_function_started = datetime.now()
+    step_report = step_report(total_iterations)
     
     for arg in args_list:
         ik, ic1, ic2, iv1, iv2 = arg
