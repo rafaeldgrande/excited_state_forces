@@ -1,10 +1,9 @@
 
 
-# standard values   
-# TODO: make the code read a configuration file
+# standard values
 file_out_QE = 'out' # output from QE with DFT forces (optional. If the code doesn't find it the DFT forces are set to null)
 
-excited_state_forces_file = 'forces_cart.out-1' #  excited state forces file
+excited_state_forces_file = 'forces_cart.out' #  excited state forces file
 flavor = 2
 
 do_not_move_CM = True

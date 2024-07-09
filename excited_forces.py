@@ -296,6 +296,9 @@ start_time = time.clock_gettime(0)
 # Reading eigenvecs.h5 file
 get_BSE_MF_params()
 
+# getting info from eqp.dat (from absorption calculation)
+Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
+
 # Getting exciton info
 if read_Acvk_pos == False:
     Akcv, OmegaA = get_exciton_info(exciton_file, iexc)
@@ -311,24 +314,17 @@ else:
     else:
         Bkcv, OmegaB = Akcv, OmegaA
 
-# Printing relevant information for this exciton
-index_of_max_abs_value_Akcv = summarize_Acvk(Akcv, BSE_params)
-if iexc != jexc:
-    index_of_max_abs_value_Bkcv = summarize_Acvk(Bkcv, BSE_params)
 
-# getting info from eqp.dat (from absorption calculation)
-Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
-
-# summarize transition energies and derivatives of (Ec-Ev)
-# index_of_max_abs_value_Akcv
-ik, ic, iv = index_of_max_abs_value_Akcv
-Emin_gap_dft = Edft_cond[ik, ic] - Edft_val[ik, ic]
-Emin_gap_qp = Eqp_cond[ik, ic] - Eqp_val[ik, ic]
-print(f'\n\nHighest value of Acvk for exciton {iexc}')
-print(f'occurs at k point {Kpoints_BSE[ik][0]:4f}  {Kpoints_BSE[ik][1]:4f}  {Kpoints_BSE[ik][2]:4f}')
-print(f'At this point the gap is equal to')
-print(f'at DFT level: {Emin_gap_dft:4f} eV')
-print(f'at GW level:  {Emin_gap_qp:4f} eV\n\n')
+# # summarize transition energies and derivatives of (Ec-Ev)
+# # index_of_max_abs_value_Akcv
+# ik, ic, iv = index_of_max_abs_value_Akcv
+# Emin_gap_dft = Edft_cond[ik, ic] - Edft_val[ik, ic]
+# Emin_gap_qp = Eqp_cond[ik, ic] - Eqp_val[ik, ic]
+# print(f'\n\nHighest value of Acvk for exciton {iexc}')
+# print(f'occurs at k point {Kpoints_BSE[ik][0]:4f}  {Kpoints_BSE[ik][1]:4f}  {Kpoints_BSE[ik][2]:4f}')
+# print(f'At this point the gap is equal to:')
+# print(f'at DFT level: {Emin_gap_dft:4f} eV')
+# print(f'at GW level:  {Emin_gap_qp:4f} eV\n\n')
 
 # Getting kernel info from bsemat.h5 file
 if Calculate_Kernel == True:
@@ -356,6 +352,67 @@ if limit_BSE_sum == True:
 
     print('Total of transition used:', len(indexes_limited_BSE_sum))
     arq.close()
+
+
+if limit_BSE_sum_up_to_value < 1.0:
+    top_indexes_Akcv = summarize_Acvk(Akcv, BSE_params, limit_BSE_sum_up_to_value)
+    if iexc != jexc:
+        top_indexes_Bkcv = summarize_Acvk(Bkcv, BSE_params, limit_BSE_sum_up_to_value)
+
+        # Convert lists of lists to sets of tuples
+        set_A = set(tuple(item) for item in top_indexes_Akcv)
+        set_B = set(tuple(item) for item in top_indexes_Bkcv)
+
+        # Merge the sets to eliminate duplicates
+        merged_set = set_A | set_B  # or set_A.union(set_B)
+
+        # Convert the set back to a list of lists
+        indexes_limited_BSE_sum = [list(item) for item in merged_set]
+        
+    else:
+        indexes_limited_BSE_sum = top_indexes_Akcv
+
+# summarizing Akcv information
+
+def top_n_indexes(array, N):
+    # Flatten the array
+    flat_array = array.flatten()
+    
+    # Get the indexes of the top N values in the flattened array
+    flat_indexes = np.argpartition(flat_array, -N)[-N:]
+    
+    # Sort these indexes by the values they point to, in descending order
+    sorted_indexes = flat_indexes[np.argsort(-flat_array[flat_indexes])]
+    
+    # Convert the 1D indexes back to 3D indexes
+    top_indexes = np.unravel_index(sorted_indexes, array.shape)
+    
+    # Combine the indexes into a list of tuples
+    top_indexes = list(zip(*top_indexes))
+    
+    return top_indexes
+
+
+if len(indexes_limited_BSE_sum) > 0:
+    top_indexes = indexes_limited_BSE_sum
+else:
+    top_n_indexes(np.abs(Akcv), 10)
+    
+
+print('###############################################')
+print('Showing most relevant coeffs for this exciton')
+print('kx        ky        kz        ic   iv   abs(Acvk)^2')
+for index_Acvk in top_indexes:
+    ik, ic, iv = index_Acvk
+    A = Akcv[index_Acvk]
+    kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
+    print(f'{kx:8.4f}  {ky:8.4f}  {kz:8.4f}  {ic+1:<3} {iv+1:<3} {abs(A)**2:10.4f}')    
+print('###############################################')    
+
+
+
+
+
 
 # Getting elph coefficients
 

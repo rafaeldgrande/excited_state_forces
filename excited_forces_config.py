@@ -113,6 +113,12 @@ dfpt_irreps_list = []
 # this is useful when one know a priori which transitions are the most relevant
 limit_BSE_sum = False
 
+# Number between 0.0 and 1.0
+# set the coefficients ic, iv and ik for which sum |A_cvk|^2 <= limit_BSE_sum_up_to_value
+# if it is equal to 0, then all coefficients are used
+# if it is different than 0, than make limit_BSE_sum = False, and ignore indexes_limited_sum_BSE.dat file
+limit_BSE_sum_up_to_value = 1.0
+
 def true_or_false(text, default_value):
     if text.lower() == 'true':
         return True
@@ -148,7 +154,7 @@ def read_input(input_file):
     global run_parallel
     global use_Acvk_single_transition
     global dfpt_irreps_list
-    global limit_BSE_sum
+    global limit_BSE_sum, limit_BSE_sum_up_to_value
 
     try:
         arq_in = open(input_file)
@@ -194,6 +200,8 @@ def read_input(input_file):
                     nvbands_co = int(linha[1])
                 elif linha[0] == 'nkpnts_co':
                     nkpnts_co = int(linha[1])
+                elif linha[0] == 'limit_BSE_sum_up_to_value':
+                    limit_BSE_sum_up_to_value = float(linha[1])
                     
                 ######### conditionals #############################
 
@@ -240,6 +248,7 @@ def read_input(input_file):
                         dfpt_irreps_list.append(int(linha[i]))
                 elif linha[0] == 'limit_BSE_sum':
                     limit_BSE_sum = true_or_false(linha[1], limit_BSE_sum)
+
                 
 ########## did not recognize this line #############
 
@@ -286,5 +295,10 @@ if local_fields == True and spin_triplet == True:
     print('Making local_fields = False and spin_triplet = False')
     local_fields = False
     spin_triplet = False
+    
+if limit_BSE_sum_up_to_value < 1.0:
+    if limit_BSE_sum == True:
+        print('Warning! limit_BSE_sum_up_to_value < 1.0 and limit_BSE_sum = True. Setting limit_BSE_sum = False')
+        limit_BSE_sum = False
 
 print('\n-------------------------------------------------------------\n\n')
