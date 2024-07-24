@@ -581,12 +581,12 @@ Sum_DKinect_diag, Sum_DKinect_offdiag = [], []
 
 print('\n\nCalculating diagonal matrix elements <kcv|dH/dx_mu|kcv>')
 for imode in range(Nmodes):
-    print(f"Calculating mode {imode} of {Nmodes}")
+    print(f"Calculating mode {imode + 1} of {Nmodes}")
     Sum_DKinect_diag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_diag, imode))
    
 print("\n\nCalculating off-diagonal matrix elements <kcv|dH/dx_mu|kc'v'>") 
 for imode in range(Nmodes):
-    print(f"Calculating mode {imode} of {Nmodes}")
+    print(f"Calculating mode {imode + 1} of {Nmodes}")
     Sum_DKinect_offdiag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_offdiag, imode))        
 
 Sum_DKinect_diag, Sum_DKinect_offdiag = np.array(Sum_DKinect_diag), np.array(Sum_DKinect_offdiag)

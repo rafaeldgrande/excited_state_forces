@@ -773,6 +773,6 @@ def report_iterations(counter_now, total_iterations, step_report, when_function_
         delta_T_remain = (total_iterations - counter_now) / counter_now * delta_T
         
         # Format and print the report
-        print(f'{counter_now:8} of {total_iterations:8} calculated | '
+        print(f'Transitions {counter_now:8} of {total_iterations:8} calculated | '
               f'{round(100 * counter_now / total_iterations, 1):5.1f} % | '
               f'elapsed {round(delta_T, 1):10.1f} s, remaining {round(delta_T_remain, 1):10.1f} s')
