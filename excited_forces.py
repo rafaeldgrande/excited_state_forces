@@ -2,6 +2,10 @@
 TESTES_DEV = False
 verbosity = 'high'
 
+# TODO oranize the code!
+# TODO format prints from forces calculations!
+# TODO in the beging say how many calculation wil done and how much I would have done if used every thing,
+
 run_parallel = False
 if run_parallel == True:
     from multiprocessing import Pool
@@ -401,12 +405,14 @@ else:
 
 print('###############################################')
 print('Showing most relevant coeffs for this exciton')
-print('kx        ky        kz        ic   iv   abs(Acvk)^2')
+print('kx        ky        kz        ic   iv   abs(Acvk)^2  partial_sum(abs(Acvk)^2)')
+partial_sum = 0
 for index_Acvk in top_indexes:
     ik, ic, iv = index_Acvk
     A = Akcv[index_Acvk]
+    partial_sum += abs(A)**2
     kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
-    print(f'{kx:8.4f}  {ky:8.4f}  {kz:8.4f}  {ic+1:<3} {iv+1:<3} {abs(A)**2:10.4f}')    
+    print(f'{kx:8.4f}  {ky:8.4f}  {kz:8.4f}  {ic+1:<3} {iv+1:<3} {abs(A)**2:10.4f}   {partial_sum:10.4f}')    
 print('###############################################')    
 
 
@@ -471,26 +477,26 @@ ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
 
 # use modified Acvk
 
-if use_Acvk_single_transition == True:
-    print('WARNING! use_Acvk_single_transition flag is True')
-    print('We are making new_Acvk = delta(c0v0k0,c0v0k0), where c0v0k0 is the transition where Acvk is maximum')
-    ik, ic, iv = index_of_max_abs_value_Akcv
-    Akcv = np.zeros(Akcv.shape, dtype=complex)
-    Akcv[ik, ic, iv] = 1.0 + 0.0j
-    if iexc != jexc:
-        Bkcv = np.zeros(Akcv.shape, dtype=complex)
-        Bkcv[ik, ic, iv] = 1.0 + 0.0j     
+# if use_Acvk_single_transition == True:
+#     print('WARNING! use_Acvk_single_transition flag is True')
+#     print('We are making new_Acvk = delta(c0v0k0,c0v0k0), where c0v0k0 is the transition where Acvk is maximum')
+#     ik, ic, iv = index_of_max_abs_value_Akcv
+#     Akcv = np.zeros(Akcv.shape, dtype=complex)
+#     Akcv[ik, ic, iv] = 1.0 + 0.0j
+#     if iexc != jexc:
+#         Bkcv = np.zeros(Akcv.shape, dtype=complex)
+#         Bkcv[ik, ic, iv] = 1.0 + 0.0j     
 
 
 
 print('Derivatives (g_cc - g_vv) for Emin gap for different modes. Printing more relevant ones.')
 # this diagonal matrix element is the same at qp and dft levels in our approximation 
-ik, ic, iv = index_of_max_abs_value_Akcv
-der_E_gap_dr = elph_cond[:, ik, ic, ic] - elph_val[:, ik, ic, ic]
-max_der_E_gap_dr = np.max(np.abs(der_E_gap_dr))
-for imode in range(Nmodes):
-    if np.abs(der_E_gap_dr[imode]) >= max_der_E_gap_dr * 0.8:
-        print(f'mode {imode} : {np.real(der_E_gap_dr[imode]):.6f} eV/angs')
+# ik, ic, iv = index_of_max_abs_value_Akcv
+# der_E_gap_dr = elph_cond[:, ik, ic, ic] - elph_val[:, ik, ic, ic]
+# max_der_E_gap_dr = np.max(np.abs(der_E_gap_dr))
+# for imode in range(Nmodes):
+#     if np.abs(der_E_gap_dr[imode]) >= max_der_E_gap_dr * 0.8:
+#         print(f'mode {imode} : {np.real(der_E_gap_dr[imode]):.6f} eV/angs')
 
 
 # report_ram()

@@ -429,10 +429,13 @@ def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum):
     Nkpoints = BSE_params.Nkpoints_BSE
     Ncbnds_sum = BSE_params.Ncbnds_sum
     Nvbnds_sum = BSE_params.Nvbnds_sum
+    Nc = BSE_params.Nc
+    Nv = BSE_params.Nv
     
     args_list_just_offdiag = []
     
-    if limit_BSE_sum == False:
+    if len(indexes_limited_BSE_sum) == 0:
+        print("Not limiting sum over KCV indexes")
         args_list_just_diag = [(ik, ic1, ic1, iv1, iv1) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum)]
 
         if just_RPA_diag == False:
@@ -454,6 +457,7 @@ def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum):
                             args_list_just_offdiag.append((ik, ic1, ic2, iv1, iv2))
 
     else:
+        print("Limiting sum over KCV indexes")
         args_list_just_diag = []
         
         # building diagonal terms
@@ -476,7 +480,12 @@ def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum):
                         ik2, ic2, iv2 = indexes_limited_BSE_sum[icvk_index2]
                         if ik1 == ik2:
                             args_list_just_offdiag.append((ik1, ic1, ic2, iv1, iv2))
-                        
+    
+    Ntransitions = Nkpoints*Nc*Nv
+    print("Original number of diagonal matrix elements ", Ntransitions)
+    print("Original number of off-diagonal matrix elements ", Ntransitions*(Ntransitions-1)/2)
+    print("Number of diagonal matrix elements (kcv -> kcv) to be calculated = ", len(args_list_just_diag))
+    print("Number of off-diagonal matrix elements (kcv -> kc'v') to be calculated = ", len(args_list_just_offdiag))
     return args_list_just_diag, args_list_just_offdiag
 
 
@@ -713,10 +722,6 @@ def calc_Dkinect_matrix_RPA_just_offdiag(imode, Nkpoints, Ncbnds_sum, Nvbnds_sum
     return np.sum(temp_imode_just_diag)
 
 
-
-
-
-
 def calc_Dkinect_matrix_elem_wrapper(args):
     return calc_Dkinect_matrix_elem(*args)
 
@@ -748,11 +753,12 @@ def calc_Dkinect_matrix_just_RPA_para_ver(imode, Nkpoints, Ncbnds_sum, Nvbnds_su
 def step_report(total_iterations):
     
     return max(int(total_iterations / 20) - 1, 1)
-
+ 
 def report_iterations(counter_now, total_iterations, step_report, when_function_started):
+    '''
+    This function reports in iterations and estimates how much time
+    to finish some loop.
     
-    ''' This function reports in iterarations and estimates how much time
-    to finish some loop
     counter_now: current iteration
     total_iterations: total number of iterations
     step_report: number of iterations between each report 
@@ -760,10 +766,13 @@ def report_iterations(counter_now, total_iterations, step_report, when_function_
     '''
     
     if counter_now % step_report == 0 or counter_now == 10 or counter_now == 10000:
-        
-        # how much time in seconds
+        # Calculate elapsed time in seconds
         delta_T = (datetime.now() - when_function_started).total_seconds()
-        # print(delta_T) 
-        delta_T_remain = (total_iterations - counter_now) / counter_now * delta_T      
         
-        print(f'{counter_now} of {total_iterations} calculated | {round(100*counter_now/total_iterations, 1)} % | elapsed {round(delta_T, 1)} s, remaining {round(delta_T_remain, 1)} s')
+        # Estimate remaining time
+        delta_T_remain = (total_iterations - counter_now) / counter_now * delta_T
+        
+        # Format and print the report
+        print(f'{counter_now:8} of {total_iterations:8} calculated | '
+              f'{round(100 * counter_now / total_iterations, 1):5.1f} % | '
+              f'elapsed {round(delta_T, 1):10.1f} s, remaining {round(delta_T_remain, 1):10.1f} s')
