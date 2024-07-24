@@ -429,8 +429,8 @@ def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum):
     Nkpoints = BSE_params.Nkpoints_BSE
     Ncbnds_sum = BSE_params.Ncbnds_sum
     Nvbnds_sum = BSE_params.Nvbnds_sum
-    Nc = BSE_params.Nc
-    Nv = BSE_params.Nv
+    Nc = BSE_params.Ncbnds
+    Nv = BSE_params.Nvbnds
     
     args_list_just_offdiag = []
     
