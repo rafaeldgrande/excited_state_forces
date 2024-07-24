@@ -164,6 +164,8 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
     aux_val_matrix[imode, ik, iv1, iv2]  = elph_val[imode, ik, iv1, iv2]  * deltaEqp / deltaEdft (if iv1 != iv2)
     If deltaEdft == 0, then the matrix elements are just the elph coefficients"""
 
+    now_this_func = datetime.now()
+    
     Nmodes = MF_params.Nmodes
     Nkpoints = BSE_params.Nkpoints_BSE
     Ncbnds_sum = BSE_params.Ncbnds_sum
@@ -174,6 +176,10 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
 
     Shape_val = (Nmodes, Nkpoints, Nvbnds_sum, Nvbnds_sum)
     aux_val_matrix = np.zeros(Shape_val, dtype=np.complex64)
+    
+    total_iterations = Nmodes*Nkpoints
+    interval_report = step_report(total_iterations)
+    counter = 0
 
     for imode in range(Nmodes):
         for ik in range(Nkpoints):
@@ -220,8 +226,12 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
                                 aux_val_matrix[imode, ik, iv1, iv2] = elph
                             else:
                                 aux_val_matrix[imode, ik, iv1, iv2] = elph * deltaEqp / deltaEdft
+                                
             else:
                 print(f'Kpoint {ik} not found. Skipping the calculation for this k point')
+                
+            counter += 1
+            report_iterations(counter, total_iterations, interval_report, now_this_func)
 
     return aux_cond_matrix, aux_val_matrix
 
@@ -752,7 +762,7 @@ def calc_Dkinect_matrix_just_RPA_para_ver(imode, Nkpoints, Ncbnds_sum, Nvbnds_su
 
 def step_report(total_iterations):
     
-    return max(int(total_iterations / 20) - 1, 1)
+    return max(int(total_iterations / 40) - 1, 1)
  
 def report_iterations(counter_now, total_iterations, step_report, when_function_started):
     '''
