@@ -762,7 +762,7 @@ def calc_Dkinect_matrix_just_RPA_para_ver(imode, Nkpoints, Ncbnds_sum, Nvbnds_su
 
 def step_report(total_iterations):
     
-    return max(int(total_iterations / 40) - 1, 1)
+    return max(int(total_iterations / 10) - 1, 1)
  
 def report_iterations(counter_now, total_iterations, step_report, when_function_started):
     '''

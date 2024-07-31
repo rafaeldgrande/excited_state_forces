@@ -474,7 +474,7 @@ for i_eigvec in range(len(eigenvectors)):
         temp_disp_eigvecs = forces_eigvecs_basis[i_eigvec] / eigenvalues[i_eigvec]
         disp_eigvecs_basis[i_eigvec] = min(abs(temp_disp_eigvecs), abs(limit_disp_eigvec_basis)) * np.sign(temp_disp_eigvecs)
         if abs(temp_disp_eigvecs) >= abs(limit_disp_eigvec_basis):
-            print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is larger than limit {limit_disp_eigvec_basis} angstroms! Making displacement for this component equal to {limit_disp_eigvec_basis} angstroms")
+            print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is {abs(temp_disp_eigvecs):.5f} angstoms, larger than limit {limit_disp_eigvec_basis:.5f} angstroms! Making displacement for this component equal to {limit_disp_eigvec_basis} angstroms")
         if eigenvalues[i_eigvec] < 0:
             if avoid_saddle_points == True:
                 print('WARNING: Some eigenvalues are negative. Making the correspondent displacement component go in the opposite direction.')
