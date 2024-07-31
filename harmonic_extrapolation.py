@@ -16,6 +16,7 @@ atoms_file = 'atoms' # file with atomic species and their masses in a.u.. The fo
 
 limit_disp_eigvec_basis = 0.5
 avoid_saddle_points = True
+limit_disp_neg_freq = 0.0
 exciton_per_unit_cell = 1
 minimize_just_excited_state = False
 
@@ -34,6 +35,7 @@ def read_input(input_file):
     global do_not_move_CM, eigvecs_file, atoms_file
     global limit_disp_eigvec_basis, avoid_saddle_points
     global exciton_per_unit_cell, minimize_just_excited_state
+    global limit_disp_neg_freq
 
     try:
         arq_in = open(input_file)
@@ -68,6 +70,8 @@ def read_input(input_file):
                     exciton_per_unit_cell = float(linha[1])
                 elif linha[0] == 'minimize_just_excited_state':
                     minimize_just_excited_state = true_or_false(linha[1], minimize_just_excited_state)
+                elif linha[0] == "limit_disp_neg_freq":
+                    limit_disp_neg_freq = float(linha[1])
 
     arq_in.close()
 
@@ -472,13 +476,18 @@ disp_eigvecs_basis = np.zeros((f_tot.shape))
 for i_eigvec in range(len(eigenvectors)):
     if abs(eigenvalues[i_eigvec]) > zero_tol:
         temp_disp_eigvecs = forces_eigvecs_basis[i_eigvec] / eigenvalues[i_eigvec]
-        disp_eigvecs_basis[i_eigvec] = min(abs(temp_disp_eigvecs), abs(limit_disp_eigvec_basis)) * np.sign(temp_disp_eigvecs)
+
         if abs(temp_disp_eigvecs) >= abs(limit_disp_eigvec_basis):
             print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is {abs(temp_disp_eigvecs):.5f} angstoms, larger than limit {limit_disp_eigvec_basis:.5f} angstroms! Making displacement for this component equal to {limit_disp_eigvec_basis} angstroms")
+            disp_eigvecs_basis[i_eigvec] = limit_disp_eigvec_basis * np.sign(temp_disp_eigvecs)
+
         if eigenvalues[i_eigvec] < 0:
             if avoid_saddle_points == True:
                 print('WARNING: Some eigenvalues are negative. Making the correspondent displacement component go in the opposite direction.')
-                disp_eigvecs_basis[i_eigvec] = -disp_eigvecs_basis[i_eigvec]
+                if abs(temp_disp_eigvecs) >= abs(limit_disp_neg_freq):
+                    print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is {abs(temp_disp_eigvecs):.5f} angstoms, larger than limit {limit_disp_neg_freq:.5f} angstroms! Making displacement for this component equal to {limit_disp_eigvec_basis} angstroms")   
+                else:
+                    disp_eigvecs_basis[i_eigvec] = -disp_eigvecs_basis[i_eigvec]
                 
 
 # now we calculate the displacements in cartesian basis
