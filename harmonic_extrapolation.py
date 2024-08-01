@@ -477,10 +477,6 @@ for i_eigvec in range(len(eigenvectors)):
     if abs(eigenvalues[i_eigvec]) > zero_tol:
         temp_disp_eigvecs = forces_eigvecs_basis[i_eigvec] / eigenvalues[i_eigvec]
 
-        if abs(temp_disp_eigvecs) >= abs(limit_disp_eigvec_basis):
-            print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is {abs(temp_disp_eigvecs):.5f} angstoms, larger than limit {limit_disp_eigvec_basis:.5f} angstroms! Making displacement for this component equal to {limit_disp_eigvec_basis} angstroms")
-            disp_eigvecs_basis[i_eigvec] = limit_disp_eigvec_basis * np.sign(temp_disp_eigvecs)
-
         if eigenvalues[i_eigvec] < 0:
             if avoid_saddle_points == True:
                 print('WARNING: Some eigenvalues are negative. Making the correspondent displacement component go in the opposite direction.')
@@ -489,6 +485,13 @@ for i_eigvec in range(len(eigenvectors)):
                     disp_eigvecs_basis[i_eigvec] = - abs(limit_disp_neg_freq) * np.sign(temp_disp_eigvecs)
                 else:
                     disp_eigvecs_basis[i_eigvec] = -disp_eigvecs_basis[i_eigvec]
+                    
+        else:
+            if abs(temp_disp_eigvecs) >= abs(limit_disp_eigvec_basis):
+                print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is {abs(temp_disp_eigvecs):.5f} angstoms, larger than limit {limit_disp_eigvec_basis:.5f} angstroms! Making displacement for this component equal to {limit_disp_eigvec_basis} angstroms")
+                disp_eigvecs_basis[i_eigvec] = limit_disp_eigvec_basis * np.sign(temp_disp_eigvecs)
+            else: 
+                disp_eigvecs_basis[i_eigvec] = temp_disp_eigvecs
                 
 
 # now we calculate the displacements in cartesian basis
