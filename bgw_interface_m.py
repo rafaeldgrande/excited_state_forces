@@ -278,11 +278,12 @@ def get_params_from_eigenvecs_file(exciton_file):
     to include occupations.'''
 
     ifmax_list = f_hdf5['/mf_header/kpoints/ifmax'][()][0] # ignoring spin degree of freedom!
+    # print("!!!!!", ifmax_list.shape)
     
     ifmax_values = []
-    for ik in range(Nkpoints):
-        if ifmax_values.count(ifmax_list[ik]) == 0:
-            ifmax_values.append(ifmax_list[ik])
+    for ival in range(ifmax_list.shape[0]):
+        if ifmax_values.count(ifmax_list[ival]) == 0:
+            ifmax_values.append(ifmax_list[ival])
     
     Nval = min(ifmax_values)
 

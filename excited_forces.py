@@ -400,7 +400,7 @@ def top_n_indexes(array, N):
 if len(indexes_limited_BSE_sum) > 0:
     top_indexes = indexes_limited_BSE_sum
 else:
-    top_n_indexes(np.abs(Akcv), 10)
+    top_indexes = top_n_indexes(np.abs(Akcv), 10)
     
 
 print('###############################################')
