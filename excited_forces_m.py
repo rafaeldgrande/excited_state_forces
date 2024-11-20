@@ -497,7 +497,7 @@ def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum):
     else:
         Ntransitions_offdiag = int((Nkpoints*(Nc*Nv)**2 - Ntransitions) / 2)
     print("Original number of diagonal matrix elements ", Ntransitions)
-    print("Original number of off-diagonal matrix elements ", Ntransitions_offdiag
+    print("Original number of off-diagonal matrix elements ", Ntransitions_offdiag)
     print("Number of diagonal matrix elements (kcv -> kcv) to be calculated = ", len(args_list_just_diag))
     print("Number of off-diagonal matrix elements (kcv -> kc'v') to be calculated = ", len(args_list_just_offdiag))
     return args_list_just_diag, args_list_just_offdiag
