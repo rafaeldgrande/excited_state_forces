@@ -492,8 +492,12 @@ def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum):
                             args_list_just_offdiag.append((ik1, ic1, ic2, iv1, iv2))
     
     Ntransitions = Nkpoints*Nc*Nv
+    if use_hermicity_F == False:
+        Ntransitions_offdiag = Nkpoints*(Nc*Nv)**2 - Ntransitions
+    else:
+        Ntransitions_offdiag = int((Nkpoints*(Nc*Nv)**2 - Ntransitions) / 2)
     print("Original number of diagonal matrix elements ", Ntransitions)
-    print("Original number of off-diagonal matrix elements ", Ntransitions*(Ntransitions-1)/2)
+    print("Original number of off-diagonal matrix elements ", Ntransitions_offdiag
     print("Number of diagonal matrix elements (kcv -> kcv) to be calculated = ", len(args_list_just_diag))
     print("Number of off-diagonal matrix elements (kcv -> kc'v') to be calculated = ", len(args_list_just_offdiag))
     return args_list_just_diag, args_list_just_offdiag
