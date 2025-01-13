@@ -73,7 +73,7 @@ def read_input(input_file):
                 elif linha[0] == "limit_disp_neg_freq":
                     limit_disp_neg_freq = float(linha[1])
 
-    arq_in.close()
+        arq_in.close()
 
 
 
