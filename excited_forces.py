@@ -1,5 +1,6 @@
 
 TESTES_DEV = False
+do_vectorized_sums = True
 verbosity = 'high'
 
 # TODO oranize the code!
@@ -41,24 +42,7 @@ print('Developed by Rafael Del Grande and David Strubbe')
 print('*************************************************************\n\n')
 
 
-# Report functions
-def report_time(start_time):
-    end_time_func = time.clock_gettime(0)
-    text = f'{(end_time_func - start_time)/60:.2f} min'
-    return text
-
-
-def report_ram():
-    temp_ram = tracemalloc.get_traced_memory()[0] / 1024**2
-    max_temp_ram = tracemalloc.get_traced_memory()[1] / 1024**2
-
-    print('\n\n############### RAM REPORT #################')
-    print(f'RAM used now: {temp_ram:.2f} MB')
-    print(f'Max RAM used until now: {max_temp_ram:.2f} MB')
-    print('############################################\n\n')
-
 # Classes
-
 
 class Parameters_BSE:
 
@@ -183,28 +167,7 @@ def report_expected_energies(Akcv, Omega):
         print(f'\n    DIFF          = {DIFF:.6f} \n\n')
 
 
-def correct_comp_vector(comp):
-    # component is in alat units
-    # return the component in the interval 0 < comp < 1
-    
-    # making -1 < comp < 1
-    comp = round(comp, 6) - int(round(comp, 6))
-    if comp < 0: # making comp 0 < comp < 1
-        comp += 1
-
-    return comp
-
-
-def find_kpoint(kpoint, K_list):
-    index_in_matrix = -1
-    for index in range(len(K_list)):
-        # if np.array_equal(kpoint, K_list[index]):
-        if np.linalg.norm(kpoint - K_list[index]) <= TOL_DEG:
-            index_in_matrix = index
-    return index_in_matrix
-
-
-def translate_bse_to_dfpt_k_points():
+def translate_bse_to_dfpt_k_points(Kpoints_in_elph_file_cart):
 
     ikBSE_to_ikDFPT = []
     # This list shows which k point from BSE corresponds to which
@@ -292,6 +255,132 @@ def check_k_points_BSE_DFPT():
         else:
             print('Continuing calculation regardless of that!')
 
+def load_el_ph_coeffs():
+
+    # get elph coefficients from .xml files
+    elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list)
+
+    Nkpoints_DFPT = len(Kpoints_in_elph_file)
+
+    # change basis for k points from dfpt calculations
+    # those k points are in cartesian basis. we're changing 
+    # it to reciprocal lattice basis
+
+    mat_reclattvecs_to_cart = np.transpose(BSE_params.rec_cell_vecs)
+    mat_cart_to_reclattvecs = np.linalg.inv(mat_reclattvecs_to_cart)
+
+    Kpoints_in_elph_file_cart = []
+
+    for ik in range(Nkpoints_DFPT):
+        K_cart = mat_cart_to_reclattvecs @ Kpoints_in_elph_file[ik]
+        for icomp in range(3):
+            K_cart[icomp] = correct_comp_vector(K_cart[icomp])
+        Kpoints_in_elph_file_cart.append(K_cart)
+        
+    Kpoints_in_elph_file_cart = np.array(Kpoints_in_elph_file_cart)
+
+    if log_k_points == True:
+        arq_kpoints_log = open('Kpoints_dfpt_cart_basis', 'w')
+        for K_cart in Kpoints_in_elph_file_cart:
+            arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
+        arq_kpoints_log.close()   
+
+
+    # filter data to get just g_c1c2 and g_v1v2
+    elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
+
+    # apply acoustic sum rule over elph coefficients
+    elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
+    elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
+
+    # Let's put all k points from BSE grid in the first Brillouin zone
+    ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points(Kpoints_in_elph_file_cart)
+
+
+    # print('DELETING ELPH')
+    del elph
+    report_ram()
+    
+    return elph_cond, elph_val, Kpoints_in_elph_file_cart, ikBSE_to_ikDFPT
+
+def get_exciton_coeffs(iexc, jexc):
+    if read_Acvk_pos == False:
+        Akcv, OmegaA = get_exciton_info(exciton_file, iexc)
+        Bkcv, OmegaB = get_exciton_info(exciton_file, jexc)    
+    else:
+        Akcv, OmegaA = get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+        Bkcv, OmegaB = get_exciton_info_alternative(Acvk_directory, jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+
+            
+    # Reporting expected energies
+    if iexc != jexc:
+        print(f'Exciton {iexc}')
+        report_expected_energies(Akcv, OmegaA)
+        print(f'Exciton {jexc}')
+        report_expected_energies(Bkcv, OmegaB)
+    else:
+        print(f'Exciton {iexc}')
+        report_expected_energies(Akcv, OmegaA)
+
+    return Akcv, OmegaA, Bkcv, OmegaB
+
+def print_exciton_important_transitions():
+    print('###############################################')
+    print('Showing most relevant coeffs for this exciton')
+    print('kx        ky        kz        ic   iv   abs(Acvk)^2  partial_sum(abs(Acvk)^2)')
+    partial_sum = 0
+    for index_Acvk in top_indexes:
+        ik, ic, iv = index_Acvk
+        A = Akcv[index_Acvk]
+        partial_sum += abs(A)**2
+        kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
+        print(f'{kx:8.4f}  {ky:8.4f}  {kz:8.4f}  {ic+1:<3} {iv+1:<3} {abs(A)**2:10.4f}   {partial_sum:10.6f}')    
+    print('###############################################')    
+
+def perform_kinect_sums_with_loops():
+
+    # instead of creating big matrix, calculate sums on the fly!
+    print('Creating list of indexes kcv for which sums are calculated')
+    args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum)
+
+    print("")
+    Sum_DKinect_diag, Sum_DKinect_offdiag = [], []
+
+    print('\n\nCalculating diagonal matrix elements <kcv|dH/dx_mu|kcv>')
+    for imode in range(Nmodes):
+        print(f"Calculating mode {imode + 1} of {Nmodes}")
+        Sum_DKinect_diag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, elph_cond, elph_val, args_list_just_diag, imode))
+    
+    print("\n\nCalculating off-diagonal matrix elements <kcv|dH/dx_mu|kc'v'>") 
+    for imode in range(Nmodes):
+        print(f"Calculating mode {imode + 1} of {Nmodes}")
+        Sum_DKinect_offdiag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, elph_cond, elph_val, args_list_just_offdiag, imode))        
+
+    Sum_DKinect_diag, Sum_DKinect_offdiag = np.array(Sum_DKinect_diag), np.array(Sum_DKinect_offdiag)
+    
+    return Sum_DKinect_diag, Sum_DKinect_offdiag
+
+def perform_kernel_sums_with_loops():
+    # Kernel derivatives
+    
+    Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)
+
+    if Calculate_Kernel == True:    
+        EDFT = Edft_val, Edft_cond
+        EQP = Eqp_val, Eqp_cond
+        ELPH = elph_cond, elph_val
+
+        DKernel = calc_deriv_Kernel((Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_params)
+
+        # dont need the kernel matrix anymore
+        del Kx, Kd
+        
+        for imode in range(Nmodes):
+            Sum_DKernel[imode] = np.sum(DKernel[imode])
+
+    report_ram()
+    
+    return Sum_DKernel
 
 ########## RUNNING CODE ###################
 
@@ -301,127 +390,10 @@ start_time = time.clock_gettime(0)
 get_BSE_MF_params()
 
 # getting info from eqp.dat (from absorption calculation)
-Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
-
-# Getting exciton info
-if read_Acvk_pos == False:
-    Akcv, OmegaA = get_exciton_info(exciton_file, iexc)
-    if iexc != jexc:  
-        Bkcv, OmegaB = get_exciton_info(exciton_file, jexc)
-    else:
-        Bkcv, OmegaB = Akcv, OmegaA
-        
-else:
-    Akcv, OmegaA = get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints_BSE, Ncbnds, Nvbnds)
-    if iexc != jexc:
-        Bkcv, OmegaB = get_exciton_info_alternative(Acvk_directory, jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
-    else:
-        Bkcv, OmegaB = Akcv, OmegaA
-
-
-# # summarize transition energies and derivatives of (Ec-Ev)
-# # index_of_max_abs_value_Akcv
-# ik, ic, iv = index_of_max_abs_value_Akcv
-# Emin_gap_dft = Edft_cond[ik, ic] - Edft_val[ik, ic]
-# Emin_gap_qp = Eqp_cond[ik, ic] - Eqp_val[ik, ic]
-# print(f'\n\nHighest value of Acvk for exciton {iexc}')
-# print(f'occurs at k point {Kpoints_BSE[ik][0]:4f}  {Kpoints_BSE[ik][1]:4f}  {Kpoints_BSE[ik][2]:4f}')
-# print(f'At this point the gap is equal to:')
-# print(f'at DFT level: {Emin_gap_dft:4f} eV')
-# print(f'at GW level:  {Emin_gap_qp:4f} eV\n\n')
-
-# Getting kernel info from bsemat.h5 file
-if Calculate_Kernel == True:
-    Kd, Kx = get_kernel(kernel_file, factor_head)
-
-# Reporting expected energies
-if iexc != jexc:
-    print(f'Exciton {iexc}')
-    report_expected_energies(Akcv, OmegaA)
-    print(f'Exciton {jexc}')
-    report_expected_energies(Bkcv, OmegaB)
-else:
-    print(f'Exciton {iexc}')
-    report_expected_energies(Akcv, OmegaA)
-    
-# limited sums of BSE coefficients
-indexes_limited_BSE_sum = []
-if limit_BSE_sum == True:
-    print('\n\nUsing limited sum of BSE coefficients. Reading transition to be used from indexes_limited_sum_BSE.dat file.')
-    arq = open("indexes_limited_sum_BSE.dat")
-    for line in arq:
-        line_split = line.split()
-        ik, ic, iv = int(line_split[0])-1, int(line_split[1])-1, int(line_split[2])-1
-        indexes_limited_BSE_sum.append([ik, ic, iv])
-
-    print('Total of transition used:', len(indexes_limited_BSE_sum))
-    arq.close()
-
-
-if limit_BSE_sum_up_to_value < 1.0:
-    top_indexes_Akcv = summarize_Acvk(Akcv, BSE_params, limit_BSE_sum_up_to_value)
-    if iexc != jexc:
-        top_indexes_Bkcv = summarize_Acvk(Bkcv, BSE_params, limit_BSE_sum_up_to_value)
-
-        # Convert lists of lists to sets of tuples
-        set_A = set(tuple(item) for item in top_indexes_Akcv)
-        set_B = set(tuple(item) for item in top_indexes_Bkcv)
-
-        # Merge the sets to eliminate duplicates
-        merged_set = set_A | set_B  # or set_A.union(set_B)
-
-        # Convert the set back to a list of lists
-        indexes_limited_BSE_sum = [list(item) for item in merged_set]
-        
-    else:
-        indexes_limited_BSE_sum = top_indexes_Akcv
-
-# summarizing Akcv information
-
-def top_n_indexes(array, N):
-    # Flatten the array
-    flat_array = array.flatten()
-    
-    # Get the indexes of the top N values in the flattened array
-    flat_indexes = np.argpartition(flat_array, -N)[-N:]
-    
-    # Sort these indexes by the values they point to, in descending order
-    sorted_indexes = flat_indexes[np.argsort(-flat_array[flat_indexes])]
-    
-    # Convert the 1D indexes back to 3D indexes
-    top_indexes = np.unravel_index(sorted_indexes, array.shape)
-    
-    # Combine the indexes into a list of tuples
-    top_indexes = list(zip(*top_indexes))
-    
-    return top_indexes
-
-
-if len(indexes_limited_BSE_sum) > 0:
-    top_indexes = indexes_limited_BSE_sum
-else:
-    top_indexes = top_n_indexes(np.abs(Akcv), 10)
-    
-
-print('###############################################')
-print('Showing most relevant coeffs for this exciton')
-print('kx        ky        kz        ic   iv   abs(Acvk)^2  partial_sum(abs(Acvk)^2)')
-partial_sum = 0
-for index_Acvk in top_indexes:
-    ik, ic, iv = index_Acvk
-    A = Akcv[index_Acvk]
-    partial_sum += abs(A)**2
-    kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
-    print(f'{kx:8.4f}  {ky:8.4f}  {kz:8.4f}  {ic+1:<3} {iv+1:<3} {abs(A)**2:10.4f}   {partial_sum:10.4f}')    
-print('###############################################')    
-
-
-
-
+Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)   
 
 
 # Getting elph coefficients
-
 # get displacement patterns
 iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-zero center of mass momentum
 Displacements, Nirreps = get_displacement_patterns(iq, MF_params)
@@ -433,76 +405,22 @@ if len(dfpt_irreps_list) != 0:
     Nmodes = len(dfpt_irreps_list)
     print(f"Not using all irreps. Setting Nmodes to {Nmodes}.")
 
-# get elph coefficients from .xml files
-# if run_parallel == False:
 
-elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list)
-# else:
-#     elph, Kpoints_in_elph_file = get_el_ph_coeffs_parallel(iq, Nirreps)
-Nkpoints_DFPT = len(Kpoints_in_elph_file)
+elph_cond, elph_val, Kpoints_in_elph_file_cart, ikBSE_to_ikDFPT = load_el_ph_coeffs()
 
-# change basis for k points from dfpt calculations
-# those k points are in cartesian basis. we're changing 
-# it to reciprocal lattice basis
+renorm_matrix_cond, renorm_matrix_val = elph_renormalization_matrix(Eqp_val, Eqp_cond, Edft_val, Edft_cond, 
+                                                                    MF_params, BSE_params, ikBSE_to_ikDFPT)
 
-mat_reclattvecs_to_cart = np.transpose(BSE_params.rec_cell_vecs)
-mat_cart_to_reclattvecs = np.linalg.inv(mat_reclattvecs_to_cart)
+if no_renorm_elph == True:
+    print('Renormalizing ELPH coefficients') 
+    print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
+    print('and <n|dHqp|m> = <n|dHdft|m> otherwise')
+    for imode in range(Nmodes):
+        elph_cond[imode] = renorm_matrix_cond * elph_cond[imode]
+        elph_val[imode] = renorm_matrix_val * elph_val[imode]
+else:
+    print('Not Renormalizing ELPH coefficients. Using <n|dHqp|m> = <n|dHdft|m> for all n and m')
 
-Kpoints_in_elph_file_cart = []
-
-for ik in range(Nkpoints_DFPT):
-    K_cart = mat_cart_to_reclattvecs @ Kpoints_in_elph_file[ik]
-    for icomp in range(3):
-        K_cart[icomp] = correct_comp_vector(K_cart[icomp])
-    Kpoints_in_elph_file_cart.append(K_cart)
-    
-Kpoints_in_elph_file_cart = np.array(Kpoints_in_elph_file_cart)
-
-if log_k_points == True:
-    arq_kpoints_log = open('Kpoints_dfpt_cart_basis', 'w')
-    for K_cart in Kpoints_in_elph_file_cart:
-        arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
-    arq_kpoints_log.close()   
-
-
-# filter data to get just g_c1c2 and g_v1v2
-elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
-
-# apply acoustic sum rule over elph coefficients
-elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
-elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
-
-# Let's put all k points from BSE grid in the first Brillouin zone
-ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
-
-# use modified Acvk
-
-# if use_Acvk_single_transition == True:
-#     print('WARNING! use_Acvk_single_transition flag is True')
-#     print('We are making new_Acvk = delta(c0v0k0,c0v0k0), where c0v0k0 is the transition where Acvk is maximum')
-#     ik, ic, iv = index_of_max_abs_value_Akcv
-#     Akcv = np.zeros(Akcv.shape, dtype=complex)
-#     Akcv[ik, ic, iv] = 1.0 + 0.0j
-#     if iexc != jexc:
-#         Bkcv = np.zeros(Akcv.shape, dtype=complex)
-#         Bkcv[ik, ic, iv] = 1.0 + 0.0j     
-
-
-
-print('Derivatives (g_cc - g_vv) for Emin gap for different modes. Printing more relevant ones.')
-# this diagonal matrix element is the same at qp and dft levels in our approximation 
-# ik, ic, iv = index_of_max_abs_value_Akcv
-# der_E_gap_dr = elph_cond[:, ik, ic, ic] - elph_val[:, ik, ic, ic]
-# max_der_E_gap_dr = np.max(np.abs(der_E_gap_dr))
-# for imode in range(Nmodes):
-#     if np.abs(der_E_gap_dr[imode]) >= max_der_E_gap_dr * 0.8:
-#         print(f'mode {imode} : {np.real(der_E_gap_dr[imode]):.6f} eV/angs')
-
-
-# report_ram()
-# print('DELETING ELPH')
-del elph
-report_ram()
 
 if elph_fine_a_la_bgw == False:
     
@@ -537,89 +455,118 @@ else:
     elph_cond = elph_interpolate_bgw(elph_cond, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE, BSE_params.Ncbnds)
     elph_val  = elph_interpolate_bgw(elph_val, 'dtmat_non_bin_val', BSE_params.Nkpoints_BSE, BSE_params.Nvbnds)
 
-    
+
+# Getting exciton info
+Akcv, OmegaA, Bkcv, OmegaB = get_exciton_coeffs(iexc, jexc)
+
+# Getting kernel info from bsemat.h5 file
+if Calculate_Kernel == True:
+    Kd, Kx = get_kernel(kernel_file, factor_head)
+
+# limited sums of BSE coefficients
+indexes_limited_BSE_sum = []
+if limit_BSE_sum == True:
+    print('\n\nUsing limited sum of BSE coefficients. Reading transition to be used from indexes_limited_sum_BSE.dat file.')
+    arq = open("indexes_limited_sum_BSE.dat")
+    for line in arq:
+        line_split = line.split()
+        ik, ic, iv = int(line_split[0])-1, int(line_split[1])-1, int(line_split[2])-1
+        indexes_limited_BSE_sum.append([ik, ic, iv])
+
+    print('Total of transition used:', len(indexes_limited_BSE_sum))
+    arq.close()
+
+
+if limit_BSE_sum_up_to_value < 1.0:
+    top_indexes_Akcv = summarize_Acvk(Akcv, BSE_params, limit_BSE_sum_up_to_value)
+    if iexc != jexc:
+        top_indexes_Bkcv = summarize_Acvk(Bkcv, BSE_params, limit_BSE_sum_up_to_value)
+
+        # Convert lists of lists to sets of tuples
+        set_A = set(tuple(item) for item in top_indexes_Akcv)
+        set_B = set(tuple(item) for item in top_indexes_Bkcv)
+
+        # Merge the sets to eliminate duplicates
+        merged_set = set_A | set_B  # or set_A.union(set_B)
+
+        # Convert the set back to a list of lists
+        indexes_limited_BSE_sum = [list(item) for item in merged_set]
+        
+    else:
+        indexes_limited_BSE_sum = top_indexes_Akcv
+
+# summarizing Akcv information
+if len(indexes_limited_BSE_sum) > 0:
+    top_indexes = indexes_limited_BSE_sum
+else:
+    top_indexes = top_n_indexes(np.abs(Akcv), 10)
+
+print_exciton_important_transitions()
     
 ########## Calculating stuff ############
 
-print("\n\nCalculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
-
-# creating KCV list with indexes ik, ic, iv (in this order) used to vectorize future sums
-# KCV_list = []
-
-# for ik in range(BSE_params.Nkpoints_BSE):
-#     for ic in range(BSE_params.Ncbnds_sum):
-#         for iv in range(BSE_params.Nvbnds_sum):
-#             KCV_list.append((ik, ic, iv))            
-
-
-# Creating auxialiry quantities
-# aux_cond_matrix[imode, ik, ic1, ic2] = elph_cond[imode, ik, ic1, ic2] * deltaEqp / deltaEdft (if ic1 != ic2)
-# aux_val_matrix[imode, ik, iv1, iv2]  = elph_val[imode, ik, iv1, iv2]  * deltaEqp / deltaEdft (if iv1 != iv2)
-# If ic1 == ic2 (iv1 == iv2), then the matrix elements are just the elph coefficients"""
-if no_renorm_elph == False:
-    print('Renormalizing ELPH coefficients') 
-    print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
-    print('and <n|dHqp|m> = <n|dHdft|m> otherwise')
-else:
-    print('Not Renormalizing ELPH coefficients. Using <n|dHqp|m> = <n|dHdft|m> for all n and m')
-
-aux_cond_matrix, aux_val_matrix = aux_matrix_elem(
-    elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
-
-# Calculating matrix elements F_cvkc'v'k'
-# DKinect = calc_Dkinect_matrix(
-#     Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params)
-
-# instead of creating big matrix, calculate sums on the fly!
-
-print('Creating list of indexes kcv for which sums are calculated')
-args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum)
-
-
-print("")
-Sum_DKinect_diag, Sum_DKinect_offdiag = [], []
-
-print('\n\nCalculating diagonal matrix elements <kcv|dH/dx_mu|kcv>')
-for imode in range(Nmodes):
-    print(f"Calculating mode {imode + 1} of {Nmodes}")
-    Sum_DKinect_diag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_diag, imode))
-   
-print("\n\nCalculating off-diagonal matrix elements <kcv|dH/dx_mu|kc'v'>") 
-for imode in range(Nmodes):
-    print(f"Calculating mode {imode + 1} of {Nmodes}")
-    Sum_DKinect_offdiag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_offdiag, imode))        
-
-Sum_DKinect_diag, Sum_DKinect_offdiag = np.array(Sum_DKinect_diag), np.array(Sum_DKinect_offdiag)
-
-# dont need aux_cond_matrix, aux_val_matrix anymores
-del aux_cond_matrix, aux_val_matrix
-
-# Kernel derivatives
-if Calculate_Kernel == True:
-
-    EDFT = Edft_val, Edft_cond
-    EQP = Eqp_val, Eqp_cond
-    ELPH = elph_cond, elph_val
-
-    DKernel = calc_deriv_Kernel((Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_params)
-
-    # dont need the kernel matrix anymore
-    del Kx, Kd
+if do_vectorized_sums == True:
+    print("\n\nCalculating matrix elements for forces calculations <cvk|dH/dx_mu|cvk'>")
+    print('!!!!!!!  Using vectorized sums for forces calculations')
     
-    Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)
-
+    Sum_DKinect_diag    = np.zeros((Nmodes), dtype=np.complex64)
+    Sum_DKinect_offdiag = np.zeros((Nmodes), dtype=np.complex64)
+    Sum_DKernel         = np.zeros((Nmodes), dtype=np.complex64)
+    
+    # build A_mat[ik, ic1, ic2, iv1, iv2] = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])
+    A_mat_offdiag = Akcv[:, :, :, np.newaxis, np.newaxis] * np.conj(Bkcv[:, np.newaxis, np.newaxis, :, :])
+    A_mat_diag = Akcv * np.conj(Bkcv)
+    
     for imode in range(Nmodes):
-        Sum_DKernel[imode] = np.sum(DKernel[imode])
+        # build Gc[imode, ik, ic1, ic2, iv1, iv2] = elph_cond[imode, ik, ic1, ic2] * dirac_delta(iv1, iv2)
+        # build Gv[imode, ik, ic1, ic2, iv1, iv2] = elph_val[imode, ik, iv1, iv2] * dirac_delta(ic1, ic2)
+        Gc = np.zeros(A_mat_offdiag.shape, dtype=np.complex64)
+        Gv = np.zeros(A_mat_offdiag.shape, dtype=np.complex64)
+        
+        Gc_diag, Gv_diag = np.zeros((A_mat_diag.shape), dtype=np.complex64), np.zeros((A_mat_diag.shape), dtype=np.complex64)
+        
+        for ik in range(Nkpoints_BSE):
+            for ic in range(Ncbnds):
+                for iv in range(Nvbnds):        
+                    Gc_diag[ik, ic, iv] = elph_cond[imode, ik, ic, ic]
+                    Gv_diag[ik, ic, iv] = elph_val[imode, ik, iv, iv]
+        
+        
+        for ik in range(Nkpoints_BSE):
+            
+            for iv in range(Nvbnds):
+                for ic1 in range(Ncbnds):
+                    for ic2 in range(Ncbnds):
+                        Gc[ik, ic1, ic2, iv, iv] = elph_cond[imode, ik, ic1, ic2]
+            
+            for ic in range(Ncbnds):
+                for iv1 in range(Nvbnds):
+                    for iv2 in range(Nvbnds):
+                        Gv[ik, ic, ic, iv1, iv2] = elph_val[imode, ik, iv1, iv2]
+        
+        # Multiply A_mat * (Gc[imode] - Gv[imode])
+        
+        F_imode = A_mat_offdiag * (Gc - Gv)
+        
+        # F_imode_diag = np.diagonal(F_imode, axis1=1, axis2=2)
+        # F_imode_diag = np.diagonal(F_imode_diag, axis1=2, axis2=3)  # Now shape (nk, nc, nv)
+        F_imode_diag = A_mat_diag * (Gc_diag - Gv_diag)
 
-report_ram()
+        Sum_DKinect_offdiag[imode] = np.sum(F_imode)
+        Sum_DKinect_diag[imode] = np.sum(F_imode_diag)
+        
+    Sum_DKinect_offdiag = Sum_DKinect_offdiag - Sum_DKinect_diag
+    
+else:
+    print("\n\nCalculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
+    Sum_DKinect_diag, Sum_DKinect_offdiag = perform_kinect_sums_with_loops()
+    Sum_DKernel = perform_kernel_sums_with_loops()
 
 # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 
 Sum_DKinect_diag    = -Sum_DKinect_diag * Ry2eV / bohr2A
 Sum_DKinect_offdiag = -Sum_DKinect_offdiag * Ry2eV / bohr2A
-
-if Calculate_Kernel == True:
-    Sum_DKernel = -Sum_DKernel*Ry2eV/bohr2A
+Sum_DKernel         = -Sum_DKernel * Ry2eV / bohr2A
 
 # Warn if imag part is too big (>= 10^-6)
 

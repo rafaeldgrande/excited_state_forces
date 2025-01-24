@@ -11,14 +11,73 @@ import numpy as np
 import xml.etree.ElementTree as ET
 import h5py
 from datetime import datetime
+import tracemalloc  # track ram usage
 
 
 from excited_forces_config import *
+from qe_interface_m import *
 
 if run_parallel == True:
     from multiprocessing import Pool, cpu_count
     from functools import partial
 
+# Report functions
+def report_time(start_time):
+    end_time_func = time.clock_gettime(0)
+    text = f'{(end_time_func - start_time)/60:.2f} min'
+    return text
+
+
+def report_ram():
+    temp_ram = tracemalloc.get_traced_memory()[0] / 1024**2
+    max_temp_ram = tracemalloc.get_traced_memory()[1] / 1024**2
+
+    print('\n\n############### RAM REPORT #################')
+    print(f'RAM used now: {temp_ram:.2f} MB')
+    print(f'Max RAM used until now: {max_temp_ram:.2f} MB')
+    print('############################################\n\n')
+
+
+def correct_comp_vector(comp):
+    # component is in alat units
+    # return the component in the interval 0 < comp < 1
+    
+    # making -1 < comp < 1
+    comp = round(comp, 6) - int(round(comp, 6))
+    if comp < 0: # making comp 0 < comp < 1
+        comp += 1
+
+    return comp
+
+
+def find_kpoint(kpoint, K_list):
+    index_in_matrix = -1
+    for index in range(len(K_list)):
+        # if np.array_equal(kpoint, K_list[index]):
+        if np.linalg.norm(kpoint - K_list[index]) <= TOL_DEG:
+            index_in_matrix = index
+    return index_in_matrix
+
+def top_n_indexes(array, N):
+        
+    # Return the indexes of an n-dimensional array that have the N largest values. 
+    
+    # Flatten the array
+    flat_array = array.flatten()
+    
+    # Get the indexes of the top N values in the flattened array
+    flat_indexes = np.argpartition(flat_array, -N)[-N:]
+    
+    # Sort these indexes by the values they point to, in descending order
+    sorted_indexes = flat_indexes[np.argsort(-flat_array[flat_indexes])]
+    
+    # Convert the 1D indexes back to 3D indexes
+    top_indexes = np.unravel_index(sorted_indexes, array.shape)
+    
+    # Combine the indexes into a list of tuples
+    top_indexes = list(zip(*top_indexes))
+    
+    return top_indexes
 
 
 def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_params):
@@ -234,6 +293,63 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
             report_iterations(counter, total_iterations, interval_report, now_this_func)
 
     return aux_cond_matrix, aux_val_matrix
+
+def elph_renormalization_matrix(Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT):
+    """ Calculates auxiliar matrix elements to be used later in the forces matrix elements.
+    Returns elph_renormalization_matrix_cond, elph_renormalization_matrix_val where
+    elph_renormalization_matrix_cond[imode, ik, ic1, ic2] = deltaEqp / deltaEdft if deltaEdft <= TOL_DEG or 1
+    elph_renormalization_matrix_val[imode, ik, iv1, iv2]  = deltaEqp / deltaEdft if deltaEdft <= TOL_DEG or 1 
+    If deltaEdft == 0, then the matrix elements are just the elph coefficients"""
+
+    now_this_func = datetime.now()
+    
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds_sum = BSE_params.Ncbnds_sum
+    Nvbnds_sum = BSE_params.Nvbnds_sum
+
+    Shape_cond = (Nkpoints, Ncbnds_sum, Ncbnds_sum)
+    renorm_matrix_cond = np.ones(Shape_cond, dtype=np.complex64)
+
+    Shape_val = (Nkpoints, Nvbnds_sum, Nvbnds_sum)
+    renorm_matrix_val = np.ones(Shape_val, dtype=np.complex64)
+    
+    total_iterations = Nkpoints
+    interval_report = step_report(total_iterations)
+    counter = 0
+    print('TEEESSTTE')
+    for ik in range(Nkpoints):
+
+        ik_dfpt = ikBSE_to_ikDFPT[ik]
+
+        if ik_dfpt != -1:
+            # remember that order of k points in DFPT file
+            # is not always equal to the order in the eigenvecs file
+            # -1 means that the code did not find the corresponce
+            # between the 2 kgrids
+
+            for ic1 in range(Ncbnds_sum):
+                for ic2 in range(ic1, Ncbnds_sum):
+                    deltaEqp = Eqp_cond[ik, ic1] - Eqp_cond[ik, ic2]
+                    deltaEdft = Edft_cond[ik, ic1] - Edft_cond[ik, ic2]
+                    if abs(Edft_cond[ik, ic1] - Edft_cond[ik, ic2]) > TOL_DEG:
+                        renorm_matrix_cond[ik, ic1, ic2] = deltaEqp / deltaEdft
+                        renorm_matrix_cond[ik, ic2, ic1] = deltaEqp / deltaEdft
+                        
+            for iv1 in range(Nvbnds_sum):
+                for iv2 in range(iv1, Nvbnds_sum):
+                    deltaEqp = Eqp_val[ik, iv1] - Eqp_val[ik, iv2]
+                    deltaEdft = Edft_val[ik, iv1] - Edft_val[ik, iv2]
+                    if abs(Edft_val[ik, iv1] - Edft_val[ik, iv2]) > TOL_DEG:
+                        renorm_matrix_val[ik, iv1, iv2] = deltaEqp / deltaEdft
+                        renorm_matrix_val[ik, iv2, iv1] = deltaEqp / deltaEdft
+                            
+        else:
+            print(f'Kpoint {ik} not found. Skipping the calculation for this k point')
+            
+        counter += 1
+        report_iterations(counter, total_iterations, interval_report, now_this_func)
+
+    return renorm_matrix_cond, renorm_matrix_val
 
 
 def delta(i, j):
