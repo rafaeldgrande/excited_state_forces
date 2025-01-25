@@ -1,5 +1,6 @@
 
 TESTES_DEV = False
+do_vectorized_sums = True
 verbosity = 'high'
 
 # TODO oranize the code!
@@ -152,6 +153,8 @@ if len(dfpt_irreps_list) != 0:
     MF_params.Nmodes = len(dfpt_irreps_list)
     Nmodes = len(dfpt_irreps_list)
     print(f"Not using all irreps. Setting Nmodes to {Nmodes}.")
+else:
+    Nmodes = MF_params.Nmodes
 
 # get elph coefficients from .xml files
 # if run_parallel == False:
@@ -198,6 +201,18 @@ ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
 del elph
 report_ram()
 
+
+# renormalze elph coefficients
+if no_renorm_elph == False:
+    print('Renormalizing ELPH coefficients') 
+    print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
+    print('and <n|dHqp|m> = <n|dHdft|m> otherwise')
+else:
+    print('Not Renormalizing ELPH coefficients. Using <n|dHqp|m> = <n|dHdft|m> for all n and m')
+elph_cond, elph_val = renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, 
+                                                                           MF_params, BSE_params, ikBSE_to_ikDFPT)
+
+# interpolation of elph coefficients a la BerkeleyGW code?
 if elph_fine_a_la_bgw == False:
     
     print('No interpolation on elph coeffs is used')
@@ -272,75 +287,97 @@ if Calculate_Kernel == True:
 
 print("\n\nCalculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
 
-# creating KCV list with indexes ik, ic, iv (in this order) used to vectorize future sums
-# KCV_list = []
-
-# for ik in range(BSE_params.Nkpoints_BSE):
-#     for ic in range(BSE_params.Ncbnds_sum):
-#         for iv in range(BSE_params.Nvbnds_sum):
-#             KCV_list.append((ik, ic, iv))            
-
-
-# Creating auxialiry quantities
-# aux_cond_matrix[imode, ik, ic1, ic2] = elph_cond[imode, ik, ic1, ic2] * deltaEqp / deltaEdft (if ic1 != ic2)
-# aux_val_matrix[imode, ik, iv1, iv2]  = elph_val[imode, ik, iv1, iv2]  * deltaEqp / deltaEdft (if iv1 != iv2)
-# If ic1 == ic2 (iv1 == iv2), then the matrix elements are just the elph coefficients"""
-if no_renorm_elph == False:
-    print('Renormalizing ELPH coefficients') 
-    print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
-    print('and <n|dHqp|m> = <n|dHdft|m> otherwise')
-else:
-    print('Not Renormalizing ELPH coefficients. Using <n|dHqp|m> = <n|dHdft|m> for all n and m')
-
-aux_cond_matrix, aux_val_matrix = aux_matrix_elem(
-    elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
-
-# Calculating matrix elements F_cvkc'v'k'
-# DKinect = calc_Dkinect_matrix(
-#     Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params)
-
-# instead of creating big matrix, calculate sums on the fly!
-
-print('Creating list of indexes kcv for which sums are calculated')
-args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum)
-
-
-print("")
-Sum_DKinect_diag, Sum_DKinect_offdiag = [], []
-
-print('\n\nCalculating diagonal matrix elements <kcv|dH/dx_mu|kcv>')
-for imode in range(Nmodes):
-    print(f"Calculating mode {imode + 1} of {Nmodes}")
-    Sum_DKinect_diag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_diag, imode))
-   
-print("\n\nCalculating off-diagonal matrix elements <kcv|dH/dx_mu|kc'v'>") 
-for imode in range(Nmodes):
-    print(f"Calculating mode {imode + 1} of {Nmodes}")
-    Sum_DKinect_offdiag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, args_list_just_offdiag, imode))        
-
-Sum_DKinect_diag, Sum_DKinect_offdiag = np.array(Sum_DKinect_diag), np.array(Sum_DKinect_offdiag)
-
-# dont need aux_cond_matrix, aux_val_matrix anymores
-del aux_cond_matrix, aux_val_matrix
-
-# Kernel derivatives
-if Calculate_Kernel == True:
-
-    EDFT = Edft_val, Edft_cond
-    EQP = Eqp_val, Eqp_cond
-    ELPH = elph_cond, elph_val
-
-    DKernel = calc_deriv_Kernel((Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_params)
-
-    # dont need the kernel matrix anymore
-    del Kx, Kd
+if do_vectorized_sums == True:
     
-    Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)
-
+    print('!!!!!!!  Using vectorized sums for forces calculations')
+    
+    Sum_DKinect_diag    = np.zeros((Nmodes), dtype=np.complex64)
+    Sum_DKinect_offdiag = np.zeros((Nmodes), dtype=np.complex64)
+    Sum_DKernel         = np.zeros((Nmodes), dtype=np.complex64)
+    
+    # build A_mat[ik, ic1, ic2, iv1, iv2] = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])
+    A_mat = Akcv[:, :, :, np.newaxis, np.newaxis] * np.conj(Bkcv[:, np.newaxis, np.newaxis, :, :])
+    A_mat_diag = Akcv * np.conj(Bkcv)
+    
     for imode in range(Nmodes):
-        Sum_DKernel[imode] = np.sum(DKernel[imode])
+        # build Gc[imode, ik, ic1, ic2, iv1, iv2] = elph_cond[imode, ik, ic1, ic2] * dirac_delta(iv1, iv2)
+        # build Gv[imode, ik, ic1, ic2, iv1, iv2] = elph_val[imode, ik, iv1, iv2] * dirac_delta(ic1, ic2)
+        Gc = np.zeros(A_mat.shape, dtype=np.complex64)
+        Gv = np.zeros(A_mat.shape, dtype=np.complex64)
+        
+        Gc_diag = np.zeros((A_mat_diag.shape), dtype=np.complex64)
+        Gv_diag = np.zeros((A_mat_diag.shape), dtype=np.complex64)
+        
+        for ik in range(Nkpoints_BSE):
+            for ic in range(Ncbnds):
+                for iv in range(Nvbnds):        
+                    Gc_diag[ik, ic, iv] = elph_cond[imode, ik, ic, ic]
+                    Gv_diag[ik, ic, iv] = elph_val[imode, ik, iv, iv]
+        
+        
+        for ik in range(Nkpoints_BSE):
+            
+            for iv in range(Nvbnds):
+                for ic1 in range(Ncbnds):
+                    for ic2 in range(Ncbnds):
+                        Gc[ik, ic1, ic2, iv, iv] = elph_cond[imode, ik, ic1, ic2]
+            
+            for ic in range(Ncbnds):
+                for iv1 in range(Nvbnds):
+                    for iv2 in range(Nvbnds):
+                        Gv[ik, ic, ic, iv1, iv2] = elph_val[imode, ik, iv1, iv2]
+        
+        # Multiply A_mat * (Gc[imode] - Gv[imode])
+        
+        F_imode = A_mat * (Gc - Gv)
+        
+        # F_imode_diag = np.diagonal(F_imode, axis1=1, axis2=2)
+        # F_imode_diag = np.diagonal(F_imode_diag, axis1=2, axis2=3)  # Now shape (nk, nc, nv)
+        F_imode_diag = A_mat_diag * (Gc_diag - Gv_diag)
 
-report_ram()
+        Sum_DKinect_diag[imode] = np.sum(F_imode_diag)
+        Sum_DKinect_offdiag[imode] = np.sum(F_imode) - Sum_DKinect_diag[imode]
+
+else:
+    # instead of creating big matrix, calculate sums on the fly!
+
+    print('Creating list of indexes kcv for which sums are calculated')
+    args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum)
+
+
+    print("")
+    Sum_DKinect_diag, Sum_DKinect_offdiag = [], []
+
+    print('\n\nCalculating diagonal matrix elements <kcv|dH/dx_mu|kcv>')
+    for imode in range(Nmodes):
+        print(f"Calculating mode {imode + 1} of {Nmodes}")
+        Sum_DKinect_diag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, elph_cond, elph_val, args_list_just_diag, imode))
+    
+    print("\n\nCalculating off-diagonal matrix elements <kcv|dH/dx_mu|kc'v'>") 
+    for imode in range(Nmodes):
+        print(f"Calculating mode {imode + 1} of {Nmodes}")
+        Sum_DKinect_offdiag.append(calc_Dkinect_matrix_simplified(Akcv, Bkcv, elph_cond, elph_val, args_list_just_offdiag, imode))        
+
+    Sum_DKinect_diag, Sum_DKinect_offdiag = np.array(Sum_DKinect_diag), np.array(Sum_DKinect_offdiag)
+
+    # Kernel derivatives
+    if Calculate_Kernel == True:
+
+        EDFT = Edft_val, Edft_cond
+        EQP = Eqp_val, Eqp_cond
+        ELPH = elph_cond, elph_val
+
+        DKernel = calc_deriv_Kernel((Kx+Kd)*Ry2eV, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_params)
+
+        # dont need the kernel matrix anymore
+        del Kx, Kd
+        
+        Sum_DKernel = np.zeros((Nmodes), dtype=np.complex64)
+
+        for imode in range(Nmodes):
+            Sum_DKernel[imode] = np.sum(DKernel[imode])
+
+    report_ram()
 
 # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 

@@ -221,7 +221,7 @@ def top_n_indexes(array, N):
     
     return top_indexes
 
-def elph_renormalization_matrix(Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT):
+def elph_renormalization_matrix(Eqp_val, Eqp_cond, Edft_val, Edft_cond, BSE_params, ikBSE_to_ikDFPT):
     """ Calculates auxiliar matrix elements to be used later in the forces matrix elements.
     Returns elph_renormalization_matrix_cond, elph_renormalization_matrix_val where
     elph_renormalization_matrix_cond[imode, ik, ic1, ic2] = deltaEqp / deltaEdft if deltaEdft <= TOL_DEG or 1
@@ -243,7 +243,6 @@ def elph_renormalization_matrix(Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_param
     total_iterations = Nkpoints
     interval_report = step_report(total_iterations)
     counter = 0
-    print('TEEESSTTE')
     for ik in range(Nkpoints):
 
         ik_dfpt = ikBSE_to_ikDFPT[ik]
@@ -255,20 +254,20 @@ def elph_renormalization_matrix(Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_param
             # between the 2 kgrids
 
             for ic1 in range(Ncbnds_sum):
-                for ic2 in range(ic1, Ncbnds_sum):
+                for ic2 in range(Ncbnds_sum):
                     deltaEqp = Eqp_cond[ik, ic1] - Eqp_cond[ik, ic2]
                     deltaEdft = Edft_cond[ik, ic1] - Edft_cond[ik, ic2]
-                    if abs(Edft_cond[ik, ic1] - Edft_cond[ik, ic2]) > TOL_DEG:
+                    if abs(deltaEdft) > TOL_DEG:
                         renorm_matrix_cond[ik, ic1, ic2] = deltaEqp / deltaEdft
-                        renorm_matrix_cond[ik, ic2, ic1] = deltaEqp / deltaEdft
+                        # renorm_matrix_cond[ik, ic2, ic1] = deltaEqp / deltaEdft
                         
             for iv1 in range(Nvbnds_sum):
-                for iv2 in range(iv1, Nvbnds_sum):
+                for iv2 in range(Nvbnds_sum):
                     deltaEqp = Eqp_val[ik, iv1] - Eqp_val[ik, iv2]
                     deltaEdft = Edft_val[ik, iv1] - Edft_val[ik, iv2]
-                    if abs(Edft_val[ik, iv1] - Edft_val[ik, iv2]) > TOL_DEG:
+                    if abs(deltaEdft) > TOL_DEG:
                         renorm_matrix_val[ik, iv1, iv2] = deltaEqp / deltaEdft
-                        renorm_matrix_val[ik, iv2, iv1] = deltaEqp / deltaEdft
+                        # renorm_matrix_val[ik, iv2, iv1] = deltaEqp / deltaEdft
                             
         else:
             print(f'Kpoint {ik} not found. Skipping the calculation for this k point')
@@ -415,7 +414,7 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
     return Sum_DKernel
     
 
-def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT):
+def renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT):
     """ Calculates auxiliar matrix elements to be used later in the forces matrix elements.
     Returns aux_cond_matrix, aux_val_matrix and
     aux_cond_matrix[imode, ik, ic1, ic2] = elph_cond[imode, ik, ic1, ic2] * deltaEqp / deltaEdft (if ic1 != ic2)
@@ -462,7 +461,7 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
                             deltaEqp = Eqp_cond[ik, ic1] - Eqp_cond[ik, ic2]
                             deltaEdft = Edft_cond[ik, ic1] - Edft_cond[ik, ic2]
 
-                            if abs(Edft_cond[ik, ic1] - Edft_cond[ik, ic2]) <= TOL_DEG:
+                            if abs(deltaEdft) <= TOL_DEG:
                                 aux_cond_matrix[imode, ik, ic1, ic2] = elph
                             else:
                                 aux_cond_matrix[imode, ik, ic1, ic2] = elph * deltaEqp / deltaEdft
@@ -480,7 +479,7 @@ def aux_matrix_elem(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond,
                             deltaEqp = Eqp_val[ik, iv1] - Eqp_val[ik, iv2]
                             deltaEdft = Edft_val[ik, iv1] - Edft_val[ik, iv2]
 
-                            if abs(Edft_val[ik, iv1] - Edft_val[ik, iv2]) <= TOL_DEG:
+                            if abs(deltaEdft) <= TOL_DEG:
                                 aux_val_matrix[imode, ik, iv1, iv2] = elph
                             else:
                                 aux_val_matrix[imode, ik, iv1, iv2] = elph * deltaEqp / deltaEdft
