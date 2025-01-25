@@ -293,7 +293,9 @@ def check_k_points_BSE_DFPT():
             print('Continuing calculation regardless of that!')
 
 
-########## RUNNING CODE ###################
+
+
+######################### RUNNING CODE ##############################
 
 start_time = time.clock_gettime(0)
 # Getting BSE and MF parameters
@@ -378,23 +380,7 @@ if limit_BSE_sum_up_to_value < 1.0:
 
 # summarizing Akcv information
 
-def top_n_indexes(array, N):
-    # Flatten the array
-    flat_array = array.flatten()
-    
-    # Get the indexes of the top N values in the flattened array
-    flat_indexes = np.argpartition(flat_array, -N)[-N:]
-    
-    # Sort these indexes by the values they point to, in descending order
-    sorted_indexes = flat_indexes[np.argsort(-flat_array[flat_indexes])]
-    
-    # Convert the 1D indexes back to 3D indexes
-    top_indexes = np.unravel_index(sorted_indexes, array.shape)
-    
-    # Combine the indexes into a list of tuples
-    top_indexes = list(zip(*top_indexes))
-    
-    return top_indexes
+
 
 
 if len(indexes_limited_BSE_sum) > 0:
@@ -421,7 +407,6 @@ print('###############################################')
 
 
 # Getting elph coefficients
-
 # get displacement patterns
 iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-zero center of mass momentum
 Displacements, Nirreps = get_displacement_patterns(iq, MF_params)
@@ -475,32 +460,6 @@ elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
 # Let's put all k points from BSE grid in the first Brillouin zone
 ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
 
-# use modified Acvk
-
-# if use_Acvk_single_transition == True:
-#     print('WARNING! use_Acvk_single_transition flag is True')
-#     print('We are making new_Acvk = delta(c0v0k0,c0v0k0), where c0v0k0 is the transition where Acvk is maximum')
-#     ik, ic, iv = index_of_max_abs_value_Akcv
-#     Akcv = np.zeros(Akcv.shape, dtype=complex)
-#     Akcv[ik, ic, iv] = 1.0 + 0.0j
-#     if iexc != jexc:
-#         Bkcv = np.zeros(Akcv.shape, dtype=complex)
-#         Bkcv[ik, ic, iv] = 1.0 + 0.0j     
-
-
-
-print('Derivatives (g_cc - g_vv) for Emin gap for different modes. Printing more relevant ones.')
-# this diagonal matrix element is the same at qp and dft levels in our approximation 
-# ik, ic, iv = index_of_max_abs_value_Akcv
-# der_E_gap_dr = elph_cond[:, ik, ic, ic] - elph_val[:, ik, ic, ic]
-# max_der_E_gap_dr = np.max(np.abs(der_E_gap_dr))
-# for imode in range(Nmodes):
-#     if np.abs(der_E_gap_dr[imode]) >= max_der_E_gap_dr * 0.8:
-#         print(f'mode {imode} : {np.real(der_E_gap_dr[imode]):.6f} eV/angs')
-
-
-# report_ram()
-# print('DELETING ELPH')
 del elph
 report_ram()
 

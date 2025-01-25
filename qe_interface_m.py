@@ -248,7 +248,7 @@ def get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list):  # suitable for xml files w
         print('Indexes of files that I will read: ', dfpt_irreps_list)
         counter_files = 0
         for irrep in dfpt_irreps_list:
-            elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep}.xml'  # here irrep doesnt have +1 because values from dfpt_irreps_list are 1-indexed
+            elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep+1}.xml'  # here irrep doesnt have +1 because values from dfpt_irreps_list are 1-indexed
             print('    Reading file ', elph_xml_file, f'({counter_files+1}/{len(dfpt_irreps_list)})')
             start_time_loop = datetime.now()
             elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)

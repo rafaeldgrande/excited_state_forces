@@ -245,7 +245,7 @@ def read_input(input_file):
                     use_Acvk_single_transition = true_or_false(linha[1], use_Acvk_single_transition)
                 elif linha[0] == 'dfpt_irreps_list':
                     for i in range(1, len(linha)):
-                        dfpt_irreps_list.append(int(linha[i]))
+                        dfpt_irreps_list.append(int(linha[i])-1)
                 elif linha[0] == 'limit_BSE_sum':
                     limit_BSE_sum = true_or_false(linha[1], limit_BSE_sum)
 
