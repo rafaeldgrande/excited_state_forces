@@ -1,18 +1,19 @@
 
 TESTES_DEV = False
-do_vectorized_sums = True
 verbosity = 'high'
 
 # TODO oranize the code!
 # TODO format prints from forces calculations!
 # TODO in the beging say how many calculation wil done and how much I would have done if used every thing,
 
+
+TASKS = []
+TIMING = []
+
 run_parallel = False
 if run_parallel == True:
     from multiprocessing import Pool
     from multiprocessing import freeze_support
-
-
 
 # FIRST MESSAGE
 
@@ -136,14 +137,21 @@ def check_k_points_BSE_DFPT():
 start_time = time.clock_gettime(0)
 # Getting BSE and MF parameters
 # Reading eigenvecs.h5 file
+time0 = time.clock_gettime(0)
 Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, BSE_params, MF_params = get_BSE_MF_params()
+time1 = time.clock_gettime(0)
+TASKS.append(['Get parameters from DFT and GWBSE', time1 - time0])
+
 
 # getting info from eqp.dat (from absorption calculation)
+time0 = time.clock_gettime(0)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
-
+time1 = time.clock_gettime(0)
+TASKS.append(['Reading QP and DFT energy levels', time1 - time0])
 
 # Getting elph coefficients
 # get displacement patterns
+time0 = time.clock_gettime(0)
 iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-zero center of mass momentum
 Displacements, Nirreps = get_displacement_patterns(iq, MF_params)
 
@@ -157,17 +165,18 @@ else:
     Nmodes = MF_params.Nmodes
 
 # get elph coefficients from .xml files
-# if run_parallel == False:
 
 elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list)
-# else:
-#     elph, Kpoints_in_elph_file = get_el_ph_coeffs_parallel(iq, Nirreps)
+time1 = time.clock_gettime(0)
+TASKS.append(['Reading ELPH coefficients', time1 - time0])
+
 Nkpoints_DFPT = len(Kpoints_in_elph_file)
 
 # change basis for k points from dfpt calculations
 # those k points are in cartesian basis. we're changing 
 # it to reciprocal lattice basis
 
+time0 = time.clock_gettime(0)
 mat_reclattvecs_to_cart = np.transpose(BSE_params.rec_cell_vecs)
 mat_cart_to_reclattvecs = np.linalg.inv(mat_reclattvecs_to_cart)
 
@@ -187,13 +196,22 @@ if log_k_points == True:
         arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
     arq_kpoints_log.close()   
 
+time1 = time.clock_gettime(0)
+TASKS.append(['Changing basis for k points', time1 - time0])
+
 
 # filter data to get just g_c1c2 and g_v1v2
+time0 = time.clock_gettime(0)
 elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
+time1 = time.clock_gettime(0)
+TASKS.append(['Filtering ELPH data to ELPH_cond and ELPH_val', time1 - time0])
 
 # apply acoustic sum rule over elph coefficients
+time0 = time.clock_gettime(0)
 elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
 elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
+time1 = time.clock_gettime(0)
+TASKS.append(['Impose ASR on ELPH coefficients', time1 - time0])
 
 # Let's put all k points from BSE grid in the first Brillouin zone
 ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
@@ -203,6 +221,7 @@ report_ram()
 
 
 # renormalze elph coefficients
+time0 = time.clock_gettime(0)
 if no_renorm_elph == False:
     print('Renormalizing ELPH coefficients') 
     print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
@@ -212,7 +231,11 @@ else:
 elph_cond, elph_val = renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, 
                                                                            MF_params, BSE_params, ikBSE_to_ikDFPT)
 
+time1 = time.clock_gettime(0)
+TASKS.append(['Renormalization of ELPH coefficients', time1 - time0])
+
 # interpolation of elph coefficients a la BerkeleyGW code?
+time0 = time.clock_gettime(0)
 if elph_fine_a_la_bgw == False:
     
     print('No interpolation on elph coeffs is used')
@@ -246,9 +269,13 @@ else:
     elph_cond = elph_interpolate_bgw(elph_cond, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE, BSE_params.Ncbnds)
     elph_val  = elph_interpolate_bgw(elph_val, 'dtmat_non_bin_val', BSE_params.Nkpoints_BSE, BSE_params.Nvbnds)
 
+time1 = time.clock_gettime(0)
+TASKS.append(['Interpolation of ELPH coefficients', time1 - time0])
+
 # Loading exciton coefficients
 
 # Getting exciton info
+time0 = time.clock_gettime(0)
 Akcv, OmegaA, Bkcv, OmegaB = get_exciton_coeffs(iexc, jexc)
 report_expected_energies_master(iexc, jexc, Eqp_cond, Eqp_val, Akcv, OmegaA, Bkcv, OmegaB)
     
@@ -276,15 +303,22 @@ indexes_limited_BSE_sum = generate_indexes_limited_BSE_sum()
 
 # summarizing Akcv information  
 summarize_Acvk(Akcv, BSE_params.Kpoints_BSE, indexes_limited_BSE_sum)
+
+time1 = time.clock_gettime(0)
+TASKS.append(['Loading exciton coefficients', time1 - time0])
    
 ### Loading Kernel matrix elements
 # Getting kernel info from bsemat.h5 file
 if Calculate_Kernel == True:
+    time0 = time.clock_gettime(0)
     Kd, Kx = get_kernel(kernel_file, factor_head)
+    time1 = time.clock_gettime(0)
+    TASKS.append(['Loading kernel matrix elements', time1 - time0])
 
 
 ########## Calculating stuff ############
 
+time0 = time.clock_gettime(0)
 print("\n\nCalculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
 
 if do_vectorized_sums == True:
@@ -379,6 +413,9 @@ else:
 
     report_ram()
 
+time1 = time.clock_gettime(0)
+TASKS.append(['Calculation of forces', time1 - time0])
+
 # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 
 Sum_DKinect_diag    = -Sum_DKinect_diag * Ry2eV / bohr2A
@@ -470,5 +507,21 @@ report_ram()
 # stopping the library
 tracemalloc.stop()
 
-print('\n\nCalculation finished!')
-print(f'Total time: '+report_time(start_time))
+
+TOTAL_TIME = 0.0
+
+# Set the column widths
+task_column_width = 50
+time_column_width = 10
+
+print(f"{'Task':<{task_column_width}}{'Time (seconds)':>{time_column_width}}")  # Header
+print("-" * (task_column_width + time_column_width))  # Divider
+
+for task in TASKS:
+    TOTAL_TIME += task[1]
+    print(f"{task[0]:<{task_column_width}}{task[1]:>{time_column_width}.2f}")
+
+print("-" * (task_column_width + time_column_width))  # Divider
+print(f"{'Total':<{task_column_width}}{TOTAL_TIME:>{time_column_width}.2f}")
+
+
