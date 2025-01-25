@@ -3,7 +3,6 @@ IGNORE_ERRORS = False
 
 
 from scipy.constants import physical_constants
-import numpy as np
 
 # File with variables used in excited_forces.py code
 # It reads input forces.inp file

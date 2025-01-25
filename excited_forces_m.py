@@ -6,19 +6,277 @@
 #          -> calculates stuff
 #          -> etc
 
-
-import numpy as np
-import xml.etree.ElementTree as ET
-import h5py
-from datetime import datetime
-
-
+from modules_to_import import *
 from excited_forces_config import *
+from bgw_interface_m import *
+from qe_interface_m import *
+from excited_forces_classes import *
 
 if run_parallel == True:
     from multiprocessing import Pool, cpu_count
     from functools import partial
+    
+def report_expected_energies(Akcv, Omega, Eqp_cond, Eqp_val):
 
+    Mean_Ekin = 0.0
+    if Calculate_Kernel == True:
+        Mean_Kx, Mean_Kd = 0.0, 0.0
+
+    for ik1 in range(BSE_params.Nkpoints_BSE):
+        for ic1 in range(BSE_params.Ncbnds):
+            for iv1 in range(BSE_params.Nvbnds):
+                Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*abs(Akcv[ik1, ic1, iv1])**2
+
+    if Calculate_Kernel == True:
+        for ik1 in range(BSE_params.Nkpoints_BSE):
+            for ic1 in range(BSE_params.Ncbnds):
+                for iv1 in range(BSE_params.Nvbnds):
+                    for ik2 in range(BSE_params.Nkpoints_BSE):
+                        for ic2 in range(BSE_params.Ncbnds):
+                            for iv2 in range(BSE_params.Nvbnds):
+                                Mean_Kx += Ry2eV * \
+                                    np.conj(
+                                        Akcv[ik1, ic1, iv1]) * Kx[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
+                                Mean_Kd += Ry2eV * \
+                                    np.conj(
+                                        Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
+
+    print('Exciton energies (eV): ')
+    print(f'    Omega         =  {Omega:.6f}')
+    print(f'    <KE>          =  {Mean_Ekin:.6f}')
+    print(f'    Omega - <KE>  =  {(Omega - Mean_Ekin):.6f}')
+    if Calculate_Kernel == True:
+        print(f'    <Kx>          =  {np.real(Mean_Kx):.6f} + {np.imag(Mean_Kx):.6f} j')
+        print(f'    <Kd>          =  {np.real(Mean_Kd):.6f} + {np.imag(Mean_Kd):.6f} j')
+        DIFF = Omega - (Mean_Ekin + Mean_Kd + Mean_Kx)
+        print(f'\n    DIFF          = {DIFF:.6f} \n\n')
+    
+def get_exciton_coeffs(iexc, jexc):
+    if read_Acvk_pos == False:
+        Akcv, OmegaA = get_exciton_info(exciton_file, iexc)
+        Bkcv, OmegaB = get_exciton_info(exciton_file, jexc)    
+    else:
+        Akcv, OmegaA = get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+        Bkcv, OmegaB = get_exciton_info_alternative(Acvk_directory, jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+    return Akcv, OmegaA, Bkcv, OmegaB
+
+
+def report_expected_energies_master(iexc, jexc, Eqp_cond, Eqp_val, Akcv, OmegaA, Bkcv, OmegaB):         
+    # Reporting expected energies
+    if iexc != jexc:
+        print(f'Exciton {iexc}')
+        report_expected_energies(Akcv, OmegaA, Eqp_cond, Eqp_val)
+        print(f'Exciton {jexc}')
+        report_expected_energies(Bkcv, OmegaB, Eqp_cond, Eqp_val)
+    else:
+        print(f'Exciton {iexc}')
+        report_expected_energies(Akcv, OmegaA, Eqp_cond, Eqp_val)
+
+    
+    
+def generate_indexes_limited_BSE_sum():
+    indexes_limited_BSE_sum = []
+    if limit_BSE_sum == True:
+        print('\n\nUsing limited sum of BSE coefficients. Reading transition to be used from indexes_limited_sum_BSE.dat file.')
+        arq = open("indexes_limited_sum_BSE.dat")
+        for line in arq:
+            line_split = line.split()
+            ik, ic, iv = int(line_split[0])-1, int(line_split[1])-1, int(line_split[2])-1
+            indexes_limited_BSE_sum.append([ik, ic, iv])
+
+        print('Total of transition used:', len(indexes_limited_BSE_sum))
+        arq.close()
+        
+    return indexes_limited_BSE_sum
+    
+def summarize_Acvk(Akcv, Kpoints_BSE, indexes_limited_BSE_sum):
+    if len(indexes_limited_BSE_sum) > 0:
+        top_indexes = indexes_limited_BSE_sum
+    else:
+        top_indexes = top_n_indexes(np.abs(Akcv), 10)
+        
+    print('###############################################')
+    print('Showing most relevant coeffs for this exciton')
+    print('kx        ky        kz        ic   iv   abs(Acvk)^2  partial_sum(abs(Acvk)^2)')
+    partial_sum = 0
+    for index_Acvk in top_indexes:
+        ik, ic, iv = index_Acvk
+        A = Akcv[index_Acvk]
+        partial_sum += abs(A)**2
+        kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
+        print(f'{kx:8.4f}  {ky:8.4f}  {kz:8.4f}  {ic+1:<3} {iv+1:<3} {abs(A)**2:10.4f}   {partial_sum:10.4f}')    
+    print('###############################################') 
+    
+    return top_indexes 
+
+def correct_comp_vector(comp):
+    # component is in alat units
+    # return the component in the interval 0 < comp < 1
+    
+    # making -1 < comp < 1
+    comp = round(comp, 6) - int(round(comp, 6))
+    if comp < 0: # making comp 0 < comp < 1
+        comp += 1
+
+    return comp
+
+
+def find_kpoint(kpoint, K_list):
+    index_in_matrix = -1
+    for index in range(len(K_list)):
+        # if np.array_equal(kpoint, K_list[index]):
+        if np.linalg.norm(kpoint - K_list[index]) <= TOL_DEG:
+            index_in_matrix = index
+    return index_in_matrix
+    
+def get_BSE_MF_params():
+
+    global MF_params, BSE_params, Nmodes
+    global Nat, atomic_pos, cell_vecs, cell_vol, alat
+    global Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval
+    global Nvbnds_sum, Ncbnds_sum
+    global Nvbnds_coarse, Ncbnds_coarse, Nkpoints_coarse
+    global rec_cell_vecs, Nmodes
+
+    if read_Acvk_pos == False:
+        Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_eigenvecs_file(exciton_file)
+    else:
+        Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_alternative_file('params')
+    
+    Nmodes = 3 * Nat
+
+    if 0 < ncbnds_sum < Ncbnds:
+        print('*********************************')
+        print('Instead of using all cond bands from the BSE hamiltonian')
+        print(f'I will use {ncbnds_sum} cond bands (variable ncbnds_sum)')
+        print('*********************************')
+        Ncbnds_sum = ncbnds_sum
+    else:
+        Ncbnds_sum = Ncbnds
+
+    if 0 < nvbnds_sum < Nvbnds:
+        print('*********************************')
+        print('Instead of using all val bands from the BSE hamiltonian')
+        print(f'I will use {nvbnds_sum} val bands (variable nvbnds_sum)')
+        print('*********************************')
+        Nvbnds_sum = nvbnds_sum
+    else:
+        Nvbnds_sum = Nvbnds
+        
+    if elph_fine_a_la_bgw == True:
+        print('I will perform elph interpolation "a la BerkeleyGW"')
+        print('Check the absorption.inp file to see how many bands were used in both coarse and fine grids.')
+        print('From the forces.inp file, I got the following parameters: ')
+        print(f'    ncond_coarse    = {ncbands_co}')
+        print(f'    nval_coarse     = {nvbands_co}')
+        print(f'    nkpoints_coarse = {nkpnts_co}')
+        print('Be sure that all those bands are included in the DFPT calculation!')
+        print('If not, the missing elph coefficients will be considered to be equal 0.')
+        
+    Ncbnds_coarse = ncbands_co
+    Nvbnds_coarse = nvbands_co
+    Nkpoints_coarse = nkpnts_co
+        
+
+    MF_params = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
+    BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse, rec_cell_vecs)
+    
+    return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, BSE_params, MF_params
+
+# Report functions
+def report_time(start_time):
+    end_time_func = time.clock_gettime(0)
+    text = f'{(end_time_func - start_time)/60:.2f} min'
+    return text
+
+
+def report_ram():
+    temp_ram = tracemalloc.get_traced_memory()[0] / 1024**2
+    max_temp_ram = tracemalloc.get_traced_memory()[1] / 1024**2
+
+    print('\n\n############### RAM REPORT #################')
+    print(f'RAM used now: {temp_ram:.2f} MB')
+    print(f'Max RAM used until now: {max_temp_ram:.2f} MB')
+    print('############################################\n\n')
+    
+    
+
+
+
+def top_n_indexes(array, N):
+    # Flatten the array
+    flat_array = array.flatten()
+    
+    # Get the indexes of the top N values in the flattened array
+    flat_indexes = np.argpartition(flat_array, -N)[-N:]
+    
+    # Sort these indexes by the values they point to, in descending order
+    sorted_indexes = flat_indexes[np.argsort(-flat_array[flat_indexes])]
+    
+    # Convert the 1D indexes back to 3D indexes
+    top_indexes = np.unravel_index(sorted_indexes, array.shape)
+    
+    # Combine the indexes into a list of tuples
+    top_indexes = list(zip(*top_indexes))
+    
+    return top_indexes
+
+def elph_renormalization_matrix(Eqp_val, Eqp_cond, Edft_val, Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT):
+    """ Calculates auxiliar matrix elements to be used later in the forces matrix elements.
+    Returns elph_renormalization_matrix_cond, elph_renormalization_matrix_val where
+    elph_renormalization_matrix_cond[imode, ik, ic1, ic2] = deltaEqp / deltaEdft if deltaEdft <= TOL_DEG or 1
+    elph_renormalization_matrix_val[imode, ik, iv1, iv2]  = deltaEqp / deltaEdft if deltaEdft <= TOL_DEG or 1 
+    If deltaEdft == 0, then the matrix elements are just the elph coefficients"""
+
+    now_this_func = datetime.now()
+    
+    Nkpoints = BSE_params.Nkpoints_BSE
+    Ncbnds_sum = BSE_params.Ncbnds_sum
+    Nvbnds_sum = BSE_params.Nvbnds_sum
+
+    Shape_cond = (Nkpoints, Ncbnds_sum, Ncbnds_sum)
+    renorm_matrix_cond = np.ones(Shape_cond, dtype=np.complex64)
+
+    Shape_val = (Nkpoints, Nvbnds_sum, Nvbnds_sum)
+    renorm_matrix_val = np.ones(Shape_val, dtype=np.complex64)
+    
+    total_iterations = Nkpoints
+    interval_report = step_report(total_iterations)
+    counter = 0
+    print('TEEESSTTE')
+    for ik in range(Nkpoints):
+
+        ik_dfpt = ikBSE_to_ikDFPT[ik]
+
+        if ik_dfpt != -1:
+            # remember that order of k points in DFPT file
+            # is not always equal to the order in the eigenvecs file
+            # -1 means that the code did not find the corresponce
+            # between the 2 kgrids
+
+            for ic1 in range(Ncbnds_sum):
+                for ic2 in range(ic1, Ncbnds_sum):
+                    deltaEqp = Eqp_cond[ik, ic1] - Eqp_cond[ik, ic2]
+                    deltaEdft = Edft_cond[ik, ic1] - Edft_cond[ik, ic2]
+                    if abs(Edft_cond[ik, ic1] - Edft_cond[ik, ic2]) > TOL_DEG:
+                        renorm_matrix_cond[ik, ic1, ic2] = deltaEqp / deltaEdft
+                        renorm_matrix_cond[ik, ic2, ic1] = deltaEqp / deltaEdft
+                        
+            for iv1 in range(Nvbnds_sum):
+                for iv2 in range(iv1, Nvbnds_sum):
+                    deltaEqp = Eqp_val[ik, iv1] - Eqp_val[ik, iv2]
+                    deltaEdft = Edft_val[ik, iv1] - Edft_val[ik, iv2]
+                    if abs(Edft_val[ik, iv1] - Edft_val[ik, iv2]) > TOL_DEG:
+                        renorm_matrix_val[ik, iv1, iv2] = deltaEqp / deltaEdft
+                        renorm_matrix_val[ik, iv2, iv1] = deltaEqp / deltaEdft
+                            
+        else:
+            print(f'Kpoint {ik} not found. Skipping the calculation for this k point')
+            
+        counter += 1
+        report_iterations(counter, total_iterations, interval_report, now_this_func)
+
+    return renorm_matrix_cond, renorm_matrix_val
 
 
 def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_params):
@@ -561,109 +819,6 @@ def calculate_temp(args):
     return calc_Dkinect_matrix_elem_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic1, ic2, iv1, iv2)
 
 
-# def calc_Dkinect_matrix_parallel(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params):
-
-#     print("\n\n     - Calculating RPA part")
-
-#     Nmodes = MF_params.Nmodes
-#     Nkpoints = BSE_params.Nkpoints_BSE
-#     Ncbnds_sum = BSE_params.Ncbnds_sum
-#     Nvbnds_sum = BSE_params.Nvbnds_sum
-
-#     Sum_DKinect_diag = np.zeros((Nmodes), dtype=complex)
-#     Sum_DKinect      = np.zeros((Nmodes), dtype=complex)
-
-#     if just_RPA_diag == True:
-        
-#         print('Calculating just diag RPA force matrix elements - PARALLEL VERSION')
-                
-#         for imode in range(Nmodes):
-#             temp_imode_just_diag = 0.0 + 0.0j
-
-#             # Generate the list of arguments for the parallel execution
-#             args_list = [(imode, ik, ic1, ic1, iv1, iv1) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum)]
-
-#             # Parallel execution of calculate_temp function
-#             temp_list = pool.map(calculate_temp, args_list)
-#             temp_imode_just_diag = sum(temp_list)
-
-#             Sum_DKinect_diag[imode] = temp_imode_just_diag            
-            
-#     else:
-
-#         print('Calculating diag and offdiag RPA force matrix elements - PARALLEL VERSION')
-
-#         if use_hermicity_F == False:
-
-#             for imode in range(Nmodes):
-                
-#                 # Generate the list of arguments for the parallel execution
-#                 args_list = [(imode, ik, ic1, ic1, iv1, iv1) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum)]
-#                 args_list_include_offdiags = [(imode, ik, ic1, ic2, iv1, iv2) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for ic2 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum) for iv2 in range(Nvbnds_sum)]
-
-#                 # TODO - exclude all elements from args_list_include_offdiags that are present in args_list
-                
-#                 # Parallel execution of calculate_temp function
-#                 temp_list = pool.map(calculate_temp, args_list)
-#                 temp_imode_just_diag = sum(temp_list)  
-                
-#                 # Parallel execution of calculate_temp function
-#                 temp_list = pool.map(calculate_temp, args_list_include_offdiags)
-#                 temp_imode_just_diag_and_off_diag = sum(temp_list) 
-
-#                 Sum_DKinect_diag[imode] = temp_imode_just_diag
-#                 Sum_DKinect[imode]      = temp_imode_just_diag_and_off_diag
-
-#         # Creating a list of tuples with cond and val bands indexes
-#         # [(0,0), (0,1), (0,2), ... (Ncbnds-1, 0), (Ncbnds-1, 1), ..., (Ncbnds-1, Nvbnds-1)]
-#         # size of this list Nvbnds*Ncbnds
-
-#         # New block - now using the fact that F_cvc'v' = conj(F_c'v'cv)
-#         # Reduces the number of computed terms by about half
-
-#         # Cannot use this if iexc != jexc 
-#         # If use_hermicity_F == True and iexc != jexc
-#         # then I just make use_hermicity_F == False
-
-#         else:
-
-#             print('Using "hermicity" of force matrix elements - PARALLEL VERSION')
-
-#             indexes_cv = [(icp, ivp) for ivp in range(Nvbnds_sum) for icp in range(Ncbnds_sum)]
-
-#             for imode in range(Nmodes):
-                
-#                 # building arg list
-#                 args_list = [(imode, ik, ic1, ic1, iv1, iv1) for ik in range(Nkpoints) for ic1 in range(Ncbnds_sum) for iv1 in range(Nvbnds_sum)]
-#                 args_list_include_offdiags = []
-#                 for ik in range(Nkpoints):
-#                     for ind_cv1 in range(len(indexes_cv)):
-#                         ic1, iv1 = indexes_cv[ind_cv1]
-#                         for ind_cv2 in range(ind_cv1+1, len(indexes_cv)):
-#                             ic2, iv2 = indexes_cv[ind_cv2]
-#                             args_list_include_offdiags.append((imode, ik, ic1, ic2, iv1, iv2))
-                
-#                 # TODO - exclude all elements from args_list_include_offdiags that are present in args_list
-                
-#                 # Parallel execution of calculate_temp function
-#                 temp_list = pool.map(calculate_temp, args_list)
-#                 temp_imode_just_diag = sum(temp_list)  
-                
-#                 # Parallel execution of calculate_temp function
-#                 temp_list = pool.map(calculate_temp, args_list_include_offdiags)
-#                 temp_imode_just_diag_and_off_diag = 2*np.real(sum(temp_list)) 
-
-#                 Sum_DKinect_diag[imode] = temp_imode_just_diag
-#                 Sum_DKinect[imode]      = temp_imode_just_diag_and_off_diag    
-
-#     pool.close()
-#     pool.join()
-    
-    # return Sum_DKinect_diag, Sum_DKinect
-
-
-
-
 
 def calc_Dkinect_matrix_ver2_master(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, BSE_params, KCV_list, run_parallel):
 
@@ -745,23 +900,6 @@ def calc_Dkinect_matrix_just_RPA_para_ver(imode, Nkpoints, Ncbnds_sum, Nvbnds_su
     with Pool() as pool:
         temp_imode_just_diag = pool.map(calc_Dkinect_matrix_elem_wrapper, args_list)
     return np.sum(temp_imode_just_diag)
-
-# def calc_Dkinect_matrix_just_RPA_para_ver(imode, Nkpoints, Ncbnds_sum, Nvbnds_sum, Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, KCV_list):
-    
-#     ''' Calculate Dkinect matrix for the case just_RPA == True
-#         - parallel version'''
-    
-#     Total_ikcv = len(KCV_list)
-#     temp_imode_just_diag = np.zeros(Total_ikcv, dtype = complex)
-    
-#     def calc_elem(idx):
-#         ik, ic, iv = KCV_list[idx]
-#         return calc_Dkinect_matrix_elem(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, imode, ik, ic, ic, iv, iv)
-    
-#     with Pool() as pool:
-#         result = pool.map(calc_elem, range(Total_ikcv))
-    
-#     return np.sum(result)
 
 
 def step_report(total_iterations):

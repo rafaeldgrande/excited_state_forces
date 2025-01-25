@@ -16,18 +16,16 @@ if run_parallel == True:
 # FIRST MESSAGE
 
 # excited state forces modules
+from modules_to_import import *
 from excited_forces_config import *
 from bgw_interface_m import *
 from qe_interface_m import *
 from excited_forces_m import *
+from excited_forces_classes import *
 
-import numpy as np
-
-import tracemalloc  # track ram usage
+# trace ram
 tracemalloc.start()
 
-import time
-from datetime import datetime
 # datetime object containing current date and time
 now = datetime.now()
 
@@ -41,168 +39,7 @@ print('Developed by Rafael Del Grande and David Strubbe')
 print('*************************************************************\n\n')
 
 
-# Report functions
-def report_time(start_time):
-    end_time_func = time.clock_gettime(0)
-    text = f'{(end_time_func - start_time)/60:.2f} min'
-    return text
-
-
-def report_ram():
-    temp_ram = tracemalloc.get_traced_memory()[0] / 1024**2
-    max_temp_ram = tracemalloc.get_traced_memory()[1] / 1024**2
-
-    print('\n\n############### RAM REPORT #################')
-    print(f'RAM used now: {temp_ram:.2f} MB')
-    print(f'Max RAM used until now: {max_temp_ram:.2f} MB')
-    print('############################################\n\n')
-
-# Classes
-
-
-class Parameters_BSE:
-
-    def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse, rec_cell_vecs):
-        self.Nkpoints_BSE = Nkpoints_BSE
-        self.Kpoints_BSE = Kpoints_BSE
-        self.Ncbnds = Ncbnds
-        self.Nvbnds = Nvbnds
-        self.Nval = Nval
-        self.Ncbnds_sum = Ncbnds_sum
-        self.Nvbnds_sum = Nvbnds_sum
-        self.Ncbnds_coarse = Ncbnds_coarse
-        self.Nvbnds_coarse = Nvbnds_coarse
-        self.Nkpoints_coarse = Nkpoints_coarse
-        self.rec_cell_vecs = rec_cell_vecs
-
-class Parameters_MF:
-
-    def __init__(self, Nat, atomic_pos, cell_vecs, cell_vol, alat):
-        self.Nat = Nat
-        self.atomic_pos = atomic_pos
-        self.cell_vecs = cell_vecs
-        self.cell_vol = cell_vol
-        self.alat = alat
-        self.Nmodes = 3 * Nat
-
-
-class Parameters_ELPH:
-
-    def __init__(self, Nkpoints_DPFT, Kpoints_DFPT):
-        self.Nkpoints_DFPT = Nkpoints_DPFT
-        self.Kpoints_DFPT = Kpoints_DFPT
-
 # functions
-
-
-def get_BSE_MF_params():
-
-    global MF_params, BSE_params, Nmodes
-    global Nat, atomic_pos, cell_vecs, cell_vol, alat
-    global Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval
-    global Nvbnds_sum, Ncbnds_sum
-    global Nvbnds_coarse, Ncbnds_coarse, Nkpoints_coarse
-    global rec_cell_vecs, Nmodes
-
-    if read_Acvk_pos == False:
-        Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_eigenvecs_file(exciton_file)
-    else:
-        Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_alternative_file('params')
-    
-    Nmodes = 3 * Nat
-
-    if 0 < ncbnds_sum < Ncbnds:
-        print('*********************************')
-        print('Instead of using all cond bands from the BSE hamiltonian')
-        print(f'I will use {ncbnds_sum} cond bands (variable ncbnds_sum)')
-        print('*********************************')
-        Ncbnds_sum = ncbnds_sum
-    else:
-        Ncbnds_sum = Ncbnds
-
-    if 0 < nvbnds_sum < Nvbnds:
-        print('*********************************')
-        print('Instead of using all val bands from the BSE hamiltonian')
-        print(f'I will use {nvbnds_sum} val bands (variable nvbnds_sum)')
-        print('*********************************')
-        Nvbnds_sum = nvbnds_sum
-    else:
-        Nvbnds_sum = Nvbnds
-        
-    if elph_fine_a_la_bgw == True:
-        print('I will perform elph interpolation "a la BerkeleyGW"')
-        print('Check the absorption.inp file to see how many bands were used in both coarse and fine grids.')
-        print('From the forces.inp file, I got the following parameters: ')
-        print(f'    ncond_coarse    = {ncbands_co}')
-        print(f'    nval_coarse     = {nvbands_co}')
-        print(f'    nkpoints_coarse = {nkpnts_co}')
-        print('Be sure that all those bands are included in the DFPT calculation!')
-        print('If not, the missing elph coefficients will be considered to be equal 0.')
-        
-    Ncbnds_coarse = ncbands_co
-    Nvbnds_coarse = nvbands_co
-    Nkpoints_coarse = nkpnts_co
-        
-
-    MF_params = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
-    BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse, rec_cell_vecs)
-
-def report_expected_energies(Akcv, Omega):
-
-    Mean_Ekin = 0.0
-    if Calculate_Kernel == True:
-        Mean_Kx, Mean_Kd = 0.0, 0.0
-
-    for ik1 in range(BSE_params.Nkpoints_BSE):
-        for ic1 in range(BSE_params.Ncbnds):
-            for iv1 in range(BSE_params.Nvbnds):
-                Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*abs(Akcv[ik1, ic1, iv1])**2
-
-    if Calculate_Kernel == True:
-        for ik1 in range(BSE_params.Nkpoints_BSE):
-            for ic1 in range(BSE_params.Ncbnds):
-                for iv1 in range(BSE_params.Nvbnds):
-                    for ik2 in range(BSE_params.Nkpoints_BSE):
-                        for ic2 in range(BSE_params.Ncbnds):
-                            for iv2 in range(BSE_params.Nvbnds):
-                                Mean_Kx += Ry2eV * \
-                                    np.conj(
-                                        Akcv[ik1, ic1, iv1]) * Kx[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
-                                Mean_Kd += Ry2eV * \
-                                    np.conj(
-                                        Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
-
-    print('Exciton energies (eV): ')
-    print(f'    Omega         =  {Omega:.6f}')
-    print(f'    <KE>          =  {Mean_Ekin:.6f}')
-    print(f'    Omega - <KE>  =  {(Omega - Mean_Ekin):.6f}')
-    if Calculate_Kernel == True:
-        print(f'    <Kx>          =  {np.real(Mean_Kx):.6f} + {np.imag(Mean_Kx):.6f} j')
-        print(f'    <Kd>          =  {np.real(Mean_Kd):.6f} + {np.imag(Mean_Kd):.6f} j')
-        DIFF = Omega - (Mean_Ekin + Mean_Kd + Mean_Kx)
-        print(f'\n    DIFF          = {DIFF:.6f} \n\n')
-
-
-def correct_comp_vector(comp):
-    # component is in alat units
-    # return the component in the interval 0 < comp < 1
-    
-    # making -1 < comp < 1
-    comp = round(comp, 6) - int(round(comp, 6))
-    if comp < 0: # making comp 0 < comp < 1
-        comp += 1
-
-    return comp
-
-
-def find_kpoint(kpoint, K_list):
-    index_in_matrix = -1
-    for index in range(len(K_list)):
-        # if np.array_equal(kpoint, K_list[index]):
-        if np.linalg.norm(kpoint - K_list[index]) <= TOL_DEG:
-            index_in_matrix = index
-    return index_in_matrix
-
 
 def translate_bse_to_dfpt_k_points():
 
@@ -293,117 +130,15 @@ def check_k_points_BSE_DFPT():
             print('Continuing calculation regardless of that!')
 
 
-
-
 ######################### RUNNING CODE ##############################
 
 start_time = time.clock_gettime(0)
 # Getting BSE and MF parameters
 # Reading eigenvecs.h5 file
-get_BSE_MF_params()
+Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, BSE_params, MF_params = get_BSE_MF_params()
 
 # getting info from eqp.dat (from absorption calculation)
 Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
-
-# Getting exciton info
-if read_Acvk_pos == False:
-    Akcv, OmegaA = get_exciton_info(exciton_file, iexc)
-    if iexc != jexc:  
-        Bkcv, OmegaB = get_exciton_info(exciton_file, jexc)
-    else:
-        Bkcv, OmegaB = Akcv, OmegaA
-        
-else:
-    Akcv, OmegaA = get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints_BSE, Ncbnds, Nvbnds)
-    if iexc != jexc:
-        Bkcv, OmegaB = get_exciton_info_alternative(Acvk_directory, jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
-    else:
-        Bkcv, OmegaB = Akcv, OmegaA
-
-
-# # summarize transition energies and derivatives of (Ec-Ev)
-# # index_of_max_abs_value_Akcv
-# ik, ic, iv = index_of_max_abs_value_Akcv
-# Emin_gap_dft = Edft_cond[ik, ic] - Edft_val[ik, ic]
-# Emin_gap_qp = Eqp_cond[ik, ic] - Eqp_val[ik, ic]
-# print(f'\n\nHighest value of Acvk for exciton {iexc}')
-# print(f'occurs at k point {Kpoints_BSE[ik][0]:4f}  {Kpoints_BSE[ik][1]:4f}  {Kpoints_BSE[ik][2]:4f}')
-# print(f'At this point the gap is equal to:')
-# print(f'at DFT level: {Emin_gap_dft:4f} eV')
-# print(f'at GW level:  {Emin_gap_qp:4f} eV\n\n')
-
-# Getting kernel info from bsemat.h5 file
-if Calculate_Kernel == True:
-    Kd, Kx = get_kernel(kernel_file, factor_head)
-
-# Reporting expected energies
-if iexc != jexc:
-    print(f'Exciton {iexc}')
-    report_expected_energies(Akcv, OmegaA)
-    print(f'Exciton {jexc}')
-    report_expected_energies(Bkcv, OmegaB)
-else:
-    print(f'Exciton {iexc}')
-    report_expected_energies(Akcv, OmegaA)
-    
-# limited sums of BSE coefficients
-indexes_limited_BSE_sum = []
-if limit_BSE_sum == True:
-    print('\n\nUsing limited sum of BSE coefficients. Reading transition to be used from indexes_limited_sum_BSE.dat file.')
-    arq = open("indexes_limited_sum_BSE.dat")
-    for line in arq:
-        line_split = line.split()
-        ik, ic, iv = int(line_split[0])-1, int(line_split[1])-1, int(line_split[2])-1
-        indexes_limited_BSE_sum.append([ik, ic, iv])
-
-    print('Total of transition used:', len(indexes_limited_BSE_sum))
-    arq.close()
-
-
-if limit_BSE_sum_up_to_value < 1.0:
-    top_indexes_Akcv = summarize_Acvk(Akcv, BSE_params, limit_BSE_sum_up_to_value)
-    if iexc != jexc:
-        top_indexes_Bkcv = summarize_Acvk(Bkcv, BSE_params, limit_BSE_sum_up_to_value)
-
-        # Convert lists of lists to sets of tuples
-        set_A = set(tuple(item) for item in top_indexes_Akcv)
-        set_B = set(tuple(item) for item in top_indexes_Bkcv)
-
-        # Merge the sets to eliminate duplicates
-        merged_set = set_A | set_B  # or set_A.union(set_B)
-
-        # Convert the set back to a list of lists
-        indexes_limited_BSE_sum = [list(item) for item in merged_set]
-        
-    else:
-        indexes_limited_BSE_sum = top_indexes_Akcv
-
-# summarizing Akcv information
-
-
-
-
-if len(indexes_limited_BSE_sum) > 0:
-    top_indexes = indexes_limited_BSE_sum
-else:
-    top_indexes = top_n_indexes(np.abs(Akcv), 10)
-    
-
-print('###############################################')
-print('Showing most relevant coeffs for this exciton')
-print('kx        ky        kz        ic   iv   abs(Acvk)^2  partial_sum(abs(Acvk)^2)')
-partial_sum = 0
-for index_Acvk in top_indexes:
-    ik, ic, iv = index_Acvk
-    A = Akcv[index_Acvk]
-    partial_sum += abs(A)**2
-    kx, ky, kz = Kpoints_BSE[ik, 0], Kpoints_BSE[ik, 1], Kpoints_BSE[ik, 2]
-    print(f'{kx:8.4f}  {ky:8.4f}  {kz:8.4f}  {ic+1:<3} {iv+1:<3} {abs(A)**2:10.4f}   {partial_sum:10.4f}')    
-print('###############################################')    
-
-
-
-
 
 
 # Getting elph coefficients
@@ -496,8 +231,43 @@ else:
     elph_cond = elph_interpolate_bgw(elph_cond, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE, BSE_params.Ncbnds)
     elph_val  = elph_interpolate_bgw(elph_val, 'dtmat_non_bin_val', BSE_params.Nkpoints_BSE, BSE_params.Nvbnds)
 
+# Loading exciton coefficients
+
+# Getting exciton info
+Akcv, OmegaA, Bkcv, OmegaB = get_exciton_coeffs(iexc, jexc)
+report_expected_energies_master(iexc, jexc, Eqp_cond, Eqp_val, Akcv, OmegaA, Bkcv, OmegaB)
     
-    
+# limited sums of BSE coefficients
+indexes_limited_BSE_sum = generate_indexes_limited_BSE_sum()
+
+# FIXME: implement this later. This limits the sums.
+# if limit_BSE_sum_up_to_value < 1.0:
+#     top_indexes_Akcv = summarize_Acvk(Akcv, BSE_params, limit_BSE_sum_up_to_value)
+#     if iexc != jexc:
+#         top_indexes_Bkcv = summarize_Acvk(Bkcv, BSE_params, limit_BSE_sum_up_to_value)
+
+#         # Convert lists of lists to sets of tuples
+#         set_A = set(tuple(item) for item in top_indexes_Akcv)
+#         set_B = set(tuple(item) for item in top_indexes_Bkcv)
+
+#         # Merge the sets to eliminate duplicates
+#         merged_set = set_A | set_B  # or set_A.union(set_B)
+
+#         # Convert the set back to a list of lists
+#         indexes_limited_BSE_sum = [list(item) for item in merged_set]
+        
+#     else:
+#         indexes_limited_BSE_sum = top_indexes_Akcv
+
+# summarizing Akcv information  
+summarize_Acvk(Akcv, BSE_params.Kpoints_BSE, indexes_limited_BSE_sum)
+   
+### Loading Kernel matrix elements
+# Getting kernel info from bsemat.h5 file
+if Calculate_Kernel == True:
+    Kd, Kx = get_kernel(kernel_file, factor_head)
+
+
 ########## Calculating stuff ############
 
 print("\n\nCalculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")

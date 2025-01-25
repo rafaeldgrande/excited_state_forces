@@ -1,64 +1,9 @@
 
-import h5py
-import time
-import numpy as np
-
 from excited_forces_config import *
+from modules_to_import import *
 
 
-################ GW related functions #####################
-
-# def read_eqp_data(eqp_file, BSE_params):
-
-#     """Reads quasiparticle and dft energies results from sigma calculations.
-    
-#     It is recommended to use the eqp.dat file from calculations using the
-#     absorption.flavor.x code, as it is compatible with the Acvk coefficients
-#     (same number of valence and conduction bands and same number of k points)
-
-#     Parameters:
-#     eqp_file (string)
-
-#     Returns:
-#         arrays : Eqp_val, Eqp_cond, Edft_val, Edft_cond
-#     """
-
-#     Nkpoints = BSE_params.Nkpoints_BSE
-#     Ncbnds   = BSE_params.Ncbnds
-#     Nvbnds   = BSE_params.Nvbnds
-#     Nval     = BSE_params.Nval
-
-#     Eqp_val   = np.zeros((Nkpoints, Nvbnds), dtype=float)
-#     Edft_val  = np.zeros((Nkpoints, Nvbnds), dtype=float)
-#     Eqp_cond  = np.zeros((Nkpoints, Ncbnds), dtype=float)
-#     Edft_cond = np.zeros((Nkpoints, Ncbnds), dtype=float)
-
-#     print('Reading QP energies from eqp.dat file: ', eqp_file)
-#     arq = open(eqp_file)
-
-#     ik = -1
-
-#     for line in arq:
-#         linha = line.split()
-#         if linha[0] != '1':
-#             ik += 1
-#         else:
-#             iband_file = int(linha[1])
-
-#             if iband_file > Nval: # it is a cond band
-#                 iband = iband_file - Nval 
-#                 if iband <= Ncbnds:
-#                     #print('Cond -> iband_file iband Nval', iband_file, iband, Nval)
-#                     Edft_cond[ik, iband - 1] = float(linha[2])
-#                     Eqp_cond[ik, iband - 1] = float(linha[3])
-#             else: # it is val band
-#                 iband = Nval - iband_file + 1
-#                 if iband <= Nvbnds:
-#                     # print('Val -> ik, iband_file iband Nval', ik, iband_file, iband, Nval)
-#                     Edft_val[ik, iband - 1] = float(linha[2])
-#                     Eqp_val[ik, iband - 1] = float(linha[3])
-
-#     return Eqp_val, Eqp_cond, Edft_val, Edft_cond
+################ GW related functions ############################
 
 def read_eqp_data(eqp_file, BSE_params):
     """
