@@ -329,13 +329,13 @@ if do_vectorized_sums == True:
     Sum_DKinect_offdiag = np.zeros((Nmodes), dtype=np.complex64)
     Sum_DKernel         = np.zeros((Nmodes), dtype=np.complex64)
     
-    # build A_mat[ik, ic1, ic2, iv1, iv2] = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])
+    # build A_mat[ik, ic1, iv1, ic2, iv2] = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])
     A_mat = Akcv[:, :, :, np.newaxis, np.newaxis] * np.conj(Bkcv[:, np.newaxis, np.newaxis, :, :])
     A_mat_diag = Akcv * np.conj(Bkcv)
     
     for imode in range(Nmodes):
-        # build Gc[imode, ik, ic1, ic2, iv1, iv2] = elph_cond[imode, ik, ic1, ic2] * dirac_delta(iv1, iv2)
-        # build Gv[imode, ik, ic1, ic2, iv1, iv2] = elph_val[imode, ik, iv1, iv2] * dirac_delta(ic1, ic2)
+        # build Gc[imode, ik, ic1, iv1, ic2, iv2] = elph_cond[imode, ik, ic1, ic2] * dirac_delta(iv1, iv2)
+        # build Gv[imode, ik, ic1, iv1, ic2, iv2] = elph_val[imode, ik, iv1, iv2] * dirac_delta(ic1, ic2)
         Gc = np.zeros(A_mat.shape, dtype=np.complex64)
         Gv = np.zeros(A_mat.shape, dtype=np.complex64)
         
@@ -354,12 +354,12 @@ if do_vectorized_sums == True:
             for iv in range(Nvbnds):
                 for ic1 in range(Ncbnds):
                     for ic2 in range(Ncbnds):
-                        Gc[ik, ic1, ic2, iv, iv] = elph_cond[imode, ik, ic1, ic2]
+                        Gc[ik, ic1, iv, ic2, iv] = elph_cond[imode, ik, ic1, ic2]
             
             for ic in range(Ncbnds):
                 for iv1 in range(Nvbnds):
                     for iv2 in range(Nvbnds):
-                        Gv[ik, ic, ic, iv1, iv2] = elph_val[imode, ik, iv1, iv2]
+                        Gv[ik, ic, iv1, ic, iv2] = elph_val[imode, ik, iv1, iv2]
         
         # Multiply A_mat * (Gc[imode] - Gv[imode])
         
