@@ -126,6 +126,16 @@ limit_BSE_sum_up_to_value = 1.0
 # and g_{mu,k,v1,v2}*delta(c1,c2) with shape nk, nc, nc, nv, nv
 do_vectorized_sums = True
 
+# If true read exciton pairs from file exciton_pairs.dat
+# The file needs to be something like
+# 1 1 
+# 1 2
+# 1 3
+# ... 
+# The code will calculate the exciton_phoonon coefficients <iexc|dH|jexc> for all pairs
+read_exciton_pairs_file = True
+exciton_pairs = []
+
 def true_or_false(text, default_value):
     if text.lower() == 'true':
         return True
@@ -163,6 +173,7 @@ def read_input(input_file):
     global dfpt_irreps_list
     global limit_BSE_sum, limit_BSE_sum_up_to_value
     global do_vectorized_sums
+    global read_exciton_pairs_file, exciton_pairs
 
     try:
         arq_in = open(input_file)
@@ -258,6 +269,8 @@ def read_input(input_file):
                     limit_BSE_sum = true_or_false(linha[1], limit_BSE_sum)
                 elif linha[0] == 'do_vectorized_sums':
                     do_vectorized_sums = true_or_false(linha[1], do_vectorized_sums)
+                elif linha[0] == 'read_exciton_pairs_file':
+                    read_exciton_pairs_file = true_or_false(linha[1], read_exciton_pairs_file)
 
                 
 ########## did not recognize this line #############
@@ -310,5 +323,18 @@ if limit_BSE_sum_up_to_value < 1.0:
     if limit_BSE_sum == True:
         print('Warning! limit_BSE_sum_up_to_value < 1.0 and limit_BSE_sum = True. Setting limit_BSE_sum = False')
         limit_BSE_sum = False
+        
+if read_exciton_pairs_file == True:
+    print('Reading exciton pairs from file exciton_pairs.dat. Ignoring iexc and jexc values from forces.inp file')
+    arq = open('exciton_pairs.dat')
+    for line in arq:
+        linha = line.split()
+        if len(linha) == 1:
+            exciton_pairs.append((int(linha[0]), int(linha[0])))
+        if len(linha) == 2:
+            exciton_pairs.append((int(linha[0]), int(linha[1])))
+    arq.close()
+else:
+    exciton_pairs = [(iexc, jexc)]
 
 print('\n-------------------------------------------------------------\n\n')
