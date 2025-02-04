@@ -324,17 +324,24 @@ if limit_BSE_sum_up_to_value < 1.0:
         print('Warning! limit_BSE_sum_up_to_value < 1.0 and limit_BSE_sum = True. Setting limit_BSE_sum = False')
         limit_BSE_sum = False
         
-if read_exciton_pairs_file == True:
-    print('Reading exciton pairs from file exciton_pairs.dat. Ignoring iexc and jexc values from forces.inp file')
-    arq = open('exciton_pairs.dat')
-    for line in arq:
-        linha = line.split()
-        if len(linha) == 1:
-            exciton_pairs.append((int(linha[0]), int(linha[0])))
-        if len(linha) == 2:
-            exciton_pairs.append((int(linha[0]), int(linha[1])))
-    arq.close()
+if read_exciton_pairs_file:
+    try:
+        with open('exciton_pairs.dat', 'r') as arq:
+            for line in arq:
+                linha = line.split()
+                if len(linha) == 1:
+                    exciton_pairs.append((int(linha[0]), int(linha[0])))
+                elif len(linha) == 2:
+                    exciton_pairs.append((int(linha[0]), int(linha[1])))
+        print('Reading exciton pairs from file exciton_pairs.dat. Ignoring iexc and jexc values from forces.inp file')
+    except FileNotFoundError:
+        print("Error: File 'exciton_pairs.dat' not found. Using default exciton pairs.")
+        exciton_pairs = [(iexc, jexc)]
 else:
     exciton_pairs = [(iexc, jexc)]
+
+print("Exciton-ph matrix elements to be computed:")
+for exc_pair in exciton_pairs:
+    print(f' <{exc_pair[0]} | dH | {exc_pair[1]}>')
 
 print('\n-------------------------------------------------------------\n\n')
