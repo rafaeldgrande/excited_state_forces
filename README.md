@@ -8,7 +8,7 @@ The excited force expression is given by:
 
 $$ \vec{F} = \sum_{\mu k cv c'v'} \hat{\mu} A_{kcv} A_{kc'v'} \left( g^{\mu}_ {kc,kc'} \delta(v,v') - g^{\mu}_{kv,kv'} \delta(c,c') \right) $$
 
-where $\hat{\mu}$ is one displacement pattern (a phonon mode for example), $A_{cvk}$ is the exciton coefficient obtained from the Bethe-Salpeter Equation, and $g^{\nu}_ {kij}$ is the electron-phonon coefficient $ \langle ki | \partial_ {\nu} V | kj \rangle $.
+where $\hat{\mu}$ is one displacement pattern (a phonon mode for example), $A_{cvk}$ is the exciton coefficient obtained from the Bethe-Salpeter Equation, and $g^{\nu}_ {ki,kj}$ is the electron-phonon coefficient connecting bands $i$ and $j$ at k point $k$.
 
 If you are using our code, please cite 
 
