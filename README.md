@@ -14,6 +14,7 @@ where \(\hat{\nu}\) is one displacement pattern (a phonon mode for example), \(A
 
 If you are using our code, please cite 
 
+```
 @misc{delgrande2025revisitingabinitioexcitedstate,
       title={Revisiting ab-initio excited state forces from many-body Green's function formalism: approximations and benchmark}, 
       author={Rafael R. Del Grande and David A. Strubbe},
@@ -23,5 +24,6 @@ If you are using our code, please cite
       primaryClass={cond-mat.mtrl-sci},
       url={https://arxiv.org/abs/2502.05144}, 
 }
+```
 
 
