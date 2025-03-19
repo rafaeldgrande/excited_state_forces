@@ -4,7 +4,7 @@ Excited state forces code. Calculate forces after excitation by combining result
 
 Details on the implementation and benchmarks can be found here: https://arxiv.org/abs/2502.05144 
 
-The excited force expression is given by:
+The excited force expression is given by:\
 
 $$ F = \sum_{\nu cvc'v' k} A_{cvk} A^*_{c'v'k} (g^{\nu}_{cc'k} - g^{\nu}_{vv'k}) \hat{\nu} $$
 
