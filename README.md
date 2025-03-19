@@ -6,7 +6,9 @@ Details on the implementation and benchmarks can be found here: https://arxiv.or
 
 The excited force expression is given by:
 
-![Equation](https://latex.codecogs.com/png.latex?\vec{F}=\sum_{\nu%20kcv%20c'v'}%20A^{*}_{kcv}%20A_{kc'v'}\left(g^{\nu}_{kc,kc'}\delta(v,v')-g^{\nu}_{kv,kv'}\delta(c,c')\right))
+$$ \sum_{i=1}^{n} i = \frac{n(n+1)}{2} $$
+
+And here's an inline equation: $x^2 + y^2 = z^2$
 
 where \(\hat{\nu}\) is one displacement pattern (a phonon mode for example), \(A_{cvk}\) is the exciton coefficient obtained from the Bethe-Salpeter Equation, and \(g^{\nu}_{ijk}\) is the electron-phonon coefficient \(\langle ik | \partial_{\nu} V | ij \rangle\).
 
