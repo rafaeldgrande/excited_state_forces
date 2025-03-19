@@ -6,14 +6,14 @@ Details on the implementation and benchmarks can be found here: https://arxiv.or
 
 The excited force expression is given by:
 
-$$ \vec{F} = \sum_{\nu k cv c'v'} \hat{\nu} A_{kcv} A_{kc'v'} \left( g^{\nu}_{kc,kc'} \delta(v,v') - g^{\nu}_{kv,kv'} \delta(c,c') \right) $$
+$$ \vec{F} = \sum_{\nu k cv c'v'} \hat{\nu} A_{kcv} A_{kc'v'} \left( g^{\nu}_ {kc,kc'} \delta(v,v') - g^{\nu}_{kv,kv'} \delta(c,c') \right) $$
 
 where \(\hat{\nu}\) is one displacement pattern (a phonon mode for example), \(A_{cvk}\) is the exciton coefficient obtained from the Bethe-Salpeter Equation, and \(g^{\nu}_{ijk}\) is the electron-phonon coefficient \(\langle ik | \partial_{\nu} V | ij \rangle\).
 
 If you are using our code, please cite 
 
 ```
-@misc{delgrande2025revisitingabinitioexcitedstate,
+@misc{delgrande2025,
       title={Revisiting ab-initio excited state forces from many-body Green's function formalism: approximations and benchmark}, 
       author={Rafael R. Del Grande and David A. Strubbe},
       year={2025},
