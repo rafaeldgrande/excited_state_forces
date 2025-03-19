@@ -6,10 +6,8 @@ Details on the implementation and benchmarks can be found here: https://arxiv.or
 
 The excited force expression is given by:
 
-$$ F = \sum_{\nu cvc'v' k} A_{cvk} A^*_{c'v'k} (g^{\nu}_{cc'k} - g^{\nu}_{vv'k}) \hat{\nu} $$
-
-**The Cauchy-Schwarz Inequality**\
-$$\left( \sum_{k=1}^n a_k b_k \right)^2 \leq \left( \sum_{k=1}^n a_k^2 \right) \left( \sum_{k=1}^n b_k^2 \right)$$
+# $$ F = \sum_{\nu cvc'v' k} A_{cvk} A^*_{c'v'k} (g^{\nu}_{cc'k} - g^{\nu}_{vv'k}) \hat{\nu} $$
+$$ \vec{F} $$
 
 where \(\hat{\nu}\) is one displacement pattern (a phonon mode for example), \(A_{cvk}\) is the exciton coefficient obtained from the Bethe-Salpeter Equation, and \(g^{\nu}_{ijk}\) is the electron-phonon coefficient \(\langle ik | \partial_{\nu} V | ij \rangle\).
 
