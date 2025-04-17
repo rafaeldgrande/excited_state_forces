@@ -133,7 +133,7 @@ do_vectorized_sums = True
 # 1 3
 # ... 
 # The code will calculate the exciton_phoonon coefficients <iexc|dH|jexc> for all pairs
-read_exciton_pairs_file = True
+read_exciton_pairs_file = False
 exciton_pairs = []
 
 def true_or_false(text, default_value):
