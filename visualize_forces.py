@@ -2,6 +2,16 @@
 import numpy as np
 import sys
 
+'''
+    Usage: python visualize_forces.py scf_input_file forces_file flavor_forces output_file
+
+    flavor_forces = 1 -> RPA_diag 
+    flavor_forces = 2 -> RPA_diag_offiag
+    flavor_forces = 3 -> RPA_diag + Kernel
+    
+    this script will create a .axsf file with the forces to be read by xcrysden    
+'''
+
 file_scf_input = sys.argv[1]
 file_forces = sys.argv[2]
 flavor_forces = int(sys.argv[3])
@@ -36,10 +46,16 @@ def get_atoms_from_QE_file_0(file_scf_input):
 
 def read_excited_forces(excited_state_forces_file, flavor_forces):
     # flavor = 1 -> RPA_diag 
-    # flavor = 2 -> RPA_diag_offiag 
+    # flavor = 2 -> RPA_diag_offdiag 
+
+    data = np.genfromtxt(excited_state_forces_file, dtype=complex, usecols=flavor_forces+1)
     
-    data = np.loadtxt(excited_state_forces_file, usecols=flavor_forces+1)
-    data = data.reshape(-1, 3)
+    max_imag_part = np.max(np.abs(np.imag(data)))
+    if max_imag_part > 1e-6:
+        print('Warning: Imaginary part of forces is non-zero. Just considering the real part!')
+    
+    data = np.real(data.reshape(-1, 3))
+
     return data
 
 forces = read_excited_forces(file_forces, flavor_forces)
