@@ -139,9 +139,12 @@ def get_BSE_MF_params():
     global rec_cell_vecs, Nmodes
 
     if read_Acvk_pos == False:
-        Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_eigenvecs_file(exciton_file)
+        Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, NQ, Qshift = get_params_from_eigenvecs_file(exciton_file)
     else:
         Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_alternative_file('params')
+        print("Not reading eigevectors.h5 produced from absorption step. Assuming that this calculation has no Q shift.")
+        NQ = 1 
+        Qshift = np.zeros((3), dtype=float)
     
     Nmodes = 3 * Nat
 
@@ -181,7 +184,7 @@ def get_BSE_MF_params():
     MF_params = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
     BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse, rec_cell_vecs)
     
-    return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, BSE_params, MF_params
+    return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, BSE_params, MF_params, NQ, Qshift
 
 # Report functions
 def report_time(start_time):

@@ -138,7 +138,7 @@ start_time = time.clock_gettime(0)
 # Getting BSE and MF parameters
 # Reading eigenvecs.h5 file
 time0 = time.clock_gettime(0)
-Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, BSE_params, MF_params = get_BSE_MF_params()
+Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, BSE_params, MF_params, NQ, Qshift = get_BSE_MF_params()
 time1 = time.clock_gettime(0)
 TASKS.append(['Get parameters from DFT and GWBSE', time1 - time0])
 
@@ -188,7 +188,7 @@ for ik in range(Nkpoints_DFPT):
         K_cart[icomp] = correct_comp_vector(K_cart[icomp])
     Kpoints_in_elph_file_cart.append(K_cart)
     
-Kpoints_in_elph_file_cart = np.array(Kpoints_in_elph_file_cart)
+Kpoints_in_elph_file_cart = np.array(Kpoints_in_elph_file_cart) # shape (Nkpoints_DFPT, 3)
 
 if log_k_points == True:
     arq_kpoints_log = open('Kpoints_dfpt_cart_basis', 'w')
@@ -308,6 +308,29 @@ for imode in range(Nmodes):
 time1 = time.clock_gettime(0)
 TASKS.append(['ELPH matrices expansion (for vectorized multiplication)', time1 - time0])
 
+def apply_Qshift_on_valence_states(Qshift, Gv):
+    if np.linalg.norm(Qshift) > 0.0:
+        print(f"Applying Q shift to valence states")
+
+        # shape Qshift is (3,)
+        # shape Kpoints_in_elph_file_cart is (Nkpoints_DFPT, 3)
+        Kpoints_shifted = (Kpoints_in_elph_file_cart + Qshift) % 1.0  # %1.0 is to put in the first BZ
+        
+        mapping = []
+        for kshifted in Kpoints_shifted:
+            distances = np.linalg.norm(Kpoints_in_elph_file_cart - kshifted, axis = 1)
+            min_index = np.argmin(distances)
+            if distances[min_index] >  1e-4:
+                print(f"WARNING! The Q-shifted k point {kshifted} is not close to any k point in the DFPT calculation. The closest one is {Kpoints_in_elph_file_cart[min_index]} with distance {distances[min_index]}")
+            mapping.append(min_index)
+        
+        Gv_new = Gv[:, mapping, :, :, :, :]
+        Gv = Gv_new
+
+    return Gv
+
+Gv = apply_Qshift_on_valence_states(Qshift, Gv)
+
 # Loading exciton coefficients
 
 # Getting exciton info
@@ -344,8 +367,6 @@ def load_exciton_coeffs(iexc, jexc):
 
     delta_time = time.clock_gettime(0) - time0
     return Akcv, OmegaA, Bkcv, OmegaB, indexes_limited_BSE_sum, delta_time
-    
-TASKS.append(['Loading exciton coefficients', time1 - time0])
    
 ### Loading Kernel matrix elements
 # Getting kernel info from bsemat.h5 file

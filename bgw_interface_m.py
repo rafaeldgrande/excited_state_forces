@@ -203,6 +203,8 @@ def get_params_from_eigenvecs_file(exciton_file):
     rec_cell_vecs = f_hdf5['/mf_header/crystal/bvec'][()]
     atomic_pos    = f_hdf5['/mf_header/crystal/apos'][()]      # in cartesian coordinates, in units of alat - important for visualization
     Nat           = f_hdf5['/mf_header/crystal/nat'][()]              # Number of atoms
+    NQ            = f_hdf5['/exciton_header/kpoints/nQ'][()]               # Number of Q points
+    Qshift        = f_hdf5['/exciton_header/kpoints/exciton_Q_shifts'][()]          # Q point shift
 
     # Bands used to build BSE hamiltonian
     Nvbnds = f_hdf5['/exciton_header/params/nv'][()]  # Assuming TDA
@@ -265,6 +267,10 @@ def get_params_from_eigenvecs_file(exciton_file):
     print(f'    Number of cond bands       = {Ncbnds}')
     print(f'    Number of val bands        = {Nvbnds}')
     print(f'    Valence band index         = {Nval}')
+    print(f'    Number of Q points         = {NQ}')
+    print(f'    Q point shift              = {Qshift}')
+    if np.linalg.norm(Qshift) > 0.0:
+        print(f"This exciton has a finite center of mass momentum")
     print('\n')
     print(f'    Lattice parameter (a.u.)   = {alat:.8f}')
     print(f'    Lattice vectors (in lattice parameter units): ')
@@ -278,7 +284,7 @@ def get_params_from_eigenvecs_file(exciton_file):
     print(f'\n\n')
 
 
-    return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval, rec_cell_vecs
+    return Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_bse, Nkpoints, Nval, rec_cell_vecs, NQ, Qshift
 
 
 def get_params_from_alternative_file(alternative_params_file):
