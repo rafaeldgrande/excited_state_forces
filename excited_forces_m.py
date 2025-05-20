@@ -11,10 +11,6 @@ from excited_forces_config import *
 from bgw_interface_m import *
 from qe_interface_m import *
 from excited_forces_classes import *
-
-if run_parallel == True:
-    from multiprocessing import Pool, cpu_count
-    from functools import partial
     
 def report_expected_energies(Akcv, Omega, Eqp_cond, Eqp_val):
 
@@ -52,13 +48,19 @@ def report_expected_energies(Akcv, Omega, Eqp_cond, Eqp_val):
         print(f'\n    DIFF          = {DIFF:.6f} \n\n')
     
 def get_exciton_coeffs(iexc, jexc):
-    if read_Acvk_pos == False:
-        Akcv, OmegaA = get_exciton_info(exciton_file, iexc)
-        Bkcv, OmegaB = get_exciton_info(exciton_file, jexc)    
+    if config["read_Acvk_pos"] == False:
+        Akcv = get_exciton_info(config["exciton_file"], iexc)
+        if iexc == jexc:
+            Bkcv = Akcv
+        else:
+            Bkcv = get_exciton_info(config["exciton_file"], jexc)    
     else:
-        Akcv, OmegaA = get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints_BSE, Ncbnds, Nvbnds)
-        Bkcv, OmegaB = get_exciton_info_alternative(Acvk_directory, jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
-    return Akcv, OmegaA, Bkcv, OmegaB
+        Akcv = get_exciton_info_alternative(config["Acvk_directory"], iexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+        if iexc == jexc:
+            Bkcv = Akcv
+        else:
+            Bkcv = get_exciton_info_alternative(config["Acvk_directory"], jexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+    return Akcv, Bkcv
 
 
 def report_expected_energies_master(iexc, jexc, Eqp_cond, Eqp_val, Akcv, OmegaA, Bkcv, OmegaB):         
@@ -138,8 +140,8 @@ def get_BSE_MF_params():
     global Nvbnds_coarse, Ncbnds_coarse, Nkpoints_coarse
     global rec_cell_vecs, Nmodes
 
-    if read_Acvk_pos == False:
-        Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, NQ, Qshift = get_params_from_eigenvecs_file(exciton_file)
+    if config["read_Acvk_pos"] == False:
+        Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, NQ, Qshift = get_params_from_eigenvecs_file(config["exciton_file"])
     else:
         Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs = get_params_from_alternative_file('params')
         print("Not reading eigevectors.h5 produced from absorption step. Assuming that this calculation has no Q shift.")
@@ -148,7 +150,7 @@ def get_BSE_MF_params():
     
     Nmodes = 3 * Nat
 
-    if 0 < ncbnds_sum < Ncbnds:
+    if 0 < config["ncbnds_sum"] < Ncbnds:
         print('*********************************')
         print('Instead of using all cond bands from the BSE hamiltonian')
         print(f'I will use {ncbnds_sum} cond bands (variable ncbnds_sum)')
@@ -157,29 +159,29 @@ def get_BSE_MF_params():
     else:
         Ncbnds_sum = Ncbnds
 
-    if 0 < nvbnds_sum < Nvbnds:
+    if 0 < config["nvbnds_sum"] < Nvbnds:
         print('*********************************')
         print('Instead of using all val bands from the BSE hamiltonian')
-        print(f'I will use {nvbnds_sum} val bands (variable nvbnds_sum)')
+        print(f'I will use {config["nvbnds_sum"]} val bands (variable nvbnds_sum)')
         print('*********************************')
-        Nvbnds_sum = nvbnds_sum
+        Nvbnds_sum = config["nvbnds_sum"] #nvbnds_sum
     else:
         Nvbnds_sum = Nvbnds
-        
-    if elph_fine_a_la_bgw == True:
+
+    if config["elph_fine_a_la_bgw"] == True:
         print('I will perform elph interpolation "a la BerkeleyGW"')
         print('Check the absorption.inp file to see how many bands were used in both coarse and fine grids.')
         print('From the forces.inp file, I got the following parameters: ')
-        print(f'    ncond_coarse    = {ncbands_co}')
-        print(f'    nval_coarse     = {nvbands_co}')
-        print(f'    nkpoints_coarse = {nkpnts_co}')
+        print(f'    ncond_coarse    = {config["ncbands_co"]}')
+        print(f'    nval_coarse     = {config["nvbands_co"]}')
+        print(f'    nkpoints_coarse = {config["nkpnts_co"]}')
         print('Be sure that all those bands are included in the DFPT calculation!')
         print('If not, the missing elph coefficients will be considered to be equal 0.')
-        
-    Ncbnds_coarse = ncbands_co
-    Nvbnds_coarse = nvbands_co
-    Nkpoints_coarse = nkpnts_co
-        
+
+    Ncbnds_coarse = config["ncbands_co"]
+    Nvbnds_coarse = config["nvbands_co"]
+    Nkpoints_coarse = config["nkpnts_co"]
+
 
     MF_params = Parameters_MF(Nat, atomic_pos, cell_vecs, cell_vol, alat)
     BSE_params = Parameters_BSE(Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse, rec_cell_vecs)
@@ -411,7 +413,7 @@ def calc_deriv_Kernel(KernelMat, EDFT, EQP, ELPH, Akcv, Bkcv, MF_params, BSE_par
                                 
         Sum_DKernel[imode] = temp_sum_imode
 
-    if write_dK_mat == True:
+    if config["write_dK_mat"] == True:
         arq_dK_report.close()
     
     return Sum_DKernel
@@ -457,7 +459,7 @@ def renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_con
 
                         elph = elph_cond[imode, ik_dfpt, ic1, ic2]
 
-                        if no_renorm_elph == True:
+                        if config["no_renorm_elph"] == True:
                             aux_cond_matrix[imode, ik, ic1, ic2] = elph
 
                         else:
@@ -475,7 +477,7 @@ def renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_con
 
                         elph = elph_val[imode, ik_dfpt, iv1, iv2]
 
-                        if no_renorm_elph == True:
+                        if config["no_renorm_elph"] == True:
                             aux_val_matrix[imode, ik, iv1, iv2] = elph
 
                         else:
@@ -932,7 +934,7 @@ def report_iterations(counter_now, total_iterations, step_report, when_function_
               f'elapsed {round(delta_T, 1):10.1f} s, remaining {round(delta_T_remain, 1):10.1f} s')
         
         
-def apply_Qshift_on_valence_states(Qshift, Gv):
+def apply_Qshift_on_valence_states(Qshift, Gv, Kpoints_in_elph_file_frac):
     if np.linalg.norm(Qshift) > 0.0:
         print(f"Applying Q shift to valence states")
 
@@ -950,5 +952,8 @@ def apply_Qshift_on_valence_states(Qshift, Gv):
         
         Gv_new = Gv[:, mapping, :, :, :, :]
         Gv = Gv_new
+        print(f"Done applying Q shift to valence states")
+    else:
+        print(f"NOT applying Q shift to valence states")
 
     return Gv

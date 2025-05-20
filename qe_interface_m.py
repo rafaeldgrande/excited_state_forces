@@ -4,10 +4,6 @@ from excited_forces_config import *
 from modules_to_import import *
 # from excited_forces_m import *
 
-if run_parallel == True:
-    from multiprocessing import Pool
-    import multiprocessing
-
 def print_elapsed_time_min(start_time):
     elapsed_time = datetime.now() - start_time    
     time_minutes = elapsed_time.total_seconds() / 60.
@@ -31,7 +27,7 @@ def indexes_x_in_list(what_i_want, list_i_get):
     return indexes
 
 
-def get_displacement_patterns(iq, MF_params):
+def get_displacement_patterns(el_ph_dir, iq, MF_params):
 
     """Reads displacements patterns from patterns.X.xml files, 
     where X is the q vector for this displacement.
@@ -99,7 +95,7 @@ def get_displacement_patterns(iq, MF_params):
     return Displacements, Nirreps
 
 
-def read_elph_xml(elph_xml_file):
+def read_elph_xml(elph_xml_file, log_k_points=False):
 
     """Reads elph coefficients (<i_k|dV/dx_mu|j_(k+q)>) produced by DFPT calculations from Quantum Espresso
     Those coefficients are written in .xml files. The nomenclature of those files are
@@ -215,7 +211,7 @@ def read_elph_xml(elph_xml_file):
     return elph_aux, np.array(Kpoints_in_elph_file)
 
 
-def get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list):  # suitable for xml files written from qe 6.7 
+def get_el_ph_coeffs(el_ph_dir, iq, Nirreps, dfpt_irreps_list):  # suitable for xml files written from qe 6.7 
 
     """ Reads all elph.iq.ipert.xml files and returns the electron-phonon coefficients
     elph[Nmodes, Nk, Nbnds_in_xml, Nbnds_in_xml] """
@@ -367,6 +363,8 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
         print("    Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
         print("    Mean offdiag |g_ij| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
         print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
+        
+        print('Finished applying acoustic sum rule.')
 
     else:
         print('\nNot applying acoustic sum rule. In the end check the force on the system center of mass.')
@@ -401,7 +399,7 @@ def filter_elph_coeffs(elph, MF_params, BSE_params):
     Nmodes   = MF_params.Nmodes
     Nval     = BSE_params.Nval
     
-    if elph_fine_a_la_bgw == False:
+    if config["elph_fine_a_la_bgw"] == False:
         # Nkpoints     = BSE_params.Nkpoints_BSE
         Ncbnds_sum   = BSE_params.Ncbnds_sum
         Nvbnds_sum   = BSE_params.Nvbnds_sum

@@ -157,9 +157,6 @@ def get_exciton_info(exciton_file, iexc):
     Assuming calculations with TD approximation
     Info about file at: http://manual.berkeleygw.org/3.0/eigenvectors_h5_spec/
     Also, just working for excitons with Q = 0 and one spin
-
-    TODO -> for now calculting exciton info for exciton with index iexc
-    but later, make it calculate for and set of exciton indexes
     
     Parameters:
     exciton_file = exciton file name (string). ex: eigenvecs.h5
@@ -169,26 +166,17 @@ def get_exciton_info(exciton_file, iexc):
     Acvk = Exciton wavefunc coefficients. array Akcv[ik, ic, iv] with complex values
     Omega = Exciton energy (BSE eigenvalue) in eV (float)
     """
-
-    print('Reading exciton info from file', exciton_file)
-
     f_hdf5 = h5py.File(exciton_file, 'r')
     
     flavor_calc = f_hdf5['/exciton_header/flavor'][()]
     eigenvecs   = f_hdf5['exciton_data/eigenvectors'][()]          # (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
-    eigenvals   = f_hdf5['exciton_data/eigenvalues'][()] 
 
-    Omega = eigenvals[iexc-1]
     if flavor_calc == 2:
-        print('Flavor in BGW: complex')
         Akcv = eigenvecs[0,iexc-1,:,:,:,0,0] + 1.0j*eigenvecs[0,iexc-1,:,:,:,0,1]
     else:
-        print('Flavor in BGW: real')
         Akcv = eigenvecs[0,iexc-1,:,:,:,0,0]
 
-    print('\n\n')
-
-    return Akcv, Omega
+    return Akcv
 
 
 def get_params_from_eigenvecs_file(exciton_file):
@@ -245,7 +233,7 @@ def get_params_from_eigenvecs_file(exciton_file):
 
     # writing k points info to file - DEBUG
 
-    if log_k_points == True:
+    if config["log_k_points"] == True:
 
         print('Writing k points in eigenvecs in Kpoints_eigenvecs_file')
 
@@ -271,7 +259,6 @@ def get_params_from_eigenvecs_file(exciton_file):
     print(f'    Q point shift              = {Qshift}')
     if np.linalg.norm(Qshift) > 0.0:
         print(f"This exciton has a finite center of mass momentum")
-    print('\n')
     print(f'    Lattice parameter (a.u.)   = {alat:.8f}')
     print(f'    Lattice vectors (in lattice parameter units): ')
     print(f'          a1 = ({cell_vecs[0, 0]:.8f}, {cell_vecs[0, 1]:.8f}, {cell_vecs[0, 2]:.8f})')
@@ -356,7 +343,7 @@ def get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints, Ncbnds, Nvbnds)
 
     Akcv = np.zeros((Nkpoints, Ncbnds, Nvbnds), dtype=complex)
 
-    print('Reading exciton info from file', exciton_file)
+    # print('Reading exciton info from file', exciton_file)
     arq = open(exciton_file)
 
     for line in arq:
@@ -370,9 +357,9 @@ def get_exciton_info_alternative(Acvk_directory, iexc, Nkpoints, Ncbnds, Nvbnds)
             if linha[0] == 'Special':
                 exc_energy = float(linha[-1])
 
-    print('Exciton energy (eV): '+str(exc_energy)+'\n\n')
+    # print('Exciton energy (eV): '+str(exc_energy)+'\n\n')
 
-    return Akcv, exc_energy
+    return Akcv #, exc_energy
 
 def top_n_indexes(array, N):
     # Flatten the array
