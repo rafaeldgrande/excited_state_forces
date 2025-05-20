@@ -930,3 +930,25 @@ def report_iterations(counter_now, total_iterations, step_report, when_function_
         print(f'Transitions {counter_now:8} of {total_iterations:8} calculated | '
               f'{round(100 * counter_now / total_iterations, 1):5.1f} % | '
               f'elapsed {round(delta_T, 1):10.1f} s, remaining {round(delta_T_remain, 1):10.1f} s')
+        
+        
+def apply_Qshift_on_valence_states(Qshift, Gv):
+    if np.linalg.norm(Qshift) > 0.0:
+        print(f"Applying Q shift to valence states")
+
+        # shape Qshift is (3,)
+        # shape Kpoints_in_elph_file_frac is (Nkpoints_DFPT, 3)
+        Kpoints_shifted = (Kpoints_in_elph_file_frac + Qshift) % 1.0  # %1.0 is to put in the first BZ
+        
+        mapping = []
+        for kshifted in Kpoints_shifted:
+            distances = np.linalg.norm(Kpoints_in_elph_file_frac - kshifted, axis = 1)
+            min_index = np.argmin(distances)
+            if distances[min_index] >  1e-4:
+                print(f"WARNING! The Q-shifted k point {kshifted} is not close to any k point in the DFPT calculation. The closest one is {Kpoints_in_elph_file_frac[min_index]} with distance {distances[min_index]}")
+            mapping.append(min_index)
+        
+        Gv_new = Gv[:, mapping, :, :, :, :]
+        Gv = Gv_new
+
+    return Gv

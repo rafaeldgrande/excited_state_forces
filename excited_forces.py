@@ -28,18 +28,36 @@ from excited_forces_classes import *
 # trace ram
 tracemalloc.start()
 
+
+print('''
+      
+####################################################################
+
+Excited state forces calculation
+Developers: Rafael Del Grande, David Strubbe
+
+Please cite: 
+
+@misc{arxivdelgrande2025,
+      title={Revisiting ab-initio excited state forces from many-body Green's function formalism: approximations and benchmark}, 
+      author={Rafael R. Del Grande and David A. Strubbe},
+      year={2025},
+      eprint={2502.05144},
+      archivePrefix={arXiv},
+      primaryClass={cond-mat.mtrl-sci},
+      url={https://arxiv.org/abs/2502.05144}, 
+}
+
+####################################################################
+      
+      ''')
+
 # datetime object containing current date and time
 now = datetime.now()
 
 # dd/mm/YY H:M:S
 dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
 print("\n\nExecution date: ", dt_string)
-
-print('\n\n*************************************************************')
-print('Excited state forces code')
-print('Developed by Rafael Del Grande and David Strubbe')
-print('*************************************************************\n\n')
-
 
 # functions
 
@@ -76,9 +94,9 @@ def translate_bse_to_dfpt_k_points():
             arq_teste.write(f'{vec_eigvecs[0]:.9f}   {vec_eigvecs[1]:.9f}   {vec_eigvecs[2]:.9f}\n')
             
 
-            found_or_not = find_kpoint(vec_eigvecs, Kpoints_in_elph_file_cart)
-            # if found the vec_eigvecs in the Kpoints_in_elph_file_cart, then returns
-            # the index in the Kpoints_in_elph_file_cart.
+            found_or_not = find_kpoint(vec_eigvecs, Kpoints_in_elph_file_frac)
+            # if found the vec_eigvecs in the Kpoints_in_elph_file_frac, then returns
+            # the index in the Kpoints_in_elph_file_frac.
             # if did not find it, then returns -1
 
             # the conversion list from one to another
@@ -88,7 +106,7 @@ def translate_bse_to_dfpt_k_points():
         arq_teste.close()
         
     else:
-        for ik in range(len(Kpoints_in_elph_file_cart)):
+        for ik in range(len(Kpoints_in_elph_file_frac)):
             ikBSE_to_ikDFPT.append(ik)
     
     return ikBSE_to_ikDFPT
@@ -132,209 +150,6 @@ def check_k_points_BSE_DFPT():
             print('Continuing calculation regardless of that!')
 
 
-######################### RUNNING CODE ##############################
-
-start_time = time.clock_gettime(0)
-# Getting BSE and MF parameters
-# Reading eigenvecs.h5 file
-time0 = time.clock_gettime(0)
-Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, BSE_params, MF_params, NQ, Qshift = get_BSE_MF_params()
-time1 = time.clock_gettime(0)
-TASKS.append(['Get parameters from DFT and GWBSE', time1 - time0])
-
-
-# getting info from eqp.dat (from absorption calculation)
-time0 = time.clock_gettime(0)
-Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
-time1 = time.clock_gettime(0)
-TASKS.append(['Reading QP and DFT energy levels', time1 - time0])
-
-# Getting elph coefficients
-# get displacement patterns
-time0 = time.clock_gettime(0)
-iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-zero center of mass momentum
-Displacements, Nirreps = get_displacement_patterns(iq, MF_params)
-
-# when one wants to use just some irreps, we need to remove the other not used
-if len(dfpt_irreps_list) != 0:
-    Displacements = Displacements[dfpt_irreps_list, :, :]
-    MF_params.Nmodes = len(dfpt_irreps_list)
-    Nmodes = len(dfpt_irreps_list)
-    print(f"Not using all irreps. Setting Nmodes to {Nmodes}.")
-else:
-    Nmodes = MF_params.Nmodes
-
-# get elph coefficients from .xml files
-
-elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list)
-time1 = time.clock_gettime(0)
-TASKS.append(['Reading ELPH coefficients', time1 - time0])
-
-Nkpoints_DFPT = len(Kpoints_in_elph_file)
-
-# change basis for k points from dfpt calculations
-# those k points are in cartesian basis. we're changing 
-# it to reciprocal lattice basis
-
-time0 = time.clock_gettime(0)
-mat_reclattvecs_to_cart = np.transpose(BSE_params.rec_cell_vecs)
-mat_cart_to_reclattvecs = np.linalg.inv(mat_reclattvecs_to_cart)
-
-Kpoints_in_elph_file_cart = []
-
-for ik in range(Nkpoints_DFPT):
-    K_cart = mat_cart_to_reclattvecs @ Kpoints_in_elph_file[ik]
-    for icomp in range(3):
-        K_cart[icomp] = correct_comp_vector(K_cart[icomp])
-    Kpoints_in_elph_file_cart.append(K_cart)
-    
-Kpoints_in_elph_file_cart = np.array(Kpoints_in_elph_file_cart) # shape (Nkpoints_DFPT, 3)
-
-if log_k_points == True:
-    arq_kpoints_log = open('Kpoints_dfpt_cart_basis', 'w')
-    for K_cart in Kpoints_in_elph_file_cart:
-        arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
-    arq_kpoints_log.close()   
-
-time1 = time.clock_gettime(0)
-TASKS.append(['Changing basis for k points', time1 - time0])
-
-
-# filter data to get just g_c1c2 and g_v1v2
-time0 = time.clock_gettime(0)
-elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
-time1 = time.clock_gettime(0)
-TASKS.append(['Filtering ELPH data to ELPH_cond and ELPH_val', time1 - time0])
-
-# apply acoustic sum rule over elph coefficients
-time0 = time.clock_gettime(0)
-elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
-elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
-time1 = time.clock_gettime(0)
-TASKS.append(['Impose ASR on ELPH coefficients', time1 - time0])
-
-# Let's put all k points from BSE grid in the first Brillouin zone
-ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
-
-del elph
-report_ram()
-
-
-# renormalze elph coefficients
-time0 = time.clock_gettime(0)
-if no_renorm_elph == False:
-    print('Renormalizing ELPH coefficients') 
-    print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
-    print('and <n|dHqp|m> = <n|dHdft|m> otherwise')
-else:
-    print('Not Renormalizing ELPH coefficients. Using <n|dHqp|m> = <n|dHdft|m> for all n and m')
-elph_cond, elph_val = renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, Edft_cond, 
-                                                                           MF_params, BSE_params, ikBSE_to_ikDFPT)
-
-time1 = time.clock_gettime(0)
-TASKS.append(['Renormalization of ELPH coefficients', time1 - time0])
-
-# interpolation of elph coefficients a la BerkeleyGW code?
-time0 = time.clock_gettime(0)
-if elph_fine_a_la_bgw == False:
-    
-    print('No interpolation on elph coeffs is used')
-    
-    if trust_kpoints_order == False:
-        print('Checking if kpoints of DFPT and BSE agree with each other')
-
-        # Checking kpoints from DFPT and BSE calculations
-        # The kpoints in eigenvecs.h5 are not in the same order in the
-        # input for the fine grid calculation.
-        # The k points in BSE are reported in reciprocal lattice vectors basis
-        # and in DFPT those k points are reported in cartersian basis in units
-        # of reciprocal lattice
-
-        # It SEEMS that the order of k points in the eqp.dat (produced by the absorption code)
-        # is the same than the order of k points in the eigenvecs file
-        # Maybe it would be necessary to check it later!
-
-        # Now checking if everything is ok with ikBSE_to_ikDFPT list
-        # if something is wrong kill the code
-        check_k_points_BSE_DFPT()
-    else:
-        print('As trust_kpoints_order is true, I am not mapping k points from BSE with k points from DFPT.')
-        print('I am assuming they are informed in the same order in both calculations')
-    
-else:
-    
-    print('Using interpolation "a la BerkeleyGW code"')
-    print('Reading coefficients relating fine and coarse grids from files dtmat_non_bin_val and dtmat_non_bin_conds')
-
-    elph_cond = elph_interpolate_bgw(elph_cond, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE, BSE_params.Ncbnds)
-    elph_val  = elph_interpolate_bgw(elph_val, 'dtmat_non_bin_val', BSE_params.Nkpoints_BSE, BSE_params.Nvbnds)
-
-time1 = time.clock_gettime(0)
-TASKS.append(['Interpolation of ELPH coefficients', time1 - time0])
-
-time0 = time.clock_gettime(0)
-
-print("Expanding ELPH matrices for vectorized multiplication")
-
-Shape_augmented = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds, Ncbnds, Nvbnds)
-Gc = np.zeros(Shape_augmented, dtype=np.complex64)
-Gv = np.zeros(Shape_augmented, dtype=np.complex64)
-
-Shape_augmented_diag = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
-Gc_diag = np.zeros(Shape_augmented_diag, dtype=np.complex64)
-Gv_diag = np.zeros(Shape_augmented_diag, dtype=np.complex64)
-
-print(f"Old shape for cond elph is {elph_cond.shape}. New shape is {Gc.shape} including off-diagonal elements and {Gc_diag.shape} for diagonal elements")
-print(f"Old shape for val elph is {elph_val.shape}. New shape is {Gv.shape} including off-diagonal elements and {Gv_diag.shape} for diagonal elements")
-
-for imode in range(Nmodes):
-    for ik in range(Nkpoints_BSE):
-        
-        for ic in range(Ncbnds):
-            for iv in range(Nvbnds):        
-                Gc_diag[imode, ik, ic, iv] = elph_cond[imode, ik, ic, ic]
-                Gv_diag[imode, ik, ic, iv] = elph_val[imode, ik, iv, iv]
-        
-        for iv in range(Nvbnds):
-            for ic1 in range(Ncbnds):
-                for ic2 in range(Ncbnds):
-                    Gc[imode, ik, ic1, iv, ic2, iv] = elph_cond[imode, ik, ic1, ic2]
-        
-        for ic in range(Ncbnds):
-            for iv1 in range(Nvbnds):
-                for iv2 in range(Nvbnds):
-                    Gv[imode, ik, ic, iv1, ic, iv2] = elph_val[imode, ik, iv1, iv2]
-
-time1 = time.clock_gettime(0)
-TASKS.append(['ELPH matrices expansion (for vectorized multiplication)', time1 - time0])
-
-def apply_Qshift_on_valence_states(Qshift, Gv):
-    if np.linalg.norm(Qshift) > 0.0:
-        print(f"Applying Q shift to valence states")
-
-        # shape Qshift is (3,)
-        # shape Kpoints_in_elph_file_cart is (Nkpoints_DFPT, 3)
-        Kpoints_shifted = (Kpoints_in_elph_file_cart + Qshift) % 1.0  # %1.0 is to put in the first BZ
-        
-        mapping = []
-        for kshifted in Kpoints_shifted:
-            distances = np.linalg.norm(Kpoints_in_elph_file_cart - kshifted, axis = 1)
-            min_index = np.argmin(distances)
-            if distances[min_index] >  1e-4:
-                print(f"WARNING! The Q-shifted k point {kshifted} is not close to any k point in the DFPT calculation. The closest one is {Kpoints_in_elph_file_cart[min_index]} with distance {distances[min_index]}")
-            mapping.append(min_index)
-        
-        Gv_new = Gv[:, mapping, :, :, :, :]
-        Gv = Gv_new
-
-    return Gv
-
-Gv = apply_Qshift_on_valence_states(Qshift, Gv)
-
-# Loading exciton coefficients
-
-# Getting exciton info
-
 def load_exciton_coeffs(iexc, jexc):
     time0 = time.clock_gettime(0)
     Akcv, OmegaA, Bkcv, OmegaB = get_exciton_coeffs(iexc, jexc)
@@ -367,19 +182,7 @@ def load_exciton_coeffs(iexc, jexc):
 
     delta_time = time.clock_gettime(0) - time0
     return Akcv, OmegaA, Bkcv, OmegaB, indexes_limited_BSE_sum, delta_time
-   
-### Loading Kernel matrix elements
-# Getting kernel info from bsemat.h5 file
-if Calculate_Kernel == True:
-    time0 = time.clock_gettime(0)
-    Kd, Kx = get_kernel(kernel_file, factor_head)
-    time1 = time.clock_gettime(0)
-    TASKS.append(['Loading kernel matrix elements', time1 - time0])
 
-
-########## Calculating stuff ############
-
-print("\n\nCalculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
 
 def calculate_excited_state_forces(Akcv, Bkcv, indexes_limited_BSE_sum):
     
@@ -524,6 +327,201 @@ def report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel
             arq_out.write(text + '\n')
 
     arq_out.close()
+
+
+######################### RUNNING CODE ##############################
+
+start_time = time.clock_gettime(0)
+# Getting BSE and MF parameters
+# Reading eigenvecs.h5 file
+time0 = time.clock_gettime(0)
+Nat, atomic_pos, cell_vecs, cell_vol, alat, Nvbnds, Ncbnds, Kpoints_BSE, Nkpoints_BSE, Nval, rec_cell_vecs, BSE_params, MF_params, NQ, Qshift = get_BSE_MF_params()
+time1 = time.clock_gettime(0)
+TASKS.append(['Get parameters from DFT and GWBSE', time1 - time0])
+
+if NQ == 1:
+    Qshift = Qshift[0] # orignal shape is (1,3), now it is (3,)
+
+
+# getting info from eqp.dat (from absorption calculation)
+time0 = time.clock_gettime(0)
+Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
+time1 = time.clock_gettime(0)
+TASKS.append(['Reading QP and DFT energy levels', time1 - time0])
+
+# Getting elph coefficients
+# get displacement patterns
+time0 = time.clock_gettime(0)
+iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-zero center of mass momentum
+Displacements, Nirreps = get_displacement_patterns(iq, MF_params)
+
+# when one wants to use just some irreps, we need to remove the other not used
+if len(dfpt_irreps_list) != 0:
+    Displacements = Displacements[dfpt_irreps_list, :, :]
+    MF_params.Nmodes = len(dfpt_irreps_list)
+    Nmodes = len(dfpt_irreps_list)
+    print(f"Not using all irreps. Setting Nmodes to {Nmodes}.")
+else:
+    Nmodes = MF_params.Nmodes
+
+# get elph coefficients from .xml files
+
+elph, Kpoints_in_elph_file = get_el_ph_coeffs(iq, Nirreps, dfpt_irreps_list)
+time1 = time.clock_gettime(0)
+TASKS.append(['Reading ELPH coefficients', time1 - time0])
+
+Nkpoints_DFPT = len(Kpoints_in_elph_file)
+
+# change basis for k points from dfpt calculations
+# those k points are in cartesian basis. we're changing 
+# it to reciprocal lattice basis
+
+time0 = time.clock_gettime(0)
+mat_reclattvecs_to_cart = np.transpose(BSE_params.rec_cell_vecs)
+mat_cart_to_reclattvecs = np.linalg.inv(mat_reclattvecs_to_cart)
+
+Kpoints_in_elph_file_frac = []
+
+for ik in range(Nkpoints_DFPT):
+    K_cart = mat_cart_to_reclattvecs @ Kpoints_in_elph_file[ik]
+    for icomp in range(3):
+        K_cart[icomp] = correct_comp_vector(K_cart[icomp])
+    Kpoints_in_elph_file_frac.append(K_cart)
+    
+Kpoints_in_elph_file_frac = np.array(Kpoints_in_elph_file_frac) # shape (Nkpoints_DFPT, 3)
+
+if log_k_points == True:
+    arq_kpoints_log = open('Kpoints_dfpt_cart_basis', 'w')
+    for K_cart in Kpoints_in_elph_file_frac:
+        arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
+    arq_kpoints_log.close()   
+
+time1 = time.clock_gettime(0)
+TASKS.append(['Changing basis for k points', time1 - time0])
+
+
+# filter data to get just g_c1c2 and g_v1v2
+time0 = time.clock_gettime(0)
+elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
+time1 = time.clock_gettime(0)
+TASKS.append(['Filtering ELPH data to ELPH_cond and ELPH_val', time1 - time0])
+
+# apply acoustic sum rule over elph coefficients
+time0 = time.clock_gettime(0)
+elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
+elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
+time1 = time.clock_gettime(0)
+TASKS.append(['Impose ASR on ELPH coefficients', time1 - time0])
+
+# Let's put all k points from BSE grid in the first Brillouin zone
+ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
+
+del elph
+report_ram()
+
+
+# renormalze elph coefficients
+time0 = time.clock_gettime(0)
+if no_renorm_elph == False:
+    print('Renormalizing ELPH coefficients') 
+    print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
+    print('and <n|dHqp|m> = <n|dHdft|m> otherwise')
+else:
+    print('Not Renormalizing ELPH coefficients. Using <n|dHqp|m> = <n|dHdft|m> for all n and m')
+elph_cond, elph_val = renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, 
+                                                             Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
+
+time1 = time.clock_gettime(0)
+TASKS.append(['Renormalization of ELPH coefficients', time1 - time0])
+
+# interpolation of elph coefficients a la BerkeleyGW code?
+time0 = time.clock_gettime(0)
+if elph_fine_a_la_bgw == False:
+    
+    print('No interpolation on elph coeffs is used')
+    
+    if trust_kpoints_order == False:
+        print('Checking if kpoints of DFPT and BSE agree with each other')
+
+        # Checking kpoints from DFPT and BSE calculations
+        # The kpoints in eigenvecs.h5 are not in the same order in the
+        # input for the fine grid calculation.
+        # The k points in BSE are reported in reciprocal lattice vectors basis
+        # and in DFPT those k points are reported in cartersian basis in units
+        # of reciprocal lattice
+
+        # It SEEMS that the order of k points in the eqp.dat (produced by the absorption code)
+        # is the same than the order of k points in the eigenvecs file
+        # Maybe it would be necessary to check it later!
+
+        # Now checking if everything is ok with ikBSE_to_ikDFPT list
+        # if something is wrong kill the code
+        check_k_points_BSE_DFPT()
+    else:
+        print('As trust_kpoints_order is true, I am not mapping k points from BSE with k points from DFPT.')
+        print('I am assuming they are informed in the same order in both calculations')
+    
+else:
+    
+    print('Using interpolation "a la BerkeleyGW code"')
+    print('Reading coefficients relating fine and coarse grids from files dtmat_non_bin_val and dtmat_non_bin_conds')
+
+    elph_cond = elph_interpolate_bgw(elph_cond, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE, BSE_params.Ncbnds)
+    elph_val  = elph_interpolate_bgw(elph_val, 'dtmat_non_bin_val', BSE_params.Nkpoints_BSE, BSE_params.Nvbnds)
+
+time1 = time.clock_gettime(0)
+TASKS.append(['Interpolation of ELPH coefficients', time1 - time0])
+
+time0 = time.clock_gettime(0)
+
+print("Expanding ELPH matrices for vectorized multiplication")
+
+Shape_augmented = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds, Ncbnds, Nvbnds)
+Gc = np.zeros(Shape_augmented, dtype=np.complex64)
+Gv = np.zeros(Shape_augmented, dtype=np.complex64)
+
+Shape_augmented_diag = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
+Gc_diag = np.zeros(Shape_augmented_diag, dtype=np.complex64)
+Gv_diag = np.zeros(Shape_augmented_diag, dtype=np.complex64)
+
+print(f"Old shape for cond elph is {elph_cond.shape}. New shape is {Gc.shape} including off-diagonal elements and {Gc_diag.shape} for diagonal elements")
+print(f"Old shape for val elph is {elph_val.shape}. New shape is {Gv.shape} including off-diagonal elements and {Gv_diag.shape} for diagonal elements")
+
+for imode in range(Nmodes):
+    for ik in range(Nkpoints_BSE):
+        
+        for ic in range(Ncbnds):
+            for iv in range(Nvbnds):        
+                Gc_diag[imode, ik, ic, iv] = elph_cond[imode, ik, ic, ic]
+                Gv_diag[imode, ik, ic, iv] = elph_val[imode, ik, iv, iv]
+        
+        for iv in range(Nvbnds):
+            for ic1 in range(Ncbnds):
+                for ic2 in range(Ncbnds):
+                    Gc[imode, ik, ic1, iv, ic2, iv] = elph_cond[imode, ik, ic1, ic2]
+        
+        for ic in range(Ncbnds):
+            for iv1 in range(Nvbnds):
+                for iv2 in range(Nvbnds):
+                    Gv[imode, ik, ic, iv1, ic, iv2] = elph_val[imode, ik, iv1, iv2]
+
+time1 = time.clock_gettime(0)
+TASKS.append(['ELPH matrices expansion (for vectorized multiplication)', time1 - time0])
+
+Gv = apply_Qshift_on_valence_states(Qshift, Gv)
+   
+### Loading Kernel matrix elements
+# Getting kernel info from bsemat.h5 file
+if Calculate_Kernel == True:
+    time0 = time.clock_gettime(0)
+    Kd, Kx = get_kernel(kernel_file, factor_head)
+    time1 = time.clock_gettime(0)
+    TASKS.append(['Loading kernel matrix elements', time1 - time0])
+
+
+########## Calculating stuff ############
+
+print("\n\nCalculating matrix elements for forces calculations <cvk|dH/dx_mu|c'v'k'>")
 
 report_ram()
 # stopping the library
