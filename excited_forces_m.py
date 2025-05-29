@@ -941,6 +941,7 @@ def apply_Qshift_on_valence_states(Qshift, Gv, Kpoints_in_elph_file_frac):
         # shape Qshift is (3,)
         # shape Kpoints_in_elph_file_frac is (Nkpoints_DFPT, 3)
         Kpoints_shifted = (Kpoints_in_elph_file_frac + Qshift) % 1.0  # %1.0 is to put in the first BZ
+        Kpoints_shifted = np.round(Kpoints_shifted, decimals=6)  # round to 6 decimal places
         
         mapping = []
         for kshifted in Kpoints_shifted:
