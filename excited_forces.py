@@ -28,13 +28,13 @@ tracemalloc.start()
 # def process_exciton_pair(pair):
 #         iexc, jexc = pair
 #         Akcv, Bkcv, delta_time1 = load_exciton_coeffs(iexc, jexc, verbose=False)
-#         Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time2 = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag)
+#         Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time2 = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums
 #         return iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time1, delta_time2
     
-def process_exciton_pair(pair, Nmodes, Gc, Gv, Gc_diag, Gv_diag):
+def process_exciton_pair(pair, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums):
     iexc, jexc = pair
     Akcv, Bkcv, delta_time1 = load_exciton_coeffs(iexc, jexc, verbose=False)
-    Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time2 = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag)
+    Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time2 = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
     return iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time1, delta_time2
 
 def translate_bse_to_dfpt_k_points():
@@ -161,7 +161,7 @@ def load_excitons_coeffs(iexc, jexc, verbose=False):
     
 
 
-def calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, verbose=False):
+def calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums, verbose=False):
     if do_vectorized_sums == True:
         return calculate_excited_state_forces_vectorized(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, verbose)
     else:
@@ -367,7 +367,7 @@ if __name__ == "__main__":
     limit_BSE_sum_up_to_value = config['limit_BSE_sum_up_to_value']
     do_vectorized_sums = config['do_vectorized_sums']
     read_exciton_pairs_file = config['read_exciton_pairs_file']
-    exciton_pairs = config['exciton_pairs']
+    
     
     
     if run_parallel == True:
@@ -437,6 +437,8 @@ Please cite:
     print("Exciton-ph matrix elements to be computed:")
     for exc_pair in config['exciton_pairs']:
         print(f" <{exc_pair[0]} | dH | {exc_pair[1]}>")
+        
+    exciton_pairs = config['exciton_pairs']
 
 
     # getting info from eqp.dat (from absorption calculation)
@@ -620,7 +622,7 @@ Please cite:
     ########## Calculating exicted-state forces  ############
 
     if run_parallel == True:
-        print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Running in parallel with {num_processes} processes")
+        print(f"################################# Running in parallel with {num_processes} processes #################################")
         
         worker_func = partial(
             process_exciton_pair,
@@ -628,7 +630,8 @@ Please cite:
             Gc=Gc,
             Gv=Gv,
             Gc_diag=Gc_diag,
-            Gv_diag=Gv_diag
+            Gv_diag=Gv_diag,
+            do_vectorized_sums=do_vectorized_sums
         )
         with Pool(processes=num_processes) as pool:
             results = pool.map(worker_func, exciton_pairs)
@@ -636,14 +639,14 @@ Please cite:
             iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time1, delta_time2 = result
             report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel)
     else:
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Running in serial")
+        print("################################# Running in serial ################################")
         delta_time_load_excitons_coeffs = 0.0
         delta_time_calculate_excited_state_forces = 0.0
         
         for iexc, jexc in exciton_pairs:
             Akcv, Bkcv, delta_time = load_exciton_coeffs(iexc, jexc)
             delta_time_load_excitons_coeffs += delta_time
-            Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag)
+            Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
             delta_time_calculate_excited_state_forces += delta_time
             report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel)
         
