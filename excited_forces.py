@@ -327,8 +327,6 @@ def report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel
 
 if __name__ == "__main__":
     
-    
-    print("Reading input file forces.inp")
     read_input('forces.inp')
     
     # pass variables from config dictionary to the global variables
@@ -418,6 +416,27 @@ Please cite:
 
     if NQ == 1:
         Qshift = Qshift[0] # orignal shape is (1,3), now it is (3,)
+        
+    if config['read_exciton_pairs_file']:
+        try:
+            with open('exciton_pairs.dat', 'r') as arq:
+                config['exciton_pairs'] = []
+                for line in arq:
+                    linha = line.split()
+                    if len(linha) == 1:
+                        config['exciton_pairs'].append((int(linha[0]), int(linha[0])))
+                    elif len(linha) == 2:
+                        config['exciton_pairs'].append((int(linha[0]), int(linha[1])))
+            print("Reading exciton pairs from file exciton_pairs.dat. Ignoring iexc and jexc values from forces.inp file")
+        except FileNotFoundError:
+            print("Error: File 'exciton_pairs.dat' not found. Using default exciton pairs.")
+            config['exciton_pairs'] = [(config['iexc'], config['jexc'])]
+    else:
+        config['exciton_pairs'] = [(config['iexc'], config['jexc'])]
+
+    print("Exciton-ph matrix elements to be computed:")
+    for exc_pair in config['exciton_pairs']:
+        print(f" <{exc_pair[0]} | dH | {exc_pair[1]}>")
 
 
     # getting info from eqp.dat (from absorption calculation)
