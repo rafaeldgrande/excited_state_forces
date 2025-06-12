@@ -2,7 +2,7 @@
 '''
 
  Code usage:
- python cart2ph_eigvec.py forces_cart.out displacements.axsf
+ python cart2ph_eigvec.py forces_cart.out displacements.axsf forces_phonons_basis.out
 
  Output: forces_phonons_basis.out -> forces in phonon basis
 
@@ -94,6 +94,7 @@ import numpy as np
 # taking inputs
 forces_cart_file = sys.argv[1]
 eigvecs_file = sys.argv[2]
+output_file = sys.argv[3]
 
 print('File with forces in cartesian basis: ', forces_cart_file)
 print('File with phonon eigenvectors: ', eigvecs_file)
@@ -180,7 +181,7 @@ for i_eigvec in range(len(displacements)):
 print('Calculatinig forces in eigvecs basis')
 print('Writing data in forces_phonons_basis.out \n\n')
 
-output = open('forces_phonons_basis.out', 'w')
+output = open(output_file, 'w')
 
 output.write('# i_eigvec ')
 for name in NAMES:
