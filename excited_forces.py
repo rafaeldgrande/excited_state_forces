@@ -2,9 +2,9 @@
 TESTES_DEV = False
 verbosity = 'high'
 
-# TODO oranize the code!
+# TODO organize the code!
 # TODO format prints from forces calculations!
-# TODO in the beging say how many calculation wil done and how much I would have done if used every thing,
+# TODO in the beginning say how many calculation will be done and how much I would have done if used every thing,
 
 
 TASKS = []
@@ -587,23 +587,28 @@ Please cite:
     print(f"Old shape for cond elph is {elph_cond.shape}. New shape is {Gc.shape} including off-diagonal elements and {Gc_diag.shape} for diagonal elements")
     print(f"Old shape for val elph is {elph_val.shape}. New shape is {Gv.shape} including off-diagonal elements and {Gv_diag.shape} for diagonal elements")
 
-    for imode in range(Nmodes):
-        for ik in range(Nkpoints_BSE):
-            
-            for ic in range(Ncbnds):
-                for iv in range(Nvbnds):        
-                    Gc_diag[imode, ik, ic, iv] = elph_cond[imode, ik, ic, ic]
-                    Gv_diag[imode, ik, ic, iv] = elph_val[imode, ik, iv, iv]
-            
-            for iv in range(Nvbnds):
-                for ic1 in range(Ncbnds):
-                    for ic2 in range(Ncbnds):
-                        Gc[imode, ik, ic1, iv, ic2, iv] = elph_cond[imode, ik, ic1, ic2]
-            
-            for ic in range(Ncbnds):
-                for iv1 in range(Nvbnds):
-                    for iv2 in range(Nvbnds):
-                        Gv[imode, ik, ic, iv1, ic, iv2] = elph_val[imode, ik, iv1, iv2]
+    # Vectorized assignment for Gc_diag and Gv_diag
+    # Gc_diag[imode, ik, ic, iv] = elph_cond[imode, ik, ic, ic] for all imode, ik, ic, iv
+    # Gv_diag[imode, ik, ic, iv] = elph_val[imode, ik, iv, iv] for all imode, ik, ic, iv
+
+    # For Gc_diag: broadcast elph_cond diagonal over iv
+    diag_elph_cond = np.diagonal(elph_cond, axis1=2, axis2=3)  # shape: (Nmodes, Nkpoints_BSE, Ncbnds)
+    Gc_diag[:] = diag_elph_cond[:, :, :, np.newaxis]  # broadcast over iv
+
+    # For Gv_diag: broadcast elph_val diagonal over ic
+    diag_elph_val = np.diagonal(elph_val, axis1=2, axis2=3)  # shape: (Nmodes, Nkpoints_BSE, Nvbnds)
+    Gv_diag[:] = diag_elph_val[:, :, np.newaxis, :]  # broadcast over ic
+
+    # For Gc: Gc[imode, ik, ic1, iv, ic2, iv] = elph_cond[imode, ik, ic1, ic2]
+    # Only nonzero when iv == iv, so fill all iv
+    for iv in range(Nvbnds):
+        Gc[:, :, :, iv, :, iv] = elph_cond
+
+    # For Gv: Gv[imode, ik, ic, iv1, ic, iv2] = elph_val[imode, ik, iv1, iv2]
+    # Only nonzero when ic == ic, so fill all ic
+    for ic in range(Ncbnds):
+        Gv[:, :, ic, :, ic, :] = elph_val
+
 
     time1 = time.clock_gettime(0)
     TASKS.append(['ELPH matrices expansion (for vectorized multiplication)', time1 - time0])

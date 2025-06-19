@@ -194,7 +194,8 @@ def read_excited_forces(excited_state_forces_file, flavor):
     # flavor = 2 -> RPA_diag_offiag 
     # flavor = 3 -> RPA_diag_Kernel
     
-    data = np.loadtxt(excited_state_forces_file, usecols=flavor+1)
+    data = np.loadtxt(excited_state_forces_file, usecols=flavor+1, dtype=complex)
+    data = np.real(data)
     return data
     
 def sum_comp_vec(vector, dir):
