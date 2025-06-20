@@ -204,9 +204,6 @@ def report_ram():
     print(f'Max RAM used until now: {max_temp_ram:.2f} MB')
     print('############################################\n\n')
     
-    
-
-
 
 def top_n_indexes(array, N):
     # Flatten the array

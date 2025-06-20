@@ -178,6 +178,21 @@ def get_exciton_info(exciton_file, iexc):
 
     return Akcv
 
+def load_excitons_coefficients(exciton_file, excitons_to_be_loaded):
+
+    excitons_to_be_loaded_ini_0 = [iexc - 1 for iexc in excitons_to_be_loaded]  # convert to ini=0
+    f_hdf5 = h5py.File(exciton_file, 'r')
+    
+    flavor_calc = f_hdf5['/exciton_header/flavor'][()]
+    eigenvecs   = f_hdf5['exciton_data/eigenvectors'][()]          # (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
+
+    if flavor_calc == 2:
+        Akcv = eigenvecs[0, excitons_to_be_loaded_ini_0,:,:,:,0,0] + 1.0j*eigenvecs[0, excitons_to_be_loaded_ini_0,:,:,:,0,1]
+    else:
+        Akcv = eigenvecs[0, excitons_to_be_loaded_ini_0,:,:,:,0,0]
+
+    return Akcv
+
 
 def get_params_from_eigenvecs_file(exciton_file):
 

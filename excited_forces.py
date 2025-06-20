@@ -31,11 +31,13 @@ tracemalloc.start()
 #         Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time2 = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums
 #         return iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time1, delta_time2
     
-def process_exciton_pair(pair, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums):
+def process_exciton_pair(pair, Nmodes, Gc, Gv, Gc_diag, Gv_diag, Exciton_coeffs, do_vectorized_sums):
     iexc, jexc = pair
-    Akcv, Bkcv, delta_time1 = load_exciton_coeffs(iexc, jexc, verbose=False)
-    Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time2 = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
-    return iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time1, delta_time2
+    # Akcv, Bkcv, delta_time1 = load_exciton_coeffs(iexc, jexc, verbose=False)
+    Akcv = Exciton_coeffs[iexc]
+    Bkcv = Exciton_coeffs[jexc]
+    Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, _ = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
+    return iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel
 
 def translate_bse_to_dfpt_k_points():
 
@@ -256,25 +258,17 @@ def report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel
 
     # Warn if imag part is too big (>= 10^-6)
 
-    if max(abs(np.imag(Sum_DKinect_diag))) >= 1e-6:
+    if max(abs(np.imag(Sum_DKinect_diag))) >= 1e-6 and iexc == jexc:
         print('WARNING: Imaginary part of kinectic diagonal forces >= 10^-6 eV/angs!')
 
-    if max(abs(np.imag(Sum_DKinect_offdiag))) >= 1e-6:
+    if max(abs(np.imag(Sum_DKinect_offdiag))) >= 1e-6 and iexc == jexc:
         print('WARNING: Imaginary part of kinectic offdiagonal forces >= 10^-6 eV/angs!')
 
     if Calculate_Kernel == True:
-        if max(abs(np.imag(Sum_DKernel))) >= 1e-6:
+        if max(abs(np.imag(Sum_DKernel))) >= 1e-6 and iexc == jexc:
             print('WARNING: Imaginary part of Kernel forces >= 10^-6 eV/angs!')
 
-    # Show just real part of numbers (default)    
-    if iexc == jexc:                                                                                                                                                                                                                                                                                                                    
-        if show_imag_part == False:
-            Sum_DKinect_diag = np.real(Sum_DKinect_diag)
-            Sum_DKinect_offdiag = np.real(Sum_DKinect_offdiag)
-            Sum_DKernel = np.real(Sum_DKernel)
-
     # Calculate forces cartesian basis
-
     if verbose:
         print("Calculating forces in cartesian basis")
 
@@ -293,9 +287,7 @@ def report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel
     # Reporting forces in cartesian basis
     DIRECTION = ['x', 'y', 'z']
 
-    arq_out_name = f'forces_cart.out_{iexc}_{jexc}'
-    if not run_parallel:
-        print("Writing forces in cartesian basis to " + arq_out_name)
+    arq_out_name = f'forces_cart.out_{iexc+1}_{jexc+1}'
     arq_out = open(arq_out_name, 'w')
 
     if verbose:
@@ -361,6 +353,7 @@ if __name__ == "__main__":
     spin_triplet = config['spin_triplet']
     local_fields = config['local_fields']
     run_parallel = config['run_parallel']
+    num_processes = config['num_processes']
     use_Acvk_single_transition = config['use_Acvk_single_transition']
     dfpt_irreps_list = config['dfpt_irreps_list']
     limit_BSE_sum = config['limit_BSE_sum']
@@ -373,7 +366,7 @@ if __name__ == "__main__":
     if run_parallel == True:
         from multiprocessing import Pool
         from functools import partial
-        num_processes = 2
+        from itertools import islice
 
     print('''
         
@@ -439,6 +432,26 @@ Please cite:
         print(f" <{exc_pair[0]} | dH | {exc_pair[1]}>")
         
     exciton_pairs = config['exciton_pairs']
+    
+    # definning excitons to be loaded
+    excitons_to_be_loaded = {num for pair in exciton_pairs for num in pair}
+    excitons_to_be_loaded = sorted(excitons_to_be_loaded)
+    
+    # loading excitons coefficients
+    time0 = time.clock_gettime(0)
+    print(f"Loading exciton coefficients from file {exciton_file}")
+    Exciton_coeffs = load_excitons_coefficients(exciton_file, excitons_to_be_loaded)
+    # shape (Exciton_coeffs) is (Loaded Nexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+    time1 = time.clock_gettime(0)
+    print(f"Fineshed loading exciton coefficients")
+    TASKS.append(['Loading exciton coefficients', time1 - time0])
+    
+    # defining exciton pairs indexes to be consistent with exciton coefficients array
+    exciton_pairs_indexes = []
+    for pair in exciton_pairs:
+        iexc, jexc = pair
+        id_i, id_j = excitons_to_be_loaded.index(iexc), excitons_to_be_loaded.index(jexc)
+        exciton_pairs_indexes.append((id_i, id_j))
 
 
     # getting info from eqp.dat (from absorption calculation)
@@ -626,9 +639,24 @@ Please cite:
 
     ########## Calculating exicted-state forces  ############
 
+    time0_calculate_excited_state_forces = time.clock_gettime(0)
+
     if run_parallel == True:
-        print(f"################################# Running in parallel with {num_processes} processes #################################")
+        print(f"\n\n################################# Running in parallel with {num_processes} processes #################################")
         
+        if num_processes == 1:
+            print("Warning: Running in parallel with just one process. No speedup will be achieved! Change num_processes in forces.inp file.")
+            
+        print("Total exciton-phonon matrix elements to be calculated: ", len(exciton_pairs))
+        
+        def chunked_iterable(iterable, size):
+            it = iter(iterable)
+            while True:
+                chunk = list(islice(it, size))
+                if not chunk:
+                    break
+                yield chunk
+
         worker_func = partial(
             process_exciton_pair,
             Nmodes=Nmodes,
@@ -636,36 +664,48 @@ Please cite:
             Gv=Gv,
             Gc_diag=Gc_diag,
             Gv_diag=Gv_diag,
+            Exciton_coeffs=Exciton_coeffs,
             do_vectorized_sums=do_vectorized_sums
         )
-        with Pool(processes=num_processes) as pool:
-            results = pool.map(worker_func, exciton_pairs)
-        for result in results:
-            iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time1, delta_time2 = result
-            report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel)
+
+        ichunk = 0
+        if len(exciton_pairs) % num_processes == 0:
+            total_chunks = len(exciton_pairs) // num_processes
+        else:
+            total_chunks = len(exciton_pairs) // num_processes + 1
+        
+        for chunk in chunked_iterable(exciton_pairs_indexes, num_processes):
+            how_much_complete = (ichunk + 1) / total_chunks * 100
+            print(f"Progress excited-state forces calculation: {how_much_complete:.2f}%")
+
+            with Pool(processes=num_processes) as pool:
+                results = pool.map(worker_func, chunk)
+            for result in results:
+                iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel = result
+                report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel)
+            ichunk += 1
+
     else:
-        print("################################# Running in serial ################################")
+        print("\n\n################################# Running in serial ################################")
         delta_time_load_excitons_coeffs = 0.0
-        delta_time_calculate_excited_state_forces = 0.0
         
-        for iexc, jexc in exciton_pairs:
+        print("Total exciton pairs to be calculated: ", len(exciton_pairs))
+        i_calc = 0
+        for iexc, jexc in exciton_pairs_indexes:
+            how_much_complete = (i_calc + 1) / len(exciton_pairs) * 100
+            print(f"Progress excited-state forces calculation: {how_much_complete:.2f}%")
             Akcv, Bkcv, delta_time = load_exciton_coeffs(iexc, jexc)
-            delta_time_load_excitons_coeffs += delta_time
             Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel, delta_time = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
-            delta_time_calculate_excited_state_forces += delta_time
             report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel)
+            i_calc += 1
         
-        TASKS.append(['Loading exciton coefficients', delta_time_load_excitons_coeffs])
-        TASKS.append(['Calculation of forces', delta_time_calculate_excited_state_forces])
+    TASKS.append(['Calculation / report of forces', time.clock_gettime(0) - time0_calculate_excited_state_forces])
 
-
-    print('Finished calculations')
     # datetime object containing current date and time
     now = datetime.now()
-
     # dd/mm/YY H:M:S
     dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-    print("\n\nFinished at: ", dt_string)
+    print("\n\nFinished calculations at: ", dt_string)
 
     # timing report
     print("\n\n\n\n")

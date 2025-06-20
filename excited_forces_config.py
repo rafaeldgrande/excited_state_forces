@@ -90,7 +90,10 @@ config = {
     "local_fields": False,
 
     # run in parallel flag
-    "run_parallel": True,
+    "run_parallel": False   ,
+    
+    # number of processes to be used in parallel
+    'num_processes': 1,
 
     # modify Acvk to be Acvk = delta_(cvk,cvk)
     # where cvk is the transition for which Acvk is originally maximum
@@ -166,7 +169,7 @@ def read_input(input_file):
                 # Integer keys
                 if key in [
                     'iexc', 'jexc', 'ncbnds_sum', 'nvbnds_sum',
-                    'ncbands_co', 'nvbands_co', 'nkpnts_co'
+                    'ncbands_co', 'nvbands_co', 'nkpnts_co', 'num_processes'
                 ]:
                     config[key] = int(value[0])
                 # Float keys
