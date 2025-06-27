@@ -1,4 +1,5 @@
 
+from ase.data import atomic_masses, atomic_numbers
 
 # standard values
 file_out_QE = 'out' # output from QE with DFT forces (optional. If the code doesn't find it the DFT forces are set to null)
@@ -9,10 +10,7 @@ flavor = 2
 do_not_move_CM = True
 
 eigvecs_file = 'eigvecs' # eigvecs file with phonon frequencies and dynamical matrix eigenvectors. This file is produced by dynmat.x through the variable fileig
-atoms_file = 'atoms' # file with atomic species and their masses in a.u.. The format of the file is the following:
-# Mo 95.95
-# S  32.06
-# S  32.06
+qe_input = 'qe.in' # Input file for QE used in GWBSE workflow
 
 limit_disp_eigvec_basis = 0.5
 avoid_saddle_points = True
@@ -32,7 +30,7 @@ def read_input(input_file):
 
     # getting necessary info
     global file_out_QE, excited_state_forces_file, flavor
-    global do_not_move_CM, eigvecs_file, atoms_file
+    global do_not_move_CM, eigvecs_file, qe_input
     global limit_disp_eigvec_basis, avoid_saddle_points
     global exciton_per_unit_cell, minimize_just_excited_state
     global limit_disp_neg_freq
@@ -60,8 +58,8 @@ def read_input(input_file):
                     do_not_move_CM = true_or_false(linha[1], do_not_move_CM)
                 elif linha[0] == 'eigvecs_file':
                     eigvecs_file = linha[1]
-                elif linha[0] == 'atoms_file':
-                    atoms_file = linha[1]
+                elif linha[0] == 'qe_input':
+                    qe_input = linha[1]
                 elif linha[0] == 'limit_disp_eigvec_basis':
                     limit_disp_eigvec_basis = float(linha[1])
                 elif linha[0] == 'avoid_saddle_points':
@@ -142,6 +140,7 @@ zero_tol = 1e-6
 # Physical constants and conversion factors
 c = 2.99792458e10 # cm/s speed of light
 Na = 6.02214076e23 # Avogadro's number
+amu_to_kg = 1.66053906660e-27  # atomic mass unit in kg
 
 ry2ev = 13.605703976
 ev2ry = 1/ry2ev
@@ -339,20 +338,45 @@ def write_displacements(displacements, arq_name):
 
     arq_out.close()
     
-def load_atoms(atoms_file):
-    # Mo 95.95
-    # S  32.06
-    # S  32.06
+# def load_atoms(qe_input):
+#     # Mo 95.95
+#     # S  32.06
+#     # S  32.06
     
-    Atoms, Masses = [], []
-    arq = open(atoms_file)
-    for line in arq:
-        linha = line.split()
-        Atoms.append(linha[0])
-        # masses in kg -> 1a.u. corresposnts to 1g/mol
-        Masses.append(float(linha[1]) * 1e-3 / Na)
+#     Atoms, Masses = [], []
+#     arq = open(qe_input)
+#     for line in arq:
+#         linha = line.split()
+#         Atoms.append(linha[0])
+#         # masses in kg -> 1a.u. corresposnts to 1g/mol
+#         Masses.append(float(linha[1]) * 1e-3 / Na)
         
-    return Atoms, Masses
+#     return Atoms, Masses
+
+def load_atoms(qe_input):
+    """
+    Load atom symbols and masses (in kg) from a QE input file.
+    """
+    Atoms_symbols, Masses = [], []
+
+    with open(qe_input, 'r') as arq:
+        while True:
+            line = arq.readline()
+            if not line:
+                break
+            line_split = line.split()
+            if len(line_split) > 0:
+                if line_split[0] == "nat":
+                    Natoms = int(line_split[2])
+                if 'ATOMIC_POSITIONS' in line:
+                    for iatom in range(Natoms):
+                        line_split = arq.readline().split()
+                        symbol = line_split[0]
+                        Atoms_symbols.append(symbol)
+                        mass_amu = atomic_masses[atomic_numbers[symbol]]
+                        Masses.append(mass_amu * 1e-3 / Na)  # convert to kg
+
+    return Atoms_symbols, Masses
 
 def optimal_displacement_factor(force):
 
@@ -379,7 +403,7 @@ def optimal_displacement_factor(force):
         return 0
 
 # Loading atoms informations
-Atoms, Masses = load_atoms(atoms_file)
+Atoms, Masses = load_atoms(qe_input)
 Natoms = len(Atoms)
 
 # loading dft forces
