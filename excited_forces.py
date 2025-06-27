@@ -519,12 +519,16 @@ Please cite:
 
     # apply acoustic sum rule over elph coefficients
     time0 = time.clock_gettime(0)
-    print('Applying acoustic sum rule for conduction bands')
-    elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
-    print('Applying acoustic sum rule for valence bands')
-    elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
+    if acoutic_sum_rule == True:
+        print('Applying acoustic sum rule for conduction bands. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
+        elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
+    if acoutic_sum_rule == True:
+        print('Applying acoustic sum rule for valence bands. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
+        elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
+    if not acoutic_sum_rule:
+        print('Not applying acoustic sum rule over elph coefficients. Check later if the force on the center of mass is negligible!')
     time1 = time.clock_gettime(0)
-    TASKS.append(['Impose ASR on ELPH coefficients', time1 - time0])
+    TASKS.append(['Impose ASR on ELPH coefficients.', time1 - time0])
 
     # Let's put all k points from BSE grid in the first Brillouin zone
     ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()

@@ -289,8 +289,6 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
 
     if acoutic_sum_rule == True:
 
-        print('\nApplying acoustic sum rule. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
-
         Nmodes = MF_params.Nmodes
         Nat    = MF_params.Nat
 
@@ -304,16 +302,12 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
         
         Total_operations = Nbnds_in_xml**2 
         operations_done_by_now = 0
+        report_interval = int(Total_operations / 10)
+        time_start_ASR = datetime.now()
+        total_time = 0.0
 
         for iband1 in range(Nbnds_in_xml):
             for iband2 in range(Nbnds_in_xml):
-                
-                if operations_done_by_now % 5 == 0:
-                    print(f"{operations_done_by_now / Total_operations * 100:.2f}% Done")
-                # sum_elph = elph[0, 0, iband1, iband2] + elph[1, 0, iband1, iband2]
-
-                # elph[0, 0, iband1, iband2] = elph[0, 0, iband1, iband2] - sum_elph / 2
-                # elph[1, 0, iband1, iband2] = elph[1, 0, iband1, iband2] - sum_elph / 2
 
                 sum_elph = np.zeros((3), dtype=complex) # x, y, z
 
@@ -344,6 +338,11 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
                         
                 operations_done_by_now += 1
                 
+                if operations_done_by_now == 5 or operations_done_by_now % report_interval == 0:
+                    time_elapsed = datetime.now() - time_start_ASR
+                    time_remaining = (Total_operations - operations_done_by_now) / operations_done_by_now * time_elapsed.total_seconds()
+                    print(f"{operations_done_by_now / Total_operations * 100:.2f}% Done | Time elapsed: {time_elapsed.total_seconds():.1f} s | Time remaining: {time_remaining:.1f} s")
+                
 
         mean_val = np.mean(mod_sum_report_diag)
         max_val  = np.max(mod_sum_report_diag)
@@ -365,9 +364,6 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
         print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
         
         print('Finished applying acoustic sum rule.')
-
-    else:
-        print('\nNot applying acoustic sum rule. In the end check the force on the system center of mass.')
 
     return elph
 
