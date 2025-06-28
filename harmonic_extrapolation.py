@@ -572,9 +572,11 @@ if do_not_move_CM == True:
 print(f"\nModulus of 3N DFT forces vector: {np.linalg.norm(dft_forces):.8f} eV/angstrom")
 print(f"Modulus of 3N Excited state forces vector: {np.linalg.norm(excited_forces):.8f} eV/angstrom")
 print(f"Modulus of 3N DFT + Excited state (total force) force vector: {np.linalg.norm(f_tot):.8f} eV/angstrom\n")
+print("Is Fdft parallel to Fexcited? ", are_parallel(excited_forces, dft_forces, tolerance=1e-2))
 
 print('Is (Fdft + Fexcited) parallel to displacement? ', are_parallel(disp_cart_basis, f_tot, tolerance=1e-2))
 print('Is F_excited parallel to displacement? ', are_parallel(disp_cart_basis, excited_forces, tolerance=1e-2))
+print('Is F_dft parallel to displacement? ', are_parallel(disp_cart_basis, dft_forces, tolerance=1e-2))
 print("")
 print_info_displacements(disp_cart_basis) 
  
