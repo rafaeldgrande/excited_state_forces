@@ -18,6 +18,12 @@ limit_disp_neg_freq = 0.0
 exciton_per_unit_cell = 1
 minimize_just_excited_state = False
 
+# those two flags are used when the eigencs are not available
+# in this case delta_r = A * force, 
+# in such way the max(abs(delta_r)) = max_disp_parallel_to_forces
+dont_project_forces_on_eigvecs = False
+max_disp_parallel_to_forces = 0.1 
+
 def true_or_false(text, default_value):
     if text.lower() == 'true':
         return True
@@ -34,6 +40,7 @@ def read_input(input_file):
     global limit_disp_eigvec_basis, avoid_saddle_points
     global exciton_per_unit_cell, minimize_just_excited_state
     global limit_disp_neg_freq
+    global dont_project_forces_on_eigvecs, max_disp_parallel_to_forces
 
     try:
         arq_in = open(input_file)
@@ -70,6 +77,10 @@ def read_input(input_file):
                     minimize_just_excited_state = true_or_false(linha[1], minimize_just_excited_state)
                 elif linha[0] == "limit_disp_neg_freq":
                     limit_disp_neg_freq = float(linha[1])
+                elif linha[0] == "dont_project_forces_on_eigvecs":
+                    dont_project_forces_on_eigvecs = true_or_false(linha[1], dont_project_forces_on_eigvecs)
+                elif linha[0] == "max_disp_parallel_to_forces":
+                    max_disp_parallel_to_forces = float(linha[1])
 
         arq_in.close()
 
@@ -131,6 +142,11 @@ Then x_i is given by
 
 x_i = F_i / lambda_i if lambda_i != 0
 x_i = 0 if lambda_i = 0
+
+If the dont_project_forces_on_eigvecs is true, then the forces 
+are not projected on the eigenvectors and the displacements are given by
+
+x = A F, where A is a constant and make max(x_i) = max_disp_parallel_to_forces
 
 '''
 
@@ -382,7 +398,7 @@ def optimal_displacement_factor(force):
 
     modF = np.dot(force, force)
 
-    if modF > 0:
+    if modF > 0 and dont_project_forces_on_eigvecs == False:
 
         # sum_i lambda_i F_i^2
         denominator = np.sum(force**2 * eigenvalues)
@@ -407,125 +423,135 @@ Atoms, Masses = load_atoms(qe_input)
 Natoms = len(Atoms)
 
 # loading dft forces
-dft_forces = read_dft_forces_qe(file_out_QE, Natoms)     
+dft_forces = read_dft_forces_qe(file_out_QE, Natoms) # shape (3*Natoms)
 
 # converting from ry/bohr to eV/angs
 dft_forces = dft_forces * ry2ev / bohr2ang
 
 # loading excited state forces - already in eV/angs
 excited_forces = read_excited_forces(excited_state_forces_file, flavor) * exciton_per_unit_cell
-    
+# shape (3*Natoms)    
+
 if minimize_just_excited_state == True:
     f_tot = excited_forces
 else:
     f_tot = dft_forces + excited_forces
     
-# load eigvecs from eigvecs file
-freqs, eigvecs = read_eigvecs_file(eigvecs_file, Natoms)
-    
-## normalize eigenvectors
-#for i_eigvec in range(len(eigvecs)):
-#    eigvecs[i_eigvec] = eigvecs[i_eigvec] / np.linalg.norm(eigvecs[i_eigvec])
-    
-# convert phonon frequencies to rad/s
-freq_rad_per_s = 2*np.pi*c*freqs
-    
-# we approximate Dij = Kij / sqrt(m_i * m_j) (just first neighbours interactions included)
-# use spectral decomposition to create the dynamical matrix
-# eigenvalues of D are omega**2
-print(f"Creating dynamical matrix from eigenvectors using spectral decomposition.")
-dyn_mat_from_eigvecs = eigvecs @ np.diag(np.sign(freq_rad_per_s) * freq_rad_per_s**2) @ eigvecs.T
-# here multiplicating by np.sign(freq_rad_per_s) to preserve the sign of negative frequencies
-    
-# reinforce the matrix to be symmetric
-print(f"Reinforcing the matrix to be symmetric. D = (D+D.T)/2")
-dyn_mat_from_eigvecs = (dyn_mat_from_eigvecs + dyn_mat_from_eigvecs.T)/2
 
-# create force constant matrix
-# Kij = Dij * sqrt(m_i * m_j)
-# Dij is in units of (rad/s)^2. 
-# I want Kij to be in units of eV/angs^2
-# Let's work with m in a.u. -> 1 a.u. = 1e-3 kg/Na = 1-3/(6.022*10^23) kg
-# So the unit of K is kg * rad^2 / s^2 = J / m^2
-print(f"Creating force constant matrix from the dynamical matrix.")
 force_constant_mat = np.zeros((3*Natoms, 3*Natoms))
-for i_atom in range(Natoms):
-    for i_dir in range(3):
-        i_ind = 3*i_atom + i_dir
-        for j_atom in range(Natoms):
-            for j_dir in range(3):
-                j_ind = 3*j_atom + j_dir
-                force_constant_mat[i_ind, j_ind] = dyn_mat_from_eigvecs[i_ind, j_ind] * np.sqrt(Masses[i_atom] * Masses[j_atom]) 
-
-# converting J/m^2 to eV/angs^2
-force_constant_mat = force_constant_mat * J2eV / m2ang**2
-
-# reinforce matrix to be symmetric
-# force_constant_mat = (force_constant_mat + force_constant_mat.T)/2
+# if dont_project_forces_on_eigvecs == True, then this will be
+# still be zero, so we are in a linear approximation
+  
+if dont_project_forces_on_eigvecs == True:
+    disp_cart_basis = f_tot
+    max_disp_component = np.max(np.abs(disp_cart_basis))
+    if max_disp_component > max_disp_parallel_to_forces:
+        disp_cart_basis = disp_cart_basis * max_disp_parallel_to_forces / max_disp_component
     
-# cannot invert force constant matrix as some of its
-# eigenmodes have zero value. we solve F=kx, by
-# using k eigenvectors and eigenvalues
-print(f"Calculating the eigenvectors |ui> and eigenvalues lambda_i of the force constant matrix.")
-eigenvalues, eigenvectors = np.linalg.eigh(force_constant_mat)
+else:
+    # load eigvecs from eigvecs file
+    freqs, eigvecs = read_eigvecs_file(eigvecs_file, Natoms)
+        
+    ## normalize eigenvectors
+    #for i_eigvec in range(len(eigvecs)):
+    #    eigvecs[i_eigvec] = eigvecs[i_eigvec] / np.linalg.norm(eigvecs[i_eigvec])
+        
+    # convert phonon frequencies to rad/s
+    freq_rad_per_s = 2*np.pi*c*freqs
+        
+    # we approximate Dij = Kij / sqrt(m_i * m_j) (just first neighbours interactions included)
+    # use spectral decomposition to create the dynamical matrix
+    # eigenvalues of D are omega**2
+    print(f"Creating dynamical matrix from eigenvectors using spectral decomposition.")
+    dyn_mat_from_eigvecs = eigvecs @ np.diag(np.sign(freq_rad_per_s) * freq_rad_per_s**2) @ eigvecs.T
+    # here multiplicating by np.sign(freq_rad_per_s) to preserve the sign of negative frequencies
+        
+    # reinforce the matrix to be symmetric
+    print(f"Reinforcing the matrix to be symmetric. D = (D+D.T)/2")
+    dyn_mat_from_eigvecs = (dyn_mat_from_eigvecs + dyn_mat_from_eigvecs.T)/2
 
-# How many acoustic modes?
-print(f"There are {np.count_nonzero(abs(eigenvalues) < zero_tol)} acoustic modes")
+    # create force constant matrix
+    # Kij = Dij * sqrt(m_i * m_j)
+    # Dij is in units of (rad/s)^2. 
+    # I want Kij to be in units of eV/angs^2
+    # Let's work with m in a.u. -> 1 a.u. = 1e-3 kg/Na = 1-3/(6.022*10^23) kg
+    # So the unit of K is kg * rad^2 / s^2 = J / m^2
+    print(f"Creating force constant matrix from the dynamical matrix.")
+    
+    for i_atom in range(Natoms):
+        for i_dir in range(3):
+            i_ind = 3*i_atom + i_dir
+            for j_atom in range(Natoms):
+                for j_dir in range(3):
+                    j_ind = 3*j_atom + j_dir
+                    force_constant_mat[i_ind, j_ind] = dyn_mat_from_eigvecs[i_ind, j_ind] * np.sqrt(Masses[i_atom] * Masses[j_atom]) 
 
-# now we obtain the forces in eigenvecs basis
-print(f"Projecting forces in eigenvecs basis.")
-forces_eigvecs_basis = np.zeros((f_tot.shape))
-dft_forces_eigvecs_basis = np.zeros((dft_forces.shape))
-excited_forces_eigvecs_basis = np.zeros((excited_forces.shape))
+    # converting J/m^2 to eV/angs^2
+    force_constant_mat = force_constant_mat * J2eV / m2ang**2
+        
+    # cannot invert force constant matrix as some of its
+    # eigenmodes have zero value. we solve F=kx, by
+    # using k eigenvectors and eigenvalues
+    print(f"Calculating the eigenvectors |ui> and eigenvalues lambda_i of the force constant matrix.")
+    eigenvalues, eigenvectors = np.linalg.eigh(force_constant_mat)
 
-force_proj_acoustic_modes_null = True
-for i_eigvec in range(len(eigenvectors)):
-    forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], f_tot)
-    dft_forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], dft_forces)
-    excited_forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], excited_forces)
-    if abs(eigenvalues[i_eigvec]) < zero_tol:
-        if abs(forces_eigvecs_basis[i_eigvec]) < zero_tol:
-            print(f'WARNING! <ui|F> != 0 for i = {i_eigvec} and lambda_i = 0 (acoustic mode). I still will make <ui|x> = 0')
-            force_proj_acoustic_modes_null = False
+    # How many acoustic modes?
+    print(f"There are {np.count_nonzero(abs(eigenvalues) < zero_tol)} acoustic modes")
 
-if force_proj_acoustic_modes_null == True:
-    print("<ui|F> = 0 for all acoustic modes (lambda_i = 0)")
+    # now we obtain the forces in eigenvecs basis
+    print(f"Projecting forces in eigenvecs basis.")
+    forces_eigvecs_basis = np.zeros((f_tot.shape))
+    dft_forces_eigvecs_basis = np.zeros((dft_forces.shape))
+    excited_forces_eigvecs_basis = np.zeros((excited_forces.shape))
 
-# now we calculate the displacement in eigvecs basis
-# if the phonon frequency is null (acoustic mode) then 
-# this component is null
+    force_proj_acoustic_modes_null = True
+    for i_eigvec in range(len(eigenvectors)):
+        forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], f_tot)
+        dft_forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], dft_forces)
+        excited_forces_eigvecs_basis[i_eigvec] = np.dot(eigenvectors[:, i_eigvec], excited_forces)
+        if abs(eigenvalues[i_eigvec]) < zero_tol:
+            if abs(forces_eigvecs_basis[i_eigvec]) < zero_tol:
+                print(f'WARNING! <ui|F> != 0 for i = {i_eigvec} and lambda_i = 0 (acoustic mode). I still will make <ui|x> = 0')
+                force_proj_acoustic_modes_null = False
 
-print("Calculating displacements in eigvecs basis. <ui|x> = <ui|F> / lambda_i for lambda_i != 0. <ui|x> = 0 otherwise.")
-disp_eigvecs_basis = np.zeros((f_tot.shape))
+    if force_proj_acoustic_modes_null == True:
+        print("<ui|F> = 0 for all acoustic modes (lambda_i = 0)")
 
-for i_eigvec in range(len(eigenvectors)):
-    if abs(eigenvalues[i_eigvec]) > zero_tol:
-        temp_disp_eigvecs = forces_eigvecs_basis[i_eigvec] / eigenvalues[i_eigvec]
+    # now we calculate the displacement in eigvecs basis
+    # if the phonon frequency is null (acoustic mode) then 
+    # this component is null
 
-        if eigenvalues[i_eigvec] < 0:
-            if avoid_saddle_points == True:
-                print('WARNING: Some eigenvalues are negative. Making the correspondent displacement component go in the opposite direction.')
-                if abs(temp_disp_eigvecs) >= abs(limit_disp_neg_freq):
-                    print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is {abs(temp_disp_eigvecs):.5f} angstoms, larger than limit {limit_disp_neg_freq:.5f} angstroms! Making displacement for this component equal to {limit_disp_neg_freq} angstroms")   
-                    disp_eigvecs_basis[i_eigvec] = - abs(limit_disp_neg_freq) * np.sign(temp_disp_eigvecs)
-                else:
-                    disp_eigvecs_basis[i_eigvec] = -disp_eigvecs_basis[i_eigvec]
+    print("Calculating displacements in eigvecs basis. <ui|x> = <ui|F> / lambda_i for lambda_i != 0. <ui|x> = 0 otherwise.")
+    disp_eigvecs_basis = np.zeros((f_tot.shape))
+
+    for i_eigvec in range(len(eigenvectors)):
+        if abs(eigenvalues[i_eigvec]) > zero_tol:
+            temp_disp_eigvecs = forces_eigvecs_basis[i_eigvec] / eigenvalues[i_eigvec]
+
+            if eigenvalues[i_eigvec] < 0:
+                if avoid_saddle_points == True:
+                    print('WARNING: Some eigenvalues are negative. Making the correspondent displacement component go in the opposite direction.')
+                    if abs(temp_disp_eigvecs) >= abs(limit_disp_neg_freq):
+                        print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is {abs(temp_disp_eigvecs):.5f} angstoms, larger than limit {limit_disp_neg_freq:.5f} angstroms! Making displacement for this component equal to {limit_disp_neg_freq} angstroms")   
+                        disp_eigvecs_basis[i_eigvec] = - abs(limit_disp_neg_freq) * np.sign(temp_disp_eigvecs)
+                    else:
+                        disp_eigvecs_basis[i_eigvec] = -disp_eigvecs_basis[i_eigvec]
+                        
+            else:
+                if abs(temp_disp_eigvecs) >= abs(limit_disp_eigvec_basis):
+                    print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is {abs(temp_disp_eigvecs):.5f} angstoms, larger than limit {limit_disp_eigvec_basis:.5f} angstroms! Making displacement for this component equal to {limit_disp_eigvec_basis} angstroms")
+                    disp_eigvecs_basis[i_eigvec] = limit_disp_eigvec_basis * np.sign(temp_disp_eigvecs)
+                else: 
+                    disp_eigvecs_basis[i_eigvec] = temp_disp_eigvecs
                     
-        else:
-            if abs(temp_disp_eigvecs) >= abs(limit_disp_eigvec_basis):
-                print(f"    WARNING: displacement in eigenvectors basis for eigenvector {i_eigvec+1} is {abs(temp_disp_eigvecs):.5f} angstoms, larger than limit {limit_disp_eigvec_basis:.5f} angstroms! Making displacement for this component equal to {limit_disp_eigvec_basis} angstroms")
-                disp_eigvecs_basis[i_eigvec] = limit_disp_eigvec_basis * np.sign(temp_disp_eigvecs)
-            else: 
-                disp_eigvecs_basis[i_eigvec] = temp_disp_eigvecs
-                
 
-# now we calculate the displacements in cartesian basis
-print("Projecting displacements in cartesian basis.")
-disp_cart_basis = np.zeros((f_tot.shape))
+    # now we calculate the displacements in cartesian basis
+    print("Projecting displacements in cartesian basis.")
+    disp_cart_basis = np.zeros((f_tot.shape))
 
-for i_eigvec in range(len(eigenvectors)):
-    if abs(eigenvalues[i_eigvec]) > zero_tol:
-        disp_cart_basis += disp_eigvecs_basis[i_eigvec] * eigenvectors[:, i_eigvec] 
+    for i_eigvec in range(len(eigenvectors)):
+        if abs(eigenvalues[i_eigvec]) > zero_tol:
+            disp_cart_basis += disp_eigvecs_basis[i_eigvec] * eigenvectors[:, i_eigvec] 
 
 # displacements may still move center of mass.
 if do_not_move_CM == True:
