@@ -447,7 +447,9 @@ if dont_project_forces_on_eigvecs == True:
     max_disp_component = np.max(np.abs(disp_cart_basis))
     if max_disp_component > max_disp_parallel_to_forces:
         disp_cart_basis = disp_cart_basis * max_disp_parallel_to_forces / max_disp_component
-    
+    forces_eigvecs_basis = np.zeros((f_tot.shape))
+    dft_forces_eigvecs_basis = np.zeros((dft_forces.shape))
+    excited_forces_eigvecs_basis = np.zeros((excited_forces.shape))
 else:
     # load eigvecs from eigvecs file
     freqs, eigvecs = read_eigvecs_file(eigvecs_file, Natoms)
@@ -567,13 +569,6 @@ if do_not_move_CM == True:
         for idir in range(3):
             disp_cart_basis[3*iatom+idir] = disp_cart_basis[3*iatom+idir] - CM_disp[idir]
         
-    
-write_displacements(disp_cart_basis, 'displacements_Newton_method.dat')
-# write_displacements(displacements_dft, 'displacements_Fdft.dat')
-
-print("\n\nSome extra information:")
-# printing information about DFT and Excited state forces
-
 print(f"\nModulus of 3N DFT forces vector: {np.linalg.norm(dft_forces):.8f} eV/angstrom")
 print(f"Modulus of 3N Excited state forces vector: {np.linalg.norm(excited_forces):.8f} eV/angstrom")
 print(f"Modulus of 3N DFT + Excited state (total force) force vector: {np.linalg.norm(f_tot):.8f} eV/angstrom\n")
@@ -581,47 +576,55 @@ print(f"Modulus of 3N DFT + Excited state (total force) force vector: {np.linalg
 print('Is (Fdft + Fexcited) parallel to displacement? ', are_parallel(disp_cart_basis, f_tot, tolerance=1e-2))
 print('Is F_excited parallel to displacement? ', are_parallel(disp_cart_basis, excited_forces, tolerance=1e-2))
 print("")
-print_info_displacements(disp_cart_basis)
-estimate_energy_change(disp_cart_basis)
+print_info_displacements(disp_cart_basis) 
+ 
+ 
+if dont_project_forces_on_eigvecs == False:
+    write_displacements(disp_cart_basis, 'displacements_parallel_Ftot_limited.dat')
+    # write_displacements(displacements_dft, 'displacements_Fdft.dat')
+    estimate_energy_change(disp_cart_basis)
+else:
+    write_displacements(disp_cart_basis, 'displacements_Newton_method.dat')
+    # write_displacements(displacements_dft, 'displacements_Fdft.dat')
+    estimate_energy_change(disp_cart_basis)
 
+    # writing displacements parallel to forces
+    # in this case |x> = alpha |F> and the optimum alpha is given by 
+    # alpha = sum_i (F_i)^2 / sum_i  lambda_i (F_i)^2 = |F|^2 / sum_i  lambda_i (F_i)^2
 
-# writing displacements parallel to forces
-# in this case |x> = alpha |F> and the optimum alpha is given by 
-# alpha = sum_i (F_i)^2 / sum_i  lambda_i (F_i)^2 = |F|^2 / sum_i  lambda_i (F_i)^2
+    # parallel to total (dft + excited) force
+    print('')
+    print(100*'#')
+    print("What if displacements are parallel to total force?")
+    print("supossing |x> = alpha |Ftot>, where alpha = |Ftot|^2 / sum_i lambda_i Ftot_i^2")
+    displacements_parallel = f_tot * optimal_displacement_factor(forces_eigvecs_basis)
+    estimate_energy_change(displacements_parallel)
+    write_displacements(displacements_parallel, 'displacements_parallel_ftot.dat')
+    print(100*'#')
 
-# parallel to total (dft + excited) force
-print('')
-print(100*'#')
-print("What if displacements are parallel to total force?")
-print("supossing |x> = alpha |Ftot>, where alpha = |Ftot|^2 / sum_i lambda_i Ftot_i^2")
-displacements_parallel = f_tot * optimal_displacement_factor(forces_eigvecs_basis)
-estimate_energy_change(displacements_parallel)
-write_displacements(displacements_parallel, 'displacements_parallel_ftot.dat')
-print(100*'#')
+    # parallel to excited state force
+    print('')
+    print(100*'#')
+    print("What if displacements are parallel to excited state forces?")
+    print("supossing |x> = alpha |Fex>, where alpha = |Fex|^2 / sum_i lambda_i Fex_i^2")
+    displacements_parallel = excited_forces * optimal_displacement_factor(excited_forces_eigvecs_basis)
+    estimate_energy_change(displacements_parallel)
+    write_displacements(displacements_parallel, 'displacements_parallel_fex.dat')
+    print(100*'#')
 
-# parallel to excited state force
-print('')
-print(100*'#')
-print("What if displacements are parallel to excited state forces?")
-print("supossing |x> = alpha |Fex>, where alpha = |Fex|^2 / sum_i lambda_i Fex_i^2")
-displacements_parallel = excited_forces * optimal_displacement_factor(excited_forces_eigvecs_basis)
-estimate_energy_change(displacements_parallel)
-write_displacements(displacements_parallel, 'displacements_parallel_fex.dat')
-print(100*'#')
+    # parallel to DFT force
+    print('')
+    print(100*'#')
+    print("What if displacements are parallel to dft forces?")
+    print("supossing |x> = alpha |Fdft>, where alpha = |Fdft|^2 / sum_i lambda_i Fdft_i^2")
+    displacements_parallel = dft_forces * optimal_displacement_factor(dft_forces_eigvecs_basis)
+    estimate_energy_change(displacements_parallel)
+    write_displacements(displacements_parallel, 'displacements_parallel_fdft.dat')
+    print(100*'#')
 
-# parallel to DFT force
-print('')
-print(100*'#')
-print("What if displacements are parallel to dft forces?")
-print("supossing |x> = alpha |Fdft>, where alpha = |Fdft|^2 / sum_i lambda_i Fdft_i^2")
-displacements_parallel = dft_forces * optimal_displacement_factor(dft_forces_eigvecs_basis)
-estimate_energy_change(displacements_parallel)
-write_displacements(displacements_parallel, 'displacements_parallel_fdft.dat')
-print(100*'#')
-
-print('\n\n')
-print(100*'#')
-print(100*'#')
-print('Finished!')
-print(100*'#')
-print(100*'#')
+    print('\n\n')
+    print(100*'#')
+    print(100*'#')
+    print('Finished!')
+    print(100*'#')
+    print(100*'#')
