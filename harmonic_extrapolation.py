@@ -579,7 +579,7 @@ print("")
 print_info_displacements(disp_cart_basis) 
  
  
-if dont_project_forces_on_eigvecs == False:
+if dont_project_forces_on_eigvecs == True:
     write_displacements(disp_cart_basis, 'displacements_parallel_Ftot_limited.dat')
     # write_displacements(displacements_dft, 'displacements_Fdft.dat')
     estimate_energy_change(disp_cart_basis)
