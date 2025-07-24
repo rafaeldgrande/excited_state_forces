@@ -1,6 +1,6 @@
 
-from excited_forces_config import *
-from modules_to_import import *
+from main.excited_forces_config import *
+from main.modules_to_import import *
 
 
 ################ GW related functions ############################

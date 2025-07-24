@@ -13,12 +13,12 @@ TIMING = []
 # FIRST MESSAGE
 
 # excited state forces modules
-from modules_to_import import *
-from excited_forces_config import *
-from bgw_interface_m import *
-from qe_interface_m import *
-from excited_forces_m import *
-from excited_forces_classes import *
+from main.modules_to_import import *
+from main.excited_forces_config import *
+from main.bgw_interface_m import *
+from main.qe_interface_m import *
+from main.excited_forces_m import *
+from main.excited_forces_classes import *
 
 # trace ram
 tracemalloc.start()
