@@ -13,12 +13,12 @@ TIMING = []
 # FIRST MESSAGE
 
 # excited state forces modules
-from main.modules_to_import import *
-from main.excited_forces_config import *
-from main.bgw_interface_m import *
-from main.qe_interface_m import *
-from main.excited_forces_m import *
-from main.excited_forces_classes import *
+from modules_to_import import *
+from excited_forces_config import *
+from bgw_interface_m import *
+from qe_interface_m import *
+from excited_forces_m import *
+from excited_forces_classes import *
 
 # trace ram
 tracemalloc.start()
@@ -287,7 +287,9 @@ def report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_DKernel
     # Reporting forces in cartesian basis
     DIRECTION = ['x', 'y', 'z']
 
-    arq_out_name = f'forces_cart.out_{iexc+1}_{jexc+1}'
+    iexc_name = excitons_to_be_loaded[iexc]
+    jexc_name = excitons_to_be_loaded[jexc]
+    arq_out_name = f'forces_cart.out_{iexc_name}_{jexc_name}'
     arq_out = open(arq_out_name, 'w')
 
     if verbose:
@@ -432,10 +434,12 @@ Please cite:
         print(f" <{exc_pair[0]} | dH | {exc_pair[1]}>")
         
     exciton_pairs = config['exciton_pairs']
+    print('exciton_pairs:', exciton_pairs)
     
     # definning excitons to be loaded
     excitons_to_be_loaded = {num for pair in exciton_pairs for num in pair}
     excitons_to_be_loaded = sorted(excitons_to_be_loaded)
+    print(f"Excitons to be loaded: {excitons_to_be_loaded}")
     
     # loading excitons coefficients
     time0 = time.clock_gettime(0)
@@ -443,7 +447,7 @@ Please cite:
     Exciton_coeffs = load_excitons_coefficients(exciton_file, excitons_to_be_loaded)
     # shape (Exciton_coeffs) is (Loaded Nexc, Nkpoints_BSE, Ncbnds, Nvbnds)
     time1 = time.clock_gettime(0)
-    print(f"Fineshed loading exciton coefficients")
+    print(f"Finished loading exciton coefficients")
     TASKS.append(['Loading exciton coefficients', time1 - time0])
     
     # defining exciton pairs indexes to be consistent with exciton coefficients array
@@ -452,7 +456,7 @@ Please cite:
         iexc, jexc = pair
         id_i, id_j = excitons_to_be_loaded.index(iexc), excitons_to_be_loaded.index(jexc)
         exciton_pairs_indexes.append((id_i, id_j))
-
+    print('exciton_pairs_indexes:', exciton_pairs_indexes)
 
     # getting info from eqp.dat (from absorption calculation)
     time0 = time.clock_gettime(0)
