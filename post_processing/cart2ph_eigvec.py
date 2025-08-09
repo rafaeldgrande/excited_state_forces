@@ -133,7 +133,7 @@ print('Writing data in forces_phonons_basis.out \n\n')
 with open(output_file, 'w') as output:
    output.write('# i_eigvec ')
    for name in NAMES:
-      output.write(f'{name:>20s}')
+      output.write(f'{name:>40s}')
    output.write('\n')
 
    for i_eigvec in range(len(displacements)):
