@@ -25,36 +25,8 @@
 ####################################################################################
 
 
-OLD OLD OLD OLD
-
-THE DISPLACEMENTS IN THOSE FILES ARE IN UNITS OF DISPLACEMENT / SQRT(MASS)
-
-#    The eigvecs file is the output from dynmat.x (QE) that is done after the PH calculation.
-#    It is recommended to inclulde ASR in this calculation.
-#    This code assumes displacements are real values and eigvecs are normalized to 1.
-#    Just calculate phonons for q = (0,0,0)!
-#    This file looks something like this
-
-# ####################################################################################
-
-#         diagonalizing the dynamical matrix ...
-
-#  q =       0.0000      0.0000      0.0000
-#  **************************************************************************
-#      freq (    1) =      -0.000001 [THz] =      -0.000021 [cm-1]
-#  (  0.076991   0.000000     0.076977   0.000000    -0.086716   0.000000   )
-#  (  0.083142   0.000000     0.083127   0.000000    -0.093645   0.000000   )
-#  (  0.022303   0.000000     0.022299   0.000000    -0.025121   0.000000   )
-#      freq (    2) =       0.000000 [THz] =       0.000008 [cm-1]
-#  (  0.101322   0.000000    -0.095277   0.000000     0.005383   0.000000   )
-#  (  0.109418   0.000000    -0.102889   0.000000     0.005813   0.000000   )
- 
-# ####################################################################################
-
-NEW 
-
-Now we read the normal modes displacements from the dynmat.axsf file (produced by dynmat.x program from QE).
-In this file the displacements are given in lenght untis (insted of lenght / sqrt(mass) that are eigvecs from the dynamical matrix)
+We read the phonon modes displacements from the dynmat.axsf file (produced by dynmat.x program from QE).
+In this file the displacements are given in lenght untis (insted of lenght / sqrt(mass)
 Notice that those displacements ARE NOT perpendicular to each other, while the eigenvectors from the dynamical matrix ARE orthogonal to each other.
 The file has the following structure:
 
@@ -66,7 +38,7 @@ PRIMVEC
     0.131058401   -0.000553227    6.258428284
 PRIMCOORD    1
      12   1  
-   C     -0.60956  -0.00106   2.86751   0.01597   0.01597  -0.01799  # atom_name x y z fx fy fz
+   C     -0.60956  -0.00106   2.86751   0.01597   0.01597  -0.01799  # atom_name x y z disp_x disp_y disp_z
    N      0.61374   0.00013  -2.81849   0.01597   0.01597  -0.01799
    H     -0.53433  -0.00192   1.76995   0.01597   0.01597  -0.01799
    H     -1.27398   0.90188  -3.05512   0.01597   0.01597  -0.01799
@@ -126,31 +98,8 @@ for i_force in range(len(forces_cart)):
 
 print('Finished reading forces file')
 
-# # reading eigvecs
-# print('Reading eigvecs file')
-# arq_eigvecs = open(eigvecs_file)
-
-# eigvecs = []
-# freqs = []
-# for line in arq_eigvecs:
-#    line_split = line.split()
-#    if len(line_split) > 0:
-#       if line_split[0] == 'freq':
-#          freqs.append(float(line_split[-2]))
-#          eigvecs.append([])
-#       if line_split[0] == '(':
-#          for i_dir in [1,3,5]:
-#             eigvecs[-1].append(float(line_split[i_dir]))
-
-# for i_eigvec in range(len(eigvecs)):
-#    eigvecs[i_eigvec] = np.array(eigvecs[i_eigvec])
-#    # print('Norm = ', np.dot(eigvecs[i_eigvec], eigvecs[i_eigvec]))
-   
-# arq_eigvecs.close()
-# print('Finished reading eigvecs file')
 
 # getting phonon displacements
-
 print('Reading eigvecs file')
 arq_eigvecs = open(eigvecs_file)
 
@@ -173,28 +122,25 @@ for line in arq_eigvecs:
 displacements = np.array(displacements)
 
 # those eigvecs are not normalized, then we have to do it
+print('Normalizing displacements')
 for i_eigvec in range(len(displacements)):
    displacements[i_eigvec] = displacements[i_eigvec] / np.sqrt(np.dot(displacements[i_eigvec], displacements[i_eigvec]))
 
 # calculating forces in ph basis and report this data
-
 print('Calculatinig forces in eigvecs basis')
 print('Writing data in forces_phonons_basis.out \n\n')
 
-output = open(output_file, 'w')
+with open(output_file, 'w') as output:
+   output.write('# i_eigvec ')
+   for name in NAMES:
+      output.write(f'{name:>20s}')
+   output.write('\n')
 
-output.write('# i_eigvec ')
-for name in NAMES:
-   output.write(name + '    ')
-output.write('\n')
-
-for i_eigvec in range(len(displacements)):
-   line_output = f'{i_eigvec+1}    '
-   for i_force in range(len(forces_cart)):
-      f_ph_basis = np.dot(displacements[i_eigvec], forces_cart[i_force])
-      line_output += f'{f_ph_basis}      '
-   line_output += '\n'
-   output.write(line_output)
-
-output.close()
+   for i_eigvec in range(len(displacements)):
+      line_output = f'{i_eigvec+1:3d} '
+      for i_force in range(len(forces_cart)):
+         f_ph_basis = np.dot(displacements[i_eigvec], forces_cart[i_force])
+         line_output += f'{f_ph_basis:20.10f}'
+      line_output += '\n'
+      output.write(line_output)
 print('Done!')
