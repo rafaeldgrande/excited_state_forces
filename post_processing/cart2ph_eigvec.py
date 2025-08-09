@@ -140,7 +140,7 @@ with open(output_file, 'w') as output:
       line_output = f'{i_eigvec+1:3d} '
       for i_force in range(len(forces_cart)):
          f_ph_basis = np.dot(displacements[i_eigvec], forces_cart[i_force])
-         line_output += f'{f_ph_basis:20.10f}'
+         line_output += f'{f_ph_basis:40.10f}'
       line_output += '\n'
       output.write(line_output)
 print('Done!')
