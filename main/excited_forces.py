@@ -500,6 +500,10 @@ Please cite:
         Nmodes = Nmodes - len(imodes_with_no_elph)
         MF_params.Nmodes = Nmodes
         print(f'Setting Nmodes to {Nmodes}.')
+        
+    print('!!!!!!!!!! Kpoints_in_elph_file !!!!!!!!!!!')
+    print(Kpoints_in_elph_file)
+    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
     Nkpoints_DFPT = len(Kpoints_in_elph_file)
 
