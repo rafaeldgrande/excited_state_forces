@@ -113,7 +113,7 @@ def read_elph_xml(elph_xml_file, log_k_points=False):
     """
 
     if not os.path.exists(elph_xml_file):
-        print(f"WARNING: ELPH XML file not found: {elph_xml_file}")
+        print(f"WARNING: ELPH XML file not found: {elph_xml_file}. I will set the elph for this to be zero.")
         return None, None
 
     tree = ET.parse(elph_xml_file)
@@ -223,9 +223,10 @@ def complete_missing_irreps_with_zeros(elph):
     """
     
     print('Filling missing irreps with zero matrices')
-    for i in range(len(elph)):
-        if elph[i] != []:
-            shape_elph = np.shape(elph[i])
+    shape_elph = None
+    for item in elph:
+        if isinstance(item, np.ndarray):
+            shape_elph = item.shape
             break
     
     for i in range(len(elph)):
