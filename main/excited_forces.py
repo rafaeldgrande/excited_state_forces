@@ -434,12 +434,12 @@ Please cite:
         print(f" <{exc_pair[0]} | dH | {exc_pair[1]}>")
         
     exciton_pairs = config['exciton_pairs']
-    print('exciton_pairs:', exciton_pairs)
+    # print('exciton_pairs:', exciton_pairs)
     
     # definning excitons to be loaded
     excitons_to_be_loaded = {num for pair in exciton_pairs for num in pair}
     excitons_to_be_loaded = sorted(excitons_to_be_loaded)
-    print(f"Excitons to be loaded: {excitons_to_be_loaded}")
+    # print(f"Excitons to be loaded: {excitons_to_be_loaded}")
     
     # loading excitons coefficients
     time0 = time.clock_gettime(0)

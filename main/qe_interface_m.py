@@ -98,19 +98,23 @@ def get_displacement_patterns(el_ph_dir, iq, MF_params):
 def read_elph_xml(elph_xml_file, log_k_points=False):
 
     """Reads elph coefficients (<i_k|dV/dx_mu|j_(k+q)>) produced by DFPT calculations from Quantum Espresso
-    Those coefficients are written in .xml files. The nomenclature of those files are
-    elph.iq.ipert.xml, where iq = 1,2,3... is the index of the q point that calculation and
-    ipert is the index of the perturbation applied for that mode. The displacements patterns 
-    for each perturbation are listed in the patterns.iq.xml files.
+        Those coefficients are written in .xml files. The nomenclature of those files are
+        elph.iq.ipert.xml, where iq = 1,2,3... is the index of the q point that calculation and
+        ipert is the index of the perturbation applied for that mode. The displacements patterns 
+        for each perturbation are listed in the patterns.iq.xml files.
 
-    Returns:
-        elph_aux = [Ndeg, Nkpoints_in_xml_file, Nbnds_in_xml_file, Nbnds_in_xml_file]
-        complex array
-        where: 
-            - Ndeg is the degeneracy of this mode
-            - Nkpoints_in_xml is the number of k points in the file
-            - Nbnds_in_xml_file is the number of bands in the file 
+        Returns:
+            elph_aux = [Ndeg, Nkpoints_in_xml_file, Nbnds_in_xml_file, Nbnds_in_xml_file]
+            complex array
+            where: 
+                - Ndeg is the degeneracy of this mode
+                - Nkpoints_in_xml is the number of k points in the file
+                - Nbnds_in_xml_file is the number of bands in the file 
     """
+
+    if not os.path.exists(elph_xml_file):
+        print(f"WARNING: ELPH XML file not found: {elph_xml_file}")
+        return None, None
 
     tree = ET.parse(elph_xml_file)
     root = tree.getroot()
@@ -210,11 +214,37 @@ def read_elph_xml(elph_xml_file, log_k_points=False):
 
     return elph_aux, np.array(Kpoints_in_elph_file)
 
+def complete_missing_irreps_with_zeros(elph):
+    
+    """
+    elph is a list with Nmodes items.
+    check of items that are empty lists and replace them with zero matrices
+    with shape (Nk, Nbnds_in_xml, Nbnds_in_xml)
+    """
+    
+    print('Filling missing irreps with zero matrices')
+    for i in range(len(elph)):
+        if elph[i] != []:
+            shape_elph = np.shape(elph[i])
+            break
+    
+    for i in range(len(elph)):
+        if elph[i] == []:
+            elph[i] = np.zeros((shape_elph[1], shape_elph[2], shape_elph[2]), dtype=np.complex64)
+            
+    elph = np.array(elph)
+    return elph
+
 
 def get_el_ph_coeffs(el_ph_dir, iq, Nirreps, dfpt_irreps_list):  # suitable for xml files written from qe 6.7 
 
     """ Reads all elph.iq.ipert.xml files and returns the electron-phonon coefficients
-    elph[Nmodes, Nk, Nbnds_in_xml, Nbnds_in_xml] """
+    elph[Nmodes, Nk, Nbnds_in_xml, Nbnds_in_xml]
+    
+    elph is a list with Nmodes items. If the file is not present or ignored, the item is an empty list.
+    otherwise the item is a complex array with shape (Nk, Nbnds_in_xml, Nbnds_in_xml)
+    
+    """
 
     print('\n\nReading elph coeficients g_ij = <i|dH/dr|j>\n')
     
@@ -228,13 +258,16 @@ def get_el_ph_coeffs(el_ph_dir, iq, Nirreps, dfpt_irreps_list):  # suitable for 
             elph_xml_file = el_ph_dir + f'elph.{iq + 1}.{irrep + 1}.xml'
             print('    Reading file ', elph_xml_file, f'({irrep+1}/{Nirreps})')
             start_time_loop = datetime.now()
-            elph_aux, Kpoints_in_elph_file = read_elph_xml(elph_xml_file)
-
-            for ideg in range(len(elph_aux)):
-                elph.append(elph_aux[ideg])
+            elph_aux, Kpoints_in_elph_file_temp = read_elph_xml(elph_xml_file)
+            if elph_aux is None:
+                elph.append([])
+            else:
+                for ideg in range(len(elph_aux)):
+                    elph.append(elph_aux[ideg])
+                    Kpoints_in_elph_file = Kpoints_in_elph_file_temp
                 
             print_elapsed_time_min(start_time_loop)
-    else:
+    else:  # TODO -> have to fix this part later. Add empty list when index is not in dfpt_irreps_list
         print('Reading selected ELPH coefficients files. Total = ', len(dfpt_irreps_list))
         print('Indexes of files that I will read: ', dfpt_irreps_list)
         counter_files = 0
@@ -250,7 +283,8 @@ def get_el_ph_coeffs(el_ph_dir, iq, Nirreps, dfpt_irreps_list):  # suitable for 
                 
             print_elapsed_time_min(start_time_loop)
 
-    elph = np.array(elph)
+    elph = complete_missing_irreps_with_zeros(elph)
+    # elph = np.array(elph)
     print('Finished reading elph coeffients')
     print_elapsed_time_min(start_time_function)
 
