@@ -230,7 +230,7 @@ def complete_missing_irreps_with_zeros(elph):
             break
     
     for i in range(len(elph)):
-        if elph[i] == []:
+        if isinstance(elph[i], list):
             elph[i] = np.zeros((shape_elph[1], shape_elph[2], shape_elph[2]), dtype=np.complex64)
             
     elph = np.array(elph)
