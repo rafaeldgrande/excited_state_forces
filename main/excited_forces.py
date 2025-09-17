@@ -484,6 +484,22 @@ Please cite:
     elph, Kpoints_in_elph_file = get_el_ph_coeffs(el_ph_dir, iq, Nirreps, dfpt_irreps_list)
     time1 = time.clock_gettime(0)
     TASKS.append(['Reading ELPH coefficients', time1 - time0])
+    
+    imodes_with_no_elph = []
+    for imode in range(Nmodes):
+        if np.all(elph[imode] == 0):
+            imodes_with_no_elph.append(imode)
+    if len(imodes_with_no_elph) > 0:
+        print(f'WARNING! The following modes have no elph coefficients and will be ignored in the forces calculation: {imodes_with_no_elph}')
+        print('This can happen if you are using just some irreps from the DFPT calculation.')
+        print('Please, check if this is ok for your calculation.')
+        print('The number of modes will be reduced accordingly.')
+        # removing modes with no elph coefficients from Displacements and elph
+        Displacements = np.delete(Displacements, imodes_with_no_elph, axis=0)
+        elph = np.delete(elph, imodes_with_no_elph, axis=0)
+        Nmodes = Nmodes - len(imodes_with_no_elph)
+        MF_params.Nmodes = Nmodes
+        print(f'Setting Nmodes to {Nmodes}.')
 
     Nkpoints_DFPT = len(Kpoints_in_elph_file)
 
