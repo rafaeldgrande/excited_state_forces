@@ -84,12 +84,6 @@ config = {
     # so we do not need to map one grid in another
     "trust_kpoints_order": False,
 
-    # is this calculation with spin triplet (True) or spin singlet (False)? K = Kd
-    "spin_triplet": False,
-
-    # is this calculation with local_fields flag? K = Kx
-    "local_fields": False,
-
     # run in parallel flag
     "run_parallel": False   ,
     
@@ -188,8 +182,8 @@ def read_input(input_file):
                     'just_RPA_diag', 'report_RPA_data', 'show_imag_part',
                     'acoutic_sum_rule', 'use_hermicity_F', 'log_k_points',
                     'read_Acvk_pos', 'no_renorm_elph', 'elph_fine_a_la_bgw',
-                    'write_dK_mat', 'trust_kpoints_order', 'spin_triplet',
-                    'local_fields', 'run_parallel', 'use_Acvk_single_transition',
+                    'write_dK_mat', 'trust_kpoints_order', 'run_parallel', 
+                    'use_Acvk_single_transition',
                     'limit_BSE_sum', 'do_vectorized_sums', 'read_exciton_pairs_file'
                 ]:
                     config[key] = true_or_false(value[0], config.get(key, False))
@@ -204,68 +198,3 @@ def read_input(input_file):
         if config['jexc'] == -1:
             config['jexc'] = config['iexc']
 
-
-# # if __name__ == "__main__":
-# read_input('forces.inp')
-
-
-# # print('\n--------------------Configurations----------------------------\n\n')
-
-
-# print(f"Eqp data file : {config['eqp_file']}")
-# print(f"Exciton file : {config['exciton_file']}")
-# print(f"Elph directory : {config['el_ph_dir']}")
-
-# print(f"Using Acoustic Sum Rule for elph coeffs : {config['acoutic_sum_rule']}")
-
-# if config['jexc'] == config['iexc']:
-#     print(f"Exciton index to be read : {config['iexc']}")
-# else:
-#     print(f"Exciton indexes to be read : {config['iexc']}, {config['jexc']}")
-#     print("As excitons indexes are different, we must use complex values to forces!")
-#     print("Setting show_imag_part to true")
-#     config['show_imag_part'] = True
-
-# if config['iexc'] == config['jexc']:
-#     print(f"Using \"hermicity\" in forces calculations : {config['use_hermicity_F']}")
-# elif config['use_hermicity_F'] == True:
-#     print("Exciton indexes are not equal to each other. Cannot use \"hermicity\"")
-#     print("Setting use_hermicity_F to false")
-#     config['use_hermicity_F'] = False
-
-# if config['no_renorm_elph'] == True:
-#     print("Elph coefficients at gw level will be considered to be equal to coefficients calculated at DFT level")
-
-# if config['local_fields'] == True and config['spin_triplet'] == True:
-#     print("Warning! Both spin_triplet and local_fields are true! Choose just one!")
-#     print("Making local_fields = False and spin_triplet = False")
-#     config['local_fields'] = False
-#     config['spin_triplet'] = False
-
-# if config['limit_BSE_sum_up_to_value'] < 1.0:
-#     if config['limit_BSE_sum'] == True:
-#         print("Warning! limit_BSE_sum_up_to_value < 1.0 and limit_BSE_sum = True. Setting limit_BSE_sum = False")
-#         config['limit_BSE_sum'] = False
-
-# if config['read_exciton_pairs_file']:
-#     try:
-#         with open('exciton_pairs.dat', 'r') as arq:
-#             config['exciton_pairs'] = []
-#             for line in arq:
-#                 linha = line.split()
-#                 if len(linha) == 1:
-#                     config['exciton_pairs'].append((int(linha[0]), int(linha[0])))
-#                 elif len(linha) == 2:
-#                     config['exciton_pairs'].append((int(linha[0]), int(linha[1])))
-#         print("Reading exciton pairs from file exciton_pairs.dat. Ignoring iexc and jexc values from forces.inp file")
-#     except FileNotFoundError:
-#         print("Error: File 'exciton_pairs.dat' not found. Using default exciton pairs.")
-#         config['exciton_pairs'] = [(config['iexc'], config['jexc'])]
-# else:
-#     config['exciton_pairs'] = [(config['iexc'], config['jexc'])]
-
-# print("Exciton-ph matrix elements to be computed:")
-# for exc_pair in config['exciton_pairs']:
-#     print(f" <{exc_pair[0]} | dH | {exc_pair[1]}>")
-
-# print('\n-------------------------------------------------------------\n\n')
