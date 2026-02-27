@@ -74,7 +74,7 @@ def read_eqp_data(eqp_file, BSE_params):
 
 ################ BSE related functions ####################
 
-def get_kernel(kernel_file, factor_head):
+def get_kernel(kernel_file, factor_head, spin_triplet, local_fields):
 
     """
     Reads the kernel matrix elements from BSE calculations and returns the
@@ -83,7 +83,7 @@ def get_kernel(kernel_file, factor_head):
     Parameters:
     kernel_file (str): path to the kernel file
     factor_head (float): factor to be applied to the head part of the kernel
-    spin_triplet (bool): whether the calculation includes spin triplet - K = Kd
+    spin_triplet (bool): whether the calculation includes spin triplet K = Kd
     local_fields (bool): in this case the kernel is just K = Kx
 
     Returns:
@@ -116,6 +116,11 @@ def get_kernel(kernel_file, factor_head):
         Kd += (Wing[:,:,:,:,:,:,0])
         Kd += (Body[:,:,:,:,:,:,0])
         Kx =  -2*(Exchange[:,:,:,:,:,:,0])        
+
+    if local_fields == True:
+        Kd = Kd * 0
+    else:
+        Kd = Kd*factor_kernel
 
     if spin_triplet == True:
         Kx = Kx * 0.0

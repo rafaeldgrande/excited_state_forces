@@ -660,7 +660,7 @@ Please cite:
     # Getting kernel info from bsemat.h5 file
     if Calculate_Kernel == True:
         time0 = time.clock_gettime(0)
-        Kd, Kx = get_kernel(kernel_file, factor_head)
+        Kd, Kx = get_kernel(kernel_file, factor_head, spin_triplet, local_fields)
         time1 = time.clock_gettime(0)
         TASKS.append(['Loading kernel matrix elements', time1 - time0])
 
