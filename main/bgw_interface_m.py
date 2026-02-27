@@ -117,11 +117,6 @@ def get_kernel(kernel_file, factor_head):
         Kd += (Body[:,:,:,:,:,:,0])
         Kx =  -2*(Exchange[:,:,:,:,:,:,0])        
 
-    if local_fields == True:
-        Kd = Kd * 0
-    else:
-        Kd = Kd*factor_kernel
-
     if spin_triplet == True:
         Kx = Kx * 0.0
     else:

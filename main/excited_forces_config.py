@@ -24,7 +24,8 @@ bohr2A = physical_constants["Bohr radius"][0]*1e10
 config = {
     "iexc": 1,
     "jexc": -1,  # if it keeps to be jexc, then make jexc to iexc
-    "factor_head": 1,
+    "factor_head": 1,  # factor that multiplies the head of the matrix elements of bsemat.h5 
+    # you can find this value at 
     "ncbnds_sum": -1,  # how many c/v bnds to be included in forces calculation?
     "nvbnds_sum": -1,  # if == -1, then uses all used bnds in the BSE hamiltonian
     # files and paths to be opened
