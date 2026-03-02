@@ -2,6 +2,7 @@
 from excited_forces_config import *
 from modules_to_import import *
 
+ry2ev = 13.605698066
 
 ################ GW related functions ############################
 
@@ -74,6 +75,154 @@ def read_eqp_data(eqp_file, BSE_params):
 
 ################ BSE related functions ####################
 
+def copy_hdf5_dataset(file_path, dataset_name):
+    """
+    Reads and copies a dataset from an HDF5 file into a NumPy array.
+    Args:
+        file_path (str): Path to the HDF5 file.
+        dataset_name (str): Name of the dataset to copy.
+    Returns:
+        np.ndarray: A NumPy array containing the dataset.
+    """
+    with h5py.File(file_path, 'r') as f:
+        if dataset_name in f:
+            data = np.array(f[dataset_name])  # Copy dataset to a NumPy array
+            print(f"Dataset '{dataset_name}' copied from file {file_path}. Shape: {data.shape}, Dtype: {data.dtype}")
+            return data
+        else:
+            print(f"Dataset '{dataset_name}' not found in the file.")
+            return None
+
+def reverse_bse_index(ibse, Nk, Nc, Nv, Nspin=1):
+    """
+    Given a BSE index, return the corresponding k-point (ik), conduction band index (ic),
+    and valence band index (iv) assuming ispin = 0 (Python indexing).
+
+    Args:
+        ibse (int): Flattened BSE index.
+        Nk (int): Total number of k-points.
+        Nc (int): Total number of conduction bands.
+        Nv (int): Total number of valence bands.
+        Nspin (int, optional): Number of spin channels (default is 1).
+
+    Returns:
+        tuple: (ik, ic, iv) corresponding to the given BSE index.
+    """
+    temp = ibse // Nspin  # Remove spin dependence
+
+    iv = temp % Nv
+    temp //= Nv
+
+    ic = temp % Nc
+    temp //= Nc
+
+    ik = temp  # Remaining value is ik
+
+    return ik, ic, iv
+
+def load_hbse_matrix(hbse_file, Nkpoints_BSE, Ncbnds, Nvbnds):
+
+    print("Loading hbse matrix from file", hbse_file)
+    hbse_matrix_temp = copy_hdf5_dataset(hbse_file, "hbse_a")
+    hbse_matrix_temp = ry2ev * (hbse_matrix_temp[:,:,0] + 1.0j*hbse_matrix_temp[:,:,1])
+    hbse = np.zeros((Nkpoints_BSE, Ncbnds, Nvbnds, Nkpoints_BSE, Ncbnds, Nvbnds), dtype=complex)
+    Nexc = hbse_matrix_temp.shape[0]
+    for iexc1 in range(Nexc):
+        ik1, ic1, iv1 = reverse_bse_index(iexc1, Nkpoints_BSE, Ncbnds, Nvbnds)
+        for iexc2 in range(Nexc):
+            ik2, ic2, iv2 = reverse_bse_index(iexc2, Nkpoints_BSE, Ncbnds, Nvbnds)
+            hbse[ik1, ic1, iv1, ik2, ic2, iv2] = hbse_matrix_temp[iexc1, iexc2]
+    
+    print('Original shape ', hbse_matrix_temp.shape)
+    print('New shape ', hbse.shape)     
+    return hbse
+
+def rpa_part_from_eqp(Eqp_cond, Eqp_val):
+    Nkpoints_BSE, Ncbnds = Eqp_cond.shape
+    _, Nvbnds = Eqp_val.shape
+    rpa_part = np.zeros((Nkpoints_BSE, Ncbnds, Nvbnds, Nkpoints_BSE, Ncbnds, Nvbnds), dtype=float)
+    for ik in range(Nkpoints_BSE):
+        for ic in range(Ncbnds):
+            for iv in range(Nvbnds):
+                rpa_part[ik, ic, iv, ik, ic, iv] = Eqp_cond[ik, ic] - Eqp_val[ik, iv]
+    return rpa_part
+    
+def get_kernel_from_hbse(hbse_file, Eqp_cond, Eqp_val):
+    
+    Nkpoints_BSE, Ncbnds = Eqp_cond.shape
+    _, Nvbnds = Eqp_val.shape
+    # print('get_kernel_from_hbse: Nkpoints_BSE, Ncbnds, Nvbnds = ', Nkpoints_BSE, Ncbnds, Nvbnds)
+    
+    hbse = load_hbse_matrix(hbse_file, Nkpoints_BSE, Ncbnds, Nvbnds) # units Ry, so converting to eV
+    rpa_part = rpa_part_from_eqp(Eqp_cond, Eqp_val) # units eV
+    
+    # print('hbse shape ', hbse.shape)
+    # print('rpa_part shape ', rpa_part.shape)
+    
+    return hbse - rpa_part
+
+def get_kernel(kernel_file, factor_head):
+
+    """
+    Reads the kernel matrix elements from BSE calculations and returns the
+    direct (Kd) and exchange (Kx) kernels in Ry.
+
+    Parameters:
+    kernel_file (str): path to the kernel file
+    factor_head (float): factor to be applied to the head part of the kernel
+
+    Returns:
+    Kd (ndarray): direct kernel matrix elements in Ry
+    Kx (ndarray): exchange kernel matrix elements in Ry
+    """
+    print(f'Reading kernel matrix elements from {kernel_file}')
+
+    # Kd = head (G=G'=0) + wing (G=0 or G'=0) + body (otherwise) - see https://doi.org/10.1016/j.cpc.2011.12.006
+
+    f_hdf5 = h5py.File(kernel_file, 'r')
+
+    celvol = f_hdf5['mf_header/crystal/celvol'][()]
+    factor_kernel = -8.0*np.pi/celvol
+
+    flavor_calc = f_hdf5['/bse_header/flavor'][()]
+
+    Head = f_hdf5['mats/head'][()]
+    Body = f_hdf5['mats/body'][()]
+    Wing = f_hdf5['mats/wing'][()]
+    Exchange = f_hdf5['mats/exchange'][()]
+
+    if flavor_calc == 2:
+        Kd =  (Head[:,:,:,:,:,:,0] + 1.0j*Head[:,:,:,:,:,:,1])*factor_head
+        Kd += (Wing[:,:,:,:,:,:,0] + 1.0j*Wing[:,:,:,:,:,:,1])
+        Kd += (Body[:,:,:,:,:,:,0] + 1.0j*Body[:,:,:,:,:,:,1])
+        Kx =  -2*(Exchange[:,:,:,:,:,:,0] + 1.0j*Exchange[:,:,:,:,:,:,1])
+    else:
+        Kd =  (Head[:,:,:,:,:,:,0])*factor_head
+        Kd += (Wing[:,:,:,:,:,:,0])
+        Kd += (Body[:,:,:,:,:,:,0])
+        Kx =  -2*(Exchange[:,:,:,:,:,:,0])        
+
+    # end_time_func = time.clock_gettime(0)
+    # print(f'Time spent on get_kernel function: '+report_time(start_time_func))
+
+    return Kd, Kx
+
+def get_params_Kernel(kernel_file):
+    
+    """
+    Reads parameters for BSE calculation from Kernel file (bsemat.h5)
+    """
+    
+    f_hdf5 = h5py.File(kernel_file, 'r')
+    
+    Nkpoints_BSE = f_hdf5['/bse_header/kpoints/nk'][()]
+    Kpoints_BSE = f_hdf5['/bse_header/kpoints/kpts'][()]
+    Nvbnds = f_hdf5['/bse_header/bands/nvb'][()]
+    Ncbnds = f_hdf5['/bse_header/bands/ncb'][()]
+    
+    return Nkpoints_BSE, Kpoints_BSE, Nvbnds, Ncbnds
+    
+    
 
 def get_exciton_info(exciton_file, iexc):
 

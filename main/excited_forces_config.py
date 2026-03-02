@@ -33,6 +33,7 @@ config = {
     "exciton_file": 'eigenvectors.h5',
     "el_ph_dir": './',
     "kernel_file": 'bsemat.h5',
+    "hbse_file": 'hbse.h5',
 
     # conditionals
     "calc_modes_basis": False,    # not being used yet
@@ -173,7 +174,7 @@ def read_input(input_file):
                 # String keys
                 elif key in [
                     'eqp_file', 'exciton_file', 'el_ph_dir', 'dyn_file',
-                    'kernel_file', 'Acvk_directory'
+                    'kernel_file', 'Acvk_directory', 'hbse_file'
                 ]:
                     config[key] = value[0]
                 # Boolean keys

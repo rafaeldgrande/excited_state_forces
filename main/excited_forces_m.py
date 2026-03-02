@@ -279,6 +279,126 @@ def elph_renormalization_matrix(Eqp_val, Eqp_cond, Edft_val, Edft_cond, BSE_para
 
     return renorm_matrix_cond, renorm_matrix_val
 
+def calc_force_kernel_part(Akcv, Bkcv, DKernel_dr_imode):
+    """Calculates the kernel part of the excited state forces using the DKernel_dr_imode matrix
+    
+    
+    """
+    nmodes, nk, nc, nv, _, _, _ = DKernel_dr_imode.shape
+    Force_kernel_part = np.zeros((nmodes), dtype=np.complex64)
+    
+    for imode in range(nmodes):
+        
+        temp_sum = 0.0 + 0.0j
+        for ik1 in range(nk):
+            for ic1 in range(nc):
+                for iv1 in range(nv):
+                    for ik2 in range(nk):
+                        for ic2 in range(nc):
+                            for iv2 in range(nv):
+                                temp_sum += np.conj(Akcv[ik1, ic1, iv1]) * DKernel_dr_imode[imode, ik1, ic1, iv1, ik2, ic2, iv2] * Bkcv[ik2, ic2, iv2]
+        
+        
+        Force_kernel_part[imode] = temp_sum
+
+    return Force_kernel_part
+
+def calc_Dkernel_new(kernel_matrix, elph_cond, elph_val, Econd, Eval, vectorized=True):
+    
+    nmodes = elph_cond.shape[0]
+    nk, nc = Econd.shape
+    _, nv = Eval.shape
+    
+    DKernel_dr_imode = np.zeros((nmodes, nk, nc, nv, nk, nc, nv), dtype=complex)
+    
+    for imode in range(nmodes):
+        if vectorized:
+            DKernel_dr_imode[imode] = calc_Dkernel_vectorized(kernel_matrix, elph_cond, elph_val, Econd, Eval, imode)
+        else:
+            DKernel_dr_imode[imode] = calc_Dkernel_single_mode_not_vectorized(kernel_matrix, elph_cond, elph_val, Econd, Eval, imode)
+    return DKernel_dr_imode
+
+def calc_Dkernel_single_mode_not_vectorized(kernel_matrix, elph_cond, elph_val, Econd, Eval, imode):
+    """Calculates derivative of kernel matrix element for a single mode
+    return the matrix d/dr_imode <kcv | K^{eh} | k'c'v'>
+    shape nk, nc, nv, nk, nc, nv
+    """
+    
+    nk, nc = Econd.shape
+    _, nv = Eval.shape
+    DKernel_dr_imode = np.zeros((nk, nc, nv, nk, nc, nv), dtype=complex)
+    
+    for ik1 in range(nk):
+        for ik2 in range(nk):
+            for iv1 in range(nv):
+                for iv2 in range(nv):
+                    for ic1 in range(nc):
+                        for ic2 in range(nc):
+                            
+                            temp = 0.0 + 0.0j
+                            
+                            for icp in range(nc):
+                                if abs(Econd[ik1, ic1] - Econd[ik1, icp]) > TOL_DEG:
+                                    temp += kernel_matrix[ik1, icp, iv1, ik2, ic2, iv2] * elph_cond[imode, ik1, ic1, icp] / (Econd[ik1, ic1] - Econd[ik1, icp])
+                                    
+                                if abs(Econd[ik1, ic2] - Econd[ik1, icp]) > TOL_DEG:
+                                    temp += kernel_matrix[ik1, ic1, iv1, ik2, icp, iv2] * elph_cond[imode, ik2, icp, ic2] / (Econd[ik1, ic2] - Econd[ik1, icp])
+                                    
+                            for ivp in range(nv):
+                                if abs(Eval[ik1, iv1] - Eval[ik1, ivp]) > TOL_DEG:
+                                    temp += kernel_matrix[ik1, ic1, ivp, ik2, ic2, iv2] * elph_val[imode, ik1, iv1, ivp] / (Eval[ik1, iv1] - Eval[ik1, ivp])
+                                    
+                                if abs(Eval[ik1, iv2] - Eval[ik1, ivp]) > TOL_DEG:
+                                    temp += kernel_matrix[ik1, ic1, iv1, ik2, ic2, ivp] * elph_val[imode, ik2, ivp, iv2] / (Eval[ik1, iv2] - Eval[ik1, ivp])                            
+                                
+                            DKernel_dr_imode[ik1, ic1, iv1, ik2, ic2, iv2] = temp
+    return DKernel_dr_imode
+
+def calc_Dkernel_vectorized(kernel_matrix, elph_cond, elph_val, Econd, Eval, imode):
+    nk, nc, nv, _, _, _ = kernel_matrix.shape
+    
+    # --- 1. Prepare Conductance Denominators and Coupling ---
+    # Shape: (nk, nc, ncp)
+    dE_c = Econd[:, :, np.newaxis] - Econd[:, np.newaxis, :]
+    # Avoid division by zero: mask out diagonals/degeneracies
+    mask_c = np.abs(dE_c) > TOL_DEG
+    
+    # G_cond[ik, c, cp] = g[ik, c, cp] / (E[ik, c] - E[ik, cp])
+    # Note: we use imode here to extract the specific mode's coupling
+    G_cond = np.zeros((nk, nc, nc), dtype=complex)
+    G_cond[mask_c] = elph_cond[imode][mask_c] / dE_c[mask_c]
+
+    # --- 2. Prepare Valence Denominators and Coupling ---
+    dE_v = Eval[:, :, np.newaxis] - Eval[:, np.newaxis, :]
+    mask_v = np.abs(dE_v) > TOL_DEG
+    
+    G_val = np.zeros((nk, nv, nv), dtype=complex)
+    G_val[mask_v] = elph_val[imode][mask_v] / dE_v[mask_v]
+
+    # --- 3. Compute the 4 terms using Einstein Summation ---
+    # kernel_matrix indices: (ik1, ic1, iv1, ik2, ic2, iv2)
+    
+    # Term 1: Sum over icp (left state conduction)
+    # Sum: K[ik1, icp, iv1, ik2, ic2, iv2] * G_cond[ik1, ic1, icp]
+    t1 = np.einsum('kpvLMN,kcp->kcvLMN', kernel_matrix, G_cond)
+
+    # Term 2: Sum over icp (right state conduction)
+    # Sum: K[ik1, ic1, iv1, ik2, icp, iv2] * G_cond[ik2, icp, ic2]
+    # Note: Using ik2 (L) and ic2 (M)
+    t2 = np.einsum('KCVLpN,LpM->KCVLMN', kernel_matrix, G_cond)
+
+    # Term 3: Sum over ivp (left state valence)
+    # Sum: K[ik1, ic1, ivp, ik2, ic2, iv2] * G_val[ik1, iv1, ivp]
+    t3 = np.einsum('kcPLMN,kvP->kcvLMN', kernel_matrix, G_val)
+
+    # Term 4: Sum over ivp (right state valence)
+    # Sum: K[ik1, ic1, iv1, ik2, ic2, ivp] * G_val[ik2, ivp, iv2]
+    t4 = np.einsum('KCVLMp,LpN->KCVLMN', kernel_matrix, G_val)
+
+    # Total Derivative Matrix
+    DKernel = t1 + t2 + t3 + t4
+    
+    return np.sum(DKernel)
 
 def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_params):
     """Calculates derivatives of kernel matrix elements"""

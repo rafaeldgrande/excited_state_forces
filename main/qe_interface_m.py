@@ -337,7 +337,7 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
         
         Total_operations = Nbnds_in_xml**2 
         operations_done_by_now = 0
-        report_interval = int(Total_operations / 10)
+        report_interval = max(1, int(Total_operations / 10))
         time_start_ASR = datetime.now()
         total_time = 0.0
 
@@ -379,24 +379,26 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
                     print(f"{operations_done_by_now / Total_operations * 100:.2f}% Done | Time elapsed: {time_elapsed.total_seconds():.1f} s | Time remaining: {time_remaining:.1f} s")
                 
 
-        mean_val = np.mean(mod_sum_report_diag)
-        max_val  = np.max(mod_sum_report_diag)
-        mean_val_afterASR = np.mean(mod_sum_report_diag_afterASR)
-        max_val_afterASR  = np.max(mod_sum_report_diag_afterASR)
-        print("    Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
-        print("    Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
-        print("    Mean diag |g_ii| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
-        print("    Max diag  |g_ii| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
+        if len(mod_sum_report_diag) > 0:
+            mean_val = np.mean(mod_sum_report_diag)
+            max_val  = np.max(mod_sum_report_diag)
+            mean_val_afterASR = np.mean(mod_sum_report_diag_afterASR)
+            max_val_afterASR  = np.max(mod_sum_report_diag_afterASR)
+            print("    Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
+            print("    Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
+            print("    Mean diag |g_ii| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
+            print("    Max diag  |g_ii| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
 
 
-        mean_val = np.mean(mod_sum_report_offdiag)
-        max_val  = np.max(mod_sum_report_offdiag)
-        mean_val_afterASR = np.mean(mod_sum_report_offdiag_afterASR)
-        max_val_afterASR  = np.max(mod_sum_report_offdiag_afterASR)
-        print("    Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
-        print("    Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
-        print("    Mean offdiag |g_ij| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
-        print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
+        if len(mod_sum_report_offdiag) > 0:
+            mean_val = np.mean(mod_sum_report_offdiag)
+            max_val  = np.max(mod_sum_report_offdiag)
+            mean_val_afterASR = np.mean(mod_sum_report_offdiag_afterASR)
+            max_val_afterASR  = np.max(mod_sum_report_offdiag_afterASR)
+            print("    Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
+            print("    Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
+            print("    Mean offdiag |g_ij| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
+            print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
         
         print('Finished applying acoustic sum rule.')
 
