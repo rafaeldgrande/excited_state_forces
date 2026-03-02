@@ -12,6 +12,29 @@ from bgw_interface_m import *
 from qe_interface_m import *
 from excited_forces_classes import *
     
+def read_exciton_pairs(config):
+    """
+    Reads exciton pairs from 'exciton_pairs.dat' if config['read_exciton_pairs_file'] is True.
+    Updates config['exciton_pairs'] accordingly.
+    """
+    if config.get('read_exciton_pairs_file', False):
+        try:
+            with open('exciton_pairs.dat', 'r') as arq:
+                config['exciton_pairs'] = []
+                for line in arq:
+                    linha = line.split()
+                    if len(linha) == 1:
+                        config['exciton_pairs'].append((int(linha[0]), int(linha[0])))
+                    elif len(linha) == 2:
+                        config['exciton_pairs'].append((int(linha[0]), int(linha[1])))
+            print("Reading exciton pairs from file exciton_pairs.dat. Ignoring iexc and jexc values from forces.inp file")
+        except FileNotFoundError:
+            print("Error: File 'exciton_pairs.dat' not found. Using default exciton pairs.")
+            config['exciton_pairs'] = [(config['iexc'], config['jexc'])]
+    else:
+        config['exciton_pairs'] = [(config['iexc'], config['jexc'])]
+
+    
 def report_expected_energies(Akcv, Omega, Eqp_cond, Eqp_val):
 
     Mean_Ekin = 0.0

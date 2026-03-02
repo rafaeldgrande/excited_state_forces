@@ -395,6 +395,8 @@ Please cite:
     # dd/mm/YY H:M:S
     dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
     print("\n\nExecution date: ", dt_string)
+    
+
     ######################### RUNNING CODE ##############################
 
     start_time = time.clock_gettime(0)
@@ -407,23 +409,9 @@ Please cite:
 
     if NQ == 1:
         Qshift = Qshift[0] # orignal shape is (1,3), now it is (3,)
-        
-    if config['read_exciton_pairs_file']:
-        try:
-            with open('exciton_pairs.dat', 'r') as arq:
-                config['exciton_pairs'] = []
-                for line in arq:
-                    linha = line.split()
-                    if len(linha) == 1:
-                        config['exciton_pairs'].append((int(linha[0]), int(linha[0])))
-                    elif len(linha) == 2:
-                        config['exciton_pairs'].append((int(linha[0]), int(linha[1])))
-            print("Reading exciton pairs from file exciton_pairs.dat. Ignoring iexc and jexc values from forces.inp file")
-        except FileNotFoundError:
-            print("Error: File 'exciton_pairs.dat' not found. Using default exciton pairs.")
-            config['exciton_pairs'] = [(config['iexc'], config['jexc'])]
-    else:
-        config['exciton_pairs'] = [(config['iexc'], config['jexc'])]
+
+    
+    read_exciton_pairs(config)
 
     print("Exciton-ph matrix elements to be computed:")
     for exc_pair in config['exciton_pairs']:
