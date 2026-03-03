@@ -35,40 +35,40 @@ def read_exciton_pairs(config):
         config['exciton_pairs'] = [(config['iexc'], config['jexc'])]
 
     
-def report_expected_energies(Akcv, Omega, Eqp_cond, Eqp_val):
+# def report_expected_energies(Akcv, Omega, Eqp_cond, Eqp_val):
 
-    Mean_Ekin = 0.0
-    if Calculate_Kernel == True:
-        Mean_Kx, Mean_Kd = 0.0, 0.0
+#     Mean_Ekin = 0.0
+#     if Calculate_Kernel == True:
+#         Mean_Kx, Mean_Kd = 0.0, 0.0
 
-    for ik1 in range(BSE_params.Nkpoints_BSE):
-        for ic1 in range(BSE_params.Ncbnds):
-            for iv1 in range(BSE_params.Nvbnds):
-                Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*abs(Akcv[ik1, ic1, iv1])**2
+#     for ik1 in range(BSE_params.Nkpoints_BSE):
+#         for ic1 in range(BSE_params.Ncbnds):
+#             for iv1 in range(BSE_params.Nvbnds):
+#                 Mean_Ekin += (Eqp_cond[ik1, ic1] - Eqp_val[ik1, iv1])*abs(Akcv[ik1, ic1, iv1])**2
 
-    if Calculate_Kernel == True:
-        for ik1 in range(BSE_params.Nkpoints_BSE):
-            for ic1 in range(BSE_params.Ncbnds):
-                for iv1 in range(BSE_params.Nvbnds):
-                    for ik2 in range(BSE_params.Nkpoints_BSE):
-                        for ic2 in range(BSE_params.Ncbnds):
-                            for iv2 in range(BSE_params.Nvbnds):
-                                Mean_Kx += Ry2eV * \
-                                    np.conj(
-                                        Akcv[ik1, ic1, iv1]) * Kx[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
-                                Mean_Kd += Ry2eV * \
-                                    np.conj(
-                                        Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
+#     if Calculate_Kernel == True:
+#         for ik1 in range(BSE_params.Nkpoints_BSE):
+#             for ic1 in range(BSE_params.Ncbnds):
+#                 for iv1 in range(BSE_params.Nvbnds):
+#                     for ik2 in range(BSE_params.Nkpoints_BSE):
+#                         for ic2 in range(BSE_params.Ncbnds):
+#                             for iv2 in range(BSE_params.Nvbnds):
+#                                 Mean_Kx += Ry2eV * \
+#                                     np.conj(
+#                                         Akcv[ik1, ic1, iv1]) * Kx[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
+#                                 Mean_Kd += Ry2eV * \
+#                                     np.conj(
+#                                         Akcv[ik1, ic1, iv1]) * Kd[ik2, ik1, ic2, ic1, iv2, iv1] * Akcv[ik2, ic2, iv2]
 
-    print('Exciton energies (eV): ')
-    print(f'    Omega         =  {Omega:.6f}')
-    print(f'    <KE>          =  {Mean_Ekin:.6f}')
-    print(f'    Omega - <KE>  =  {(Omega - Mean_Ekin):.6f}')
-    if Calculate_Kernel == True:
-        print(f'    <Kx>          =  {np.real(Mean_Kx):.6f} + {np.imag(Mean_Kx):.6f} j')
-        print(f'    <Kd>          =  {np.real(Mean_Kd):.6f} + {np.imag(Mean_Kd):.6f} j')
-        DIFF = Omega - (Mean_Ekin + Mean_Kd + Mean_Kx)
-        print(f'\n    DIFF          = {DIFF:.6f} \n\n')
+#     print('Exciton energies (eV): ')
+#     print(f'    Omega         =  {Omega:.6f}')
+#     print(f'    <KE>          =  {Mean_Ekin:.6f}')
+#     print(f'    Omega - <KE>  =  {(Omega - Mean_Ekin):.6f}')
+#     if Calculate_Kernel == True:
+#         print(f'    <Kx>          =  {np.real(Mean_Kx):.6f} + {np.imag(Mean_Kx):.6f} j')
+#         print(f'    <Kd>          =  {np.real(Mean_Kd):.6f} + {np.imag(Mean_Kd):.6f} j')
+#         DIFF = Omega - (Mean_Ekin + Mean_Kd + Mean_Kx)
+#         print(f'\n    DIFF          = {DIFF:.6f} \n\n')
     
 def get_exciton_coeffs(iexc, jexc):
     if config["read_Acvk_pos"] == False:
@@ -86,20 +86,19 @@ def get_exciton_coeffs(iexc, jexc):
     return Akcv, Bkcv
 
 
-def report_expected_energies_master(iexc, jexc, Eqp_cond, Eqp_val, Akcv, OmegaA, Bkcv, OmegaB):         
-    # Reporting expected energies
-    if iexc != jexc:
-        print(f'Exciton {iexc}')
-        report_expected_energies(Akcv, OmegaA, Eqp_cond, Eqp_val)
-        print(f'Exciton {jexc}')
-        report_expected_energies(Bkcv, OmegaB, Eqp_cond, Eqp_val)
-    else:
-        print(f'Exciton {iexc}')
-        report_expected_energies(Akcv, OmegaA, Eqp_cond, Eqp_val)
+# def report_expected_energies_master(iexc, jexc, Eqp_cond, Eqp_val, Akcv, OmegaA, Bkcv, OmegaB):         
+#     # Reporting expected energies
+#     if iexc != jexc:
+#         print(f'Exciton {iexc}')
+#         report_expected_energies(Akcv, OmegaA, Eqp_cond, Eqp_val)
+#         print(f'Exciton {jexc}')
+#         report_expected_energies(Bkcv, OmegaB, Eqp_cond, Eqp_val)
+#     else:
+#         print(f'Exciton {iexc}')
+#         report_expected_energies(Akcv, OmegaA, Eqp_cond, Eqp_val)
 
-    
-    
-def generate_indexes_limited_BSE_sum():
+
+def generate_indexes_limited_BSE_sum(limit_BSE_sum):
     indexes_limited_BSE_sum = []
     if limit_BSE_sum == True:
         print('\n\nUsing limited sum of BSE coefficients. Reading transition to be used from indexes_limited_sum_BSE.dat file.')
@@ -336,8 +335,10 @@ def calc_Dkernel_new(kernel_matrix, elph_cond, elph_val, Econd, Eval, vectorized
     
     for imode in range(nmodes):
         if vectorized:
+            # print(f'Calculating DKernel_dr_imode for mode {imode+1} of {nmodes} using vectorized version')
             DKernel_dr_imode[imode] = calc_Dkernel_vectorized(kernel_matrix, elph_cond, elph_val, Econd, Eval, imode)
         else:
+            # print(f'Calculating DKernel_dr_imode for mode {imode+1} of {nmodes} using non-vectorized version')
             DKernel_dr_imode[imode] = calc_Dkernel_single_mode_not_vectorized(kernel_matrix, elph_cond, elph_val, Econd, Eval, imode)
     return DKernel_dr_imode
 
@@ -345,6 +346,9 @@ def calc_Dkernel_single_mode_not_vectorized(kernel_matrix, elph_cond, elph_val, 
     """Calculates derivative of kernel matrix element for a single mode
     return the matrix d/dr_imode <kcv | K^{eh} | k'c'v'>
     shape nk, nc, nv, nk, nc, nv
+    
+    Units: kernel matrix elements are in eV, elph_cond and elph_val are in ry/bohr, 
+    Econd and Eval are in eV, so DKernel_dr_imode is in ry/bohr
     """
     
     nk, nc = Econd.shape
@@ -358,70 +362,55 @@ def calc_Dkernel_single_mode_not_vectorized(kernel_matrix, elph_cond, elph_val, 
                     for ic1 in range(nc):
                         for ic2 in range(nc):
                             
-                            temp = 0.0 + 0.0j
+                            temp_sum = 0.0 + 0.0j
                             
                             for icp in range(nc):
                                 if abs(Econd[ik1, ic1] - Econd[ik1, icp]) > TOL_DEG:
-                                    temp += kernel_matrix[ik1, icp, iv1, ik2, ic2, iv2] * elph_cond[imode, ik1, ic1, icp] / (Econd[ik1, ic1] - Econd[ik1, icp])
+                                    temp_sum += kernel_matrix[ik1, icp, iv1, ik2, ic2, iv2] * elph_cond[imode, ik1, ic1, icp] / (Econd[ik1, ic1] - Econd[ik1, icp])
                                     
                                 if abs(Econd[ik1, ic2] - Econd[ik1, icp]) > TOL_DEG:
-                                    temp += kernel_matrix[ik1, ic1, iv1, ik2, icp, iv2] * elph_cond[imode, ik2, icp, ic2] / (Econd[ik1, ic2] - Econd[ik1, icp])
+                                    temp_sum += kernel_matrix[ik1, ic1, iv1, ik2, icp, iv2] * elph_cond[imode, ik2, icp, ic2] / (Econd[ik2, ic2] - Econd[ik2, icp])
                                     
                             for ivp in range(nv):
                                 if abs(Eval[ik1, iv1] - Eval[ik1, ivp]) > TOL_DEG:
-                                    temp += kernel_matrix[ik1, ic1, ivp, ik2, ic2, iv2] * elph_val[imode, ik1, iv1, ivp] / (Eval[ik1, iv1] - Eval[ik1, ivp])
+                                    temp_sum += kernel_matrix[ik1, ic1, ivp, ik2, ic2, iv2] * elph_val[imode, ik1, iv1, ivp] / (Eval[ik1, iv1] - Eval[ik1, ivp])
                                     
                                 if abs(Eval[ik1, iv2] - Eval[ik1, ivp]) > TOL_DEG:
-                                    temp += kernel_matrix[ik1, ic1, iv1, ik2, ic2, ivp] * elph_val[imode, ik2, ivp, iv2] / (Eval[ik1, iv2] - Eval[ik1, ivp])                            
+                                    temp_sum += kernel_matrix[ik1, ic1, iv1, ik2, ic2, ivp] * elph_val[imode, ik2, ivp, iv2] / (Eval[ik2, iv2] - Eval[ik2, ivp])                            
                                 
-                            DKernel_dr_imode[ik1, ic1, iv1, ik2, ic2, iv2] = temp
+                            DKernel_dr_imode[ik1, ic1, iv1, ik2, ic2, iv2] = temp_sum
     return DKernel_dr_imode
 
+def one_over_E_diff(Ebands):
+    nk, nb = Ebands.shape
+    E_diff_mask = np.zeros((nk, nb, nb), dtype=float)
+    
+    for ik in range(nk):
+        for ib1 in range(nb):
+            for ib2 in range(nb):
+                E_diff = Ebands[ik, ib1] - Ebands[ik, ib2]
+                if abs(E_diff) > TOL_DEG:
+                    E_diff_mask[ik, ib1, ib2] = 1.0 / E_diff
+                else:
+                    E_diff_mask[ik, ib1, ib2] = 0.0
+    return E_diff_mask
+
 def calc_Dkernel_vectorized(kernel_matrix, elph_cond, elph_val, Econd, Eval, imode):
-    nk, nc, nv, _, _, _ = kernel_matrix.shape
+    nk, nc = Econd.shape
+    _, nv = Eval.shape
+    DKernel_dr_imode = np.zeros((nk, nc, nv, nk, nc, nv), dtype=complex)
     
-    # --- 1. Prepare Conductance Denominators and Coupling ---
-    # Shape: (nk, nc, ncp)
-    dE_c = Econd[:, :, np.newaxis] - Econd[:, np.newaxis, :]
-    # Avoid division by zero: mask out diagonals/degeneracies
-    mask_c = np.abs(dE_c) > TOL_DEG
+    one_over_E_diff_cond = one_over_E_diff(Econd)
+    one_over_E_diff_val = one_over_E_diff(Eval)
+        
+    t1 = np.einsum('kPvKCV,kcP,kcP->kcvKCV', kernel_matrix, elph_cond[imode], one_over_E_diff_cond)
+    t2 = np.einsum('kcvKPV,KPC,KCP->kcvKCV', kernel_matrix, elph_cond[imode], one_over_E_diff_cond)
+    t3 = np.einsum('kcPKCV,kvP,kvP->kcvKCV', kernel_matrix, elph_val[imode], one_over_E_diff_val)
+    t4 = np.einsum('kcvKCP,KPV,KVP->kcvKCV', kernel_matrix, elph_val[imode], one_over_E_diff_val)
     
-    # G_cond[ik, c, cp] = g[ik, c, cp] / (E[ik, c] - E[ik, cp])
-    # Note: we use imode here to extract the specific mode's coupling
-    G_cond = np.zeros((nk, nc, nc), dtype=complex)
-    G_cond[mask_c] = elph_cond[imode][mask_c] / dE_c[mask_c]
-
-    # --- 2. Prepare Valence Denominators and Coupling ---
-    dE_v = Eval[:, :, np.newaxis] - Eval[:, np.newaxis, :]
-    mask_v = np.abs(dE_v) > TOL_DEG
+    DKernel_dr_imode = t1 + t2 + t3 + t4
     
-    G_val = np.zeros((nk, nv, nv), dtype=complex)
-    G_val[mask_v] = elph_val[imode][mask_v] / dE_v[mask_v]
-
-    # --- 3. Compute the 4 terms using Einstein Summation ---
-    # kernel_matrix indices: (ik1, ic1, iv1, ik2, ic2, iv2)
-    
-    # Term 1: Sum over icp (left state conduction)
-    # Sum: K[ik1, icp, iv1, ik2, ic2, iv2] * G_cond[ik1, ic1, icp]
-    t1 = np.einsum('kpvLMN,kcp->kcvLMN', kernel_matrix, G_cond)
-
-    # Term 2: Sum over icp (right state conduction)
-    # Sum: K[ik1, ic1, iv1, ik2, icp, iv2] * G_cond[ik2, icp, ic2]
-    # Note: Using ik2 (L) and ic2 (M)
-    t2 = np.einsum('KCVLpN,LpM->KCVLMN', kernel_matrix, G_cond)
-
-    # Term 3: Sum over ivp (left state valence)
-    # Sum: K[ik1, ic1, ivp, ik2, ic2, iv2] * G_val[ik1, iv1, ivp]
-    t3 = np.einsum('kcPLMN,kvP->kcvLMN', kernel_matrix, G_val)
-
-    # Term 4: Sum over ivp (right state valence)
-    # Sum: K[ik1, ic1, iv1, ik2, ic2, ivp] * G_val[ik2, ivp, iv2]
-    t4 = np.einsum('KCVLMp,LpN->KCVLMN', kernel_matrix, G_val)
-
-    # Total Derivative Matrix
-    DKernel = t1 + t2 + t3 + t4
-    
-    return np.sum(DKernel)
+    return DKernel_dr_imode
 
 def calc_DKernel_mat_elem(indexes, Kernel, EDFT, EQP, ELPH, MF_params, BSE_params):
     """Calculates derivatives of kernel matrix elements"""
@@ -836,7 +825,7 @@ def calc_Dkinect_matrix(Akcv, Bkcv, aux_cond_matrix, aux_val_matrix, MF_params, 
 
     return Sum_DKinect_diag, Sum_DKinect
 
-def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum):
+def arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum, just_RPA_diag, use_hermicity_F):
     
     Nkpoints = BSE_params.Nkpoints_BSE
     Ncbnds_sum = BSE_params.Ncbnds_sum
@@ -1075,8 +1064,9 @@ def report_iterations(counter_now, total_iterations, step_report, when_function_
         
         
 def apply_Qshift_on_valence_states(Qshift, Gv, Kpoints_in_elph_file_frac):
+    print('\n')
     if np.linalg.norm(Qshift) > 0.0:
-        print(f"Applying Q shift to valence states")
+        print(f"Applying Q shift to valence states (from finite momentum BSE calculation)")
 
         # shape Qshift is (3,)
         # shape Kpoints_in_elph_file_frac is (Nkpoints_DFPT, 3)
@@ -1096,6 +1086,156 @@ def apply_Qshift_on_valence_states(Qshift, Gv, Kpoints_in_elph_file_frac):
         Gv = Gv_new
         print(f"Done applying Q shift to valence states")
     else:
-        print(f"NOT applying Q shift to valence states")
-
+        print(f"NOT applying Q shift to valence states (from finite momentum BSE calculation).")
+    print('\n')
+    
     return Gv
+
+def compute_A_dRPA_dr_imode_B_not_vectorized(Akcv, Bkcv, elph_cond, elph_val):
+    
+    # elph_cond shape is (Nmodes, Nkpoints, Ncbnds, Ncbnds)
+    # elph_val shape is (Nmodes, Nkpoints, Nvbnds, Nvbnds)
+    Nk, Nc, Nv = Akcv.shape[0], Akcv.shape[1], Akcv.shape[2]
+    Nmodes = elph_cond.shape[0]
+    forces_imode = np.zeros((Nmodes), dtype=complex)
+    
+    # print('Calculating A * dRPA_dr_imode * B without vectorization')
+    # print('Nc = ', Nc, 'Nv = ', Nv, 'Nk = ', Nk, 'Nmodes = ', Nmodes)
+    
+    for imode in range(Nmodes):
+        temp = 0.0 + 0.0j
+        
+        for ik in range(Nk):
+            
+            for iv in range(Nv):
+                for ic1 in range(Nc):
+                    for ic2 in range(Nc):
+                        # Akcv * conj(Bkcv) * elph_cond * delta(v1, v2)
+                        temp += Akcv[ik, ic1, iv] * np.conj(Bkcv[ik, ic2, iv]) * elph_cond[imode, ik, ic1, ic2]
+                        
+            for ic in range(Nc):
+                for iv1 in range(Nv):
+                    for iv2 in range(Nv):
+                        # - Akcv * conj(Bkcv) * elph_val * delta(c1, c2)
+                        temp -= Akcv[ik, ic, iv1] * np.conj(Bkcv[ik, ic, iv2]) * elph_val[imode, ik, iv1, iv2]
+        
+        forces_imode[imode] = temp
+        # print('Done imode ', imode+1, ' of ', Nmodes)
+        # print('Force for this mode is ', forces_imode[imode])
+    
+    return forces_imode
+
+def compute_A_dRPA_dr_imode_B_vectorized(Akcv, Bkcv, dRPA_dr_imode_mat):
+    
+    # shape dRPA_dr_imode_mat is (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
+    
+    Nk, Nc, Nv = Akcv.shape[0], Akcv.shape[1], Akcv.shape[2]
+    Nmodes = dRPA_dr_imode_mat.shape[0]
+    forces_imode = np.zeros((Nmodes), dtype=complex)
+    
+    # Create A_mat[ik, ic1, iv1, ic2, iv2] = conj(Akcv[ik, ic1, iv1]) * Bkcv[ik, ic2, iv2]
+    A_mat = np.einsum('abc,ade->abcde', Akcv, np.conj(Bkcv))
+    
+    # Vectorized computation
+    for imode in range(Nmodes):
+        # sum over ik, ic1, iv1, ic2, iv2 of A_mat[ik, ic1, iv1, ik2, ic2, iv2] * dRPA_dr_imode_mat[imode, ik, ic1, iv1, ic2, iv2]
+        temp = np.einsum('abcde,abcde->', A_mat, dRPA_dr_imode_mat[imode])
+        forces_imode[imode] = np.sum(temp)
+    
+    return forces_imode
+
+
+def compute_A_dRPAdiag_dr_imode_B_not_vectorized(Akcv, Bkcv, elph_cond, elph_val):
+    
+    # elph_cond shape is (Nmodes, Nkpoints, Ncbnds, Ncbnds)
+    # elph_val shape is (Nmodes, Nkpoints, Nvbnds, Nvbnds)
+    Nk, Nc, Nv = Akcv.shape[0], Akcv.shape[1], Akcv.shape[2]
+    Nmodes = elph_cond.shape[0]
+    forces_imode = np.zeros((Nmodes), dtype=complex)
+    
+    for imode in range(Nmodes):
+        temp = 0.0 + 0.0j
+        for ik in range(Nk):
+            for ic in range(Nc):
+                for iv in range(Nv):
+                    temp += np.conj(Akcv[ik, ic, iv]) * Bkcv[ik, ic, iv] * (elph_cond[imode, ik, ic, ic] - elph_val[imode, ik, iv, iv])
+        forces_imode[imode] = temp
+    
+    return forces_imode
+
+def compute_A_dRPAdiag_dr_imode_B_vectorized(Akcv, Bkcv, dRPA_dr_imode_diag_mat):
+    
+    # shape dRPA_dr_imode_diag_mat is (Nmodes, Nkpoints, Ncbnds, Nvbnds)
+    
+    Nk, Nc, Nv = Akcv.shape[0], Akcv.shape[1], Akcv.shape[2]
+    Nmodes = dRPA_dr_imode_diag_mat.shape[0]
+    forces_imode = np.zeros((Nmodes), dtype=complex)
+    
+    # Create A_mat[ik, ic1, iv1, ic2, iv2] = conj(Akcv[ik, ic1, iv1]) * Bkcv[ik, ic2, iv2]
+    A_mat = np.einsum('abc,abc->abc', np.conj(Akcv), Bkcv)
+    
+    # Vectorized computation
+    for imode in range(Nmodes):
+        # sum over ik, ic1, iv1, ic2, iv2 of A_mat[ik, ic1, iv1, ik2, ic2, iv2] * dRPA_dr_imode_mat[imode, ik, ic1, iv1, ic2, iv2]
+        temp = np.einsum('abc,abc->', A_mat, dRPA_dr_imode_diag_mat[imode])
+        forces_imode[imode] = np.sum(temp)
+    
+    return forces_imode
+
+def compute_A_dKernel_dr_imode_B_not_vectorized(Akcv, Bkcv, DKernel_dr_imode_mat):
+    
+    Nk, Nc, Nv = Akcv.shape[0], Akcv.shape[1], Akcv.shape[2]
+    Nmodes = DKernel_dr_imode_mat.shape[0]
+    forces_imode = np.zeros((Nmodes), dtype=complex)
+    
+    for imode in range(Nmodes):
+        
+        temp_sum = 0.0 + 0.0j
+        for ik1 in range(Nk):
+            for ic1 in range(Nc):
+                for iv1 in range(Nv):
+                    for ik2 in range(Nk):
+                        for ic2 in range(Nc):
+                            for iv2 in range(Nv):
+                                temp_sum += np.conj(Akcv[ik1, ic1, iv1]) * DKernel_dr_imode_mat[imode, ik1, ic1, iv1, ik2, ic2, iv2] * Bkcv[ik2, ic2, iv2]
+        
+        forces_imode[imode] = temp_sum
+    
+    return forces_imode
+
+def compute_A_dKernel_dr_imode_B_vectorized(Akcv, Bkcv, DKernel_dr_imode_mat):
+    
+    # shape DKernel_dr_imode_mat is (Nmodes, Nkpoints, Ncbnds, Nvbnds, Nkpoints, Ncbnds, Nvbnds)
+    Nmodes = DKernel_dr_imode_mat.shape[0]
+    forces_imode = np.zeros((Nmodes), dtype=complex)
+    
+    # Create A_mat[ik, ic1, iv1, ic2, iv2] = conj(Akcv[ik, ic1, iv1]) * Bkcv[ik, ic2, iv2]
+    A_mat = np.einsum('abc,def->abcdef', np.conj(Akcv), Bkcv)
+    
+    # Vectorized computation
+    for imode in range(Nmodes):
+        # sum over ik1, ic1, iv1, ik2, ic2, iv2 of A_mat[ik1, ic1, iv1, ik2, ic2, iv2] * DKernel_dr_imode_mat[imode, ik1, ic1, iv1, ik2, ic2, iv2]
+        temp = np.einsum('abcdef,abcdef->', A_mat, DKernel_dr_imode_mat[imode])
+        forces_imode[imode] = np.sum(temp)
+    
+    return forces_imode
+
+def compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_imode_mat, elph_cond, elph_val, vectorized=True):
+    if vectorized:
+        return compute_A_dRPA_dr_imode_B_vectorized(Akcv, Bkcv, dRPA_dr_imode_mat)
+    else:
+        return compute_A_dRPA_dr_imode_B_not_vectorized(Akcv, Bkcv, elph_cond, elph_val)
+    
+def compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_imode_diag_mat, elph_cond, elph_val, vectorized=True):
+    if vectorized:
+        return compute_A_dRPAdiag_dr_imode_B_vectorized(Akcv, Bkcv, dRPA_dr_imode_diag_mat)
+    else:
+        return compute_A_dRPAdiag_dr_imode_B_not_vectorized(Akcv, Bkcv, elph_cond, elph_val)
+    
+def compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=True):
+    if vectorized:
+        print('Using vectorized version of A * dKernel_dr_imode * B')
+        return compute_A_dKernel_dr_imode_B_vectorized(Akcv, Bkcv, DKernel_dr_imode_mat)
+    else:
+        print('Using non-vectorized version of A * dKernel_dr_imode * B')
+        return compute_A_dKernel_dr_imode_B_not_vectorized(Akcv, Bkcv, DKernel_dr_imode_mat)

@@ -25,18 +25,18 @@ tracemalloc.start()
 
 # functions
   
-def process_exciton_pair(pair, Nmodes, Gc, Gv, Gc_diag, Gv_diag, Exciton_coeffs, do_vectorized_sums, DKernel_dr_imode):
-    iexc, jexc = pair
-    # Akcv, Bkcv, delta_time1 = load_exciton_coeffs(iexc, jexc, verbose=False)
-    Akcv = Exciton_coeffs[iexc]
-    Bkcv = Exciton_coeffs[jexc]
-    Sum_DKinect_diag, Sum_DKinect_offdiag, _ = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
+# def process_exciton_pair(pair, Nmodes, Gc, Gv, Gc_diag, Gv_diag, Exciton_coeffs, do_vectorized_sums, DKernel_dr_imode):
+#     iexc, jexc = pair
+#     # Akcv, Bkcv, delta_time1 = load_exciton_coeffs(iexc, jexc, verbose=False)
+#     Akcv = Exciton_coeffs[iexc]
+#     Bkcv = Exciton_coeffs[jexc]
+#     Sum_DKinect_diag, Sum_DKinect_offdiag, _ = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
     
-    if Calculate_Kernel:
-        Sum_Dkernel = calc_force_kernel_part(Akcv, Bkcv, DKernel_dr_imode)
-    else:
-        Sum_Dkernel = None
-    return iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel
+#     if Calculate_Kernel:
+#         Sum_Dkernel = calc_force_kernel_part(Akcv, Bkcv, DKernel_dr_imode)
+#     else:
+#         Sum_Dkernel = None
+#     return iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel
 
 def translate_bse_to_dfpt_k_points():
 
@@ -159,127 +159,115 @@ def load_exciton_coeffs(iexc, jexc, verbose=False):
 
 def load_excitons_coeffs(iexc, jexc, verbose=False):
     time0 = time.clock_gettime(0)
-    
-
-# if Calculate_Kernel == True:
-#     print('Calculating derivatives using kernel matrix elements')
-    
-#     for imode in range(Nmodes):
-#         F_kernel_imode = calculate_derivative_kernel_matrix_element(kernel, Eqp_cond, Eqp_val, elph_cond, elph_val)
-#         Sum_DKernel[imode] = np.sum(F_kernel_imode)
 
 
 # main function that calculates ESF. There is a vectorized and a non-vectorized version
-def calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums, verbose=False):
-    if do_vectorized_sums == True:
-        return calculate_excited_state_forces_vectorized(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, verbose)
-    else:
-        return calculate_excited_state_forces_not_vectorized(Akcv, Bkcv, verbose)
+# def calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums, verbose=False):
+#     if do_vectorized_sums == True:
+#         return calculate_excited_state_forces_vectorized(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, verbose)
+#     else:
+#         return calculate_excited_state_forces_not_vectorized(Akcv, Bkcv, verbose)
     
     
-def calculate_excited_state_forces_vectorized(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, verbose=False):
-    time0 = time.clock_gettime(0)
+# def calculate_excited_state_forces_vectorized(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, verbose=False):
+#     time0 = time.clock_gettime(0)
         
-    Sum_DKinect_diag    = np.zeros((Nmodes), dtype=np.complex64)
-    Sum_DKinect_offdiag = np.zeros((Nmodes), dtype=np.complex64)
+#     Sum_DKinect_diag    = np.zeros((Nmodes), dtype=np.complex64)
+#     Sum_DKinect_offdiag = np.zeros((Nmodes), dtype=np.complex64)
     
-    # build A_mat[ik, ic1, iv1, ic2, iv2] = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])
-    A_mat = Akcv[:, :, :, np.newaxis, np.newaxis] * np.conj(Bkcv[:, np.newaxis, np.newaxis, :, :])
-    A_mat_diag = Akcv * np.conj(Bkcv)
+#     # build A_mat[ik, ic1, iv1, ic2, iv2] = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])
+#     A_mat = Akcv[:, :, :, np.newaxis, np.newaxis] * np.conj(Bkcv[:, np.newaxis, np.newaxis, :, :])
+#     A_mat_diag = Akcv * np.conj(Bkcv)
     
-    if verbose:
-        print('Using vectorized sums for forces calculations')
-        print('Creating matrix A_mat[ik, ic1, iv1, ic2, iv2] = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])')
-        print('Creating matrix A_mat_diag[ik, ic, iv] = Akcv[ik, ic, iv] * np.conj(Bkcv[ik, ic, iv]) for diagonal approximation')
+#     if verbose:
+#         print('Using vectorized sums for forces calculations')
+#         print('Creating matrix A_mat[ik, ic1, iv1, ic2, iv2] = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])')
+#         print('Creating matrix A_mat_diag[ik, ic, iv] = Akcv[ik, ic, iv] * np.conj(Bkcv[ik, ic, iv]) for diagonal approximation')
     
-    for imode in range(Nmodes):
+#     for imode in range(Nmodes):
         
-        # Multiply A_mat * (Gc[imode] - Gv[imode])
-        F_imode = A_mat * (Gc[imode] - Gv[imode])
+#         # Multiply A_mat * (Gc[imode] - Gv[imode])
+#         F_imode = A_mat * (Gc[imode] - Gv[imode])
         
-        # F_imode_diag = np.diagonal(F_imode, axis1=1, axis2=2)
-        # F_imode_diag = np.diagonal(F_imode_diag, axis1=2, axis2=3)  # Now shape (nk, nc, nv)
-        F_imode_diag = A_mat_diag * (Gc_diag[imode] - Gv_diag[imode])
+#         # F_imode_diag = np.diagonal(F_imode, axis1=1, axis2=2)
+#         # F_imode_diag = np.diagonal(F_imode_diag, axis1=2, axis2=3)  # Now shape (nk, nc, nv)
+#         F_imode_diag = A_mat_diag * (Gc_diag[imode] - Gv_diag[imode])
 
-        Sum_DKinect_diag[imode] = np.sum(F_imode_diag)
-        Sum_DKinect_offdiag[imode] = np.sum(F_imode) - Sum_DKinect_diag[imode]
+#         Sum_DKinect_diag[imode] = np.sum(F_imode_diag)
+#         Sum_DKinect_offdiag[imode] = np.sum(F_imode) - Sum_DKinect_diag[imode]
             
-    delta_time = time.clock_gettime(0) - time0
+#     delta_time = time.clock_gettime(0) - time0
 
-    return Sum_DKinect_diag, Sum_DKinect_offdiag, delta_time
+#     return Sum_DKinect_diag, Sum_DKinect_offdiag, delta_time
 
-def calculate_excited_state_forces_not_vectorized(Akcv, Bkcv, Nmodes, verbose=False):
+# def calculate_excited_state_forces_not_vectorized(Akcv, Bkcv, Nmodes, verbose=False):
 
-    time0 = time.clock_gettime(0)
-    if verbose:
-        print('Not using vectorized sums for forces calculations')
-    # instead of creating big matrix, calculate sums on the fly!
+#     time0 = time.clock_gettime(0)
+#     if verbose:
+#         print('Not using vectorized sums for forces calculations')
+#     # instead of creating big matrix, calculate sums on the fly!
     
-    indexes_limited_BSE_sum = generate_indexes_limited_BSE_sum()
+#     indexes_limited_BSE_sum = generate_indexes_limited_BSE_sum(limit_BSE_sum)
 
-    if verbose:
-        print('Creating list of indexes kcv for which sums are calculated')
-    args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum)
+#     if verbose:
+#         print('Creating list of indexes kcv for which sums are calculated')
+#     args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum, 
+#                                                                     just_RPA_diag, use_hermicity_F)
 
-    Sum_DKinect_diag    = np.zeros((Nmodes), dtype=np.complex64)
-    Sum_DKinect_offdiag = np.zeros((Nmodes), dtype=np.complex64)
+#     Sum_DKinect_diag    = np.zeros((Nmodes), dtype=np.complex64)
+#     Sum_DKinect_offdiag = np.zeros((Nmodes), dtype=np.complex64)
 
-    if verbose:
-        print('\n\nCalculating diagonal matrix elements <kcv|dH/dx_mu|kcv>')
-    for imode in range(Nmodes):
-        print(f"Calculating mode {imode + 1} of {Nmodes}")
-        Sum_DKinect_diag[imode] = calc_Dkinect_matrix_simplified(Akcv, Bkcv, elph_cond, elph_val, args_list_just_diag, imode)
+#     if verbose:
+#         print('\n\nCalculating diagonal matrix elements <kcv|dH/dx_mu|kcv>')
+#     for imode in range(Nmodes):
+#         print(f"Calculating mode {imode + 1} of {Nmodes}")
+#         Sum_DKinect_diag[imode] = calc_Dkinect_matrix_simplified(Akcv, Bkcv, elph_cond, elph_val, args_list_just_diag, imode)
     
-    if verbose:
-        print("\n\nCalculating off-diagonal matrix elements <kcv|dH/dx_mu|kc'v'>") 
-    for imode in range(Nmodes):
+#     if verbose:
+#         print("\n\nCalculating off-diagonal matrix elements <kcv|dH/dx_mu|kc'v'>") 
+#     for imode in range(Nmodes):
         
-        if verbose:
-            print(f"Calculating mode {imode + 1} of {Nmodes}")
-        Sum_DKinect_offdiag[imode] = calc_Dkinect_matrix_simplified(Akcv, Bkcv, elph_cond, elph_val, args_list_just_offdiag, imode)
+#         if verbose:
+#             print(f"Calculating mode {imode + 1} of {Nmodes}")
+#         Sum_DKinect_offdiag[imode] = calc_Dkinect_matrix_simplified(Akcv, Bkcv, elph_cond, elph_val, args_list_just_offdiag, imode)
 
-    delta_time = time.clock_gettime(0) - time0
+#     delta_time = time.clock_gettime(0) - time0
 
-    return Sum_DKinect_diag, Sum_DKinect_offdiag, delta_time
+#     return Sum_DKinect_diag, Sum_DKinect_offdiag, delta_time
 
-def report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel, verbose=False):
+def f_disp_to_cart_basis(f_dis_basis, Displacements):
+    '''
+    Convert forces from displacement basis to cartesian basis.
+    also convert from Ry/bohr to eV/ang. The minus sign comes from F=-dV/du
+    input f_dis_basis is shape (Nmodes,) and is in Ry/bohr
+    output f_cart is shape (Nat, 3) and is in eV/ang
+    '''
+    f_cart = np.zeros((Nat, 3), dtype=complex)
+    
+    for iatom in range(Nat):
+        for imode in range(Nmodes):
+            f_cart[iatom] = f_cart[iatom] + Displacements[imode, iatom] * f_dis_basis[imode]
+
+    return -f_cart * Ry2eV / bohr2A
+
+def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, verbose=False):
     # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 
-    Sum_DKinect_diag    = -Sum_DKinect_diag * Ry2eV / bohr2A
-    Sum_DKinect_offdiag = -Sum_DKinect_offdiag * Ry2eV / bohr2A
-    Sum_Dkernel = -Sum_Dkernel * Ry2eV / bohr2A if Sum_Dkernel is not None else np.zeros_like(Sum_DKinect_diag)
+    # F_RPA_diag    = F_RPA_diag 
+    # F_RPA = F_RPA 
+    F_kernel = F_kernel if F_kernel is not None else np.zeros_like(F_RPA_diag)
     # Sum_DKernel = -Sum_DKernel * Ry2eV / bohr2A
 
     # Warn if imag part is too big (>= 10^-6)
 
-    if max(abs(np.imag(Sum_DKinect_diag))) >= 1e-6 and iexc == jexc:
-        print('WARNING: Imaginary part of kinectic diagonal forces >= 10^-6 eV/angs!')
+    # if max(abs(np.imag(F_RPA_diag))) >= 1e-6 and iexc == jexc:
+    #     print('WARNING: Imaginary part of kinectic diagonal forces >= 10^-6 eV/angs!')
 
-    if max(abs(np.imag(Sum_DKinect_offdiag))) >= 1e-6 and iexc == jexc:
-        print('WARNING: Imaginary part of kinectic offdiagonal forces >= 10^-6 eV/angs!')
+    # if max(abs(np.imag(F_RPA))) >= 1e-6 and iexc == jexc:
+    #     print('WARNING: Imaginary part of kinectic offdiagonal forces >= 10^-6 eV/angs!')
 
-    if Calculate_Kernel == True:
-        if max(abs(np.imag(Sum_Dkernel))) >= 1e-6 and iexc == jexc:
-            print('WARNING: Imaginary part of Kernel forces >= 10^-6 eV/angs!')
-
-    # Calculate forces cartesian basis
-    if verbose:
-        print("Calculating forces in cartesian basis")
-
-    # IBL equation with no kernel
-    F_cart_just_RPA_diag = np.zeros((Nat, 3), dtype=complex)  # IBL just diag RPA
-    # Our formulation 
-    F_cart_RPA_diag_offdiag = np.zeros((Nat, 3), dtype=complex)
-    # IBL equation with kernel expansion
-    F_cart_RPA_diag_and_kernel_expansions = np.zeros((Nat, 3), dtype=complex)
-
-    for iatom in range(Nat):
-        for imode in range(Nmodes):
-            F_cart_just_RPA_diag[iatom]   = F_cart_just_RPA_diag[iatom] + Displacements[imode,iatom] * Sum_DKinect_diag[imode]
-            F_cart_RPA_diag_offdiag[iatom] = F_cart_RPA_diag_offdiag[iatom] + Displacements[imode,iatom] * (Sum_DKinect_offdiag[imode] + Sum_DKinect_diag[imode])
-            F_cart_RPA_diag_and_kernel_expansions[iatom] = F_cart_RPA_diag_and_kernel_expansions[iatom] + Displacements[imode,iatom] * (Sum_Dkernel[imode] + Sum_DKinect_diag[imode])
-            # F_cart_RPA_diag_and_kernel_expansions[iatom] = F_cart_RPA_diag_and_kernel_expansions[iatom] + Displacements[imode,iatom] * (Sum_DKernel[imode] + Sum_DKinect_diag[imode])
-            # need to make x = x + y, instead of x += y because numpy complains that x+=y does not work when type(x)=!type(y) (one is complex and the other is real - float)
+    # if max(abs(np.imag(F_kernel))) >= 1e-6 and iexc == jexc:
+    #     print('WARNING: Imaginary part of Kernel forces >= 10^-6 eV/angs!')
 
     # Reporting forces in cartesian basis
     DIRECTION = ['x', 'y', 'z']
@@ -288,26 +276,23 @@ def report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel
     jexc_name = excitons_to_be_loaded[jexc]
     arq_out_name = f'forces_cart.out_{iexc_name}_{jexc_name}'
     arq_out = open(arq_out_name, 'w')
+        
+    text = '''# RPA_diag is equation (1) of arxiv:2502.05144, with d/dr <kcv|K^eh|k'c'v'> = 0
+# RPA is equation (3) of arxiv:2502.05144, with  <kcv|d K^eh / dr|k'c'v'> = 0
+# RPA_diag_plus_Kernel is equation (1) of arxiv:2502.05144 with  <kcv|d K^eh / dr|k'c'v'> = 0
+# Forces units are (eV/ang)\n'''
 
+    arq_out.write(text)
+
+    print(text)
+    header = f'{"Atom":<5} {"dir":<5}     {"RPA_diag":<25}       {"RPA_diag_offdiag":<25}      {"RPA_diag_plus_Kernel":<25}'
     if verbose:
-        print('\n\nForces (eV/ang)\n')
-
-    if Calculate_Kernel:
-        header = f'{"Atom":<5} {"dir":<5}     {"RPA_diag":<25}       {"RPA_diag_offdiag":<25}   {"RPA_diag_plus_Kernel":<25}'
-        if verbose:
-            print(header)
-        arq_out.write(header + '\n')
-    else:
-        header = f'{"Atom":<5} {"dir":<5}     {"RPA_diag":<25}       {"RPA_diag_offdiag":<25}'
-        if verbose:
-            print(header)
-        arq_out.write(header + '\n')
+        print(header)
+    arq_out.write(header + '\n')
 
     for iatom in range(Nat):
         for idir in range(3):
-            text = f'{iatom+1:<5} {DIRECTION[idir]:<5}     {F_cart_just_RPA_diag[iatom, idir]:<25.8f}       {F_cart_RPA_diag_offdiag[iatom, idir]:<25.8f}'
-            if Calculate_Kernel:
-                text += f' {F_cart_RPA_diag_and_kernel_expansions[iatom, idir]:<25.8f}'
+            text = f'{iatom+1:<5} {DIRECTION[idir]:<5}     {F_RPA_diag[iatom, idir]:<25.8f}       {F_RPA[iatom, idir]:<25.8f}      {(F_kernel+F_RPA_diag)[iatom, idir]:<25.8f}'
             if verbose:
                 print(text)
             arq_out.write(text + '\n')
@@ -359,8 +344,6 @@ if __name__ == "__main__":
     read_exciton_pairs_file = config['read_exciton_pairs_file']
     hbse_file = config['hbse_file']
     
-    
-    
     if run_parallel == True:
         from multiprocessing import Pool
         from functools import partial
@@ -410,7 +393,6 @@ Please cite:
     if NQ == 1:
         Qshift = Qshift[0] # orignal shape is (1,3), now it is (3,)
 
-    
     read_exciton_pairs(config)
 
     print("Exciton-ph matrix elements to be computed:")
@@ -440,7 +422,7 @@ Please cite:
         iexc, jexc = pair
         id_i, id_j = excitons_to_be_loaded.index(iexc), excitons_to_be_loaded.index(jexc)
         exciton_pairs_indexes.append((id_i, id_j))
-    print('exciton_pairs_indexes:', exciton_pairs_indexes)
+    # print('exciton_pairs_indexes:', exciton_pairs_indexes)
 
     # getting info from eqp.dat (from absorption calculation)
     time0 = time.clock_gettime(0)
@@ -454,6 +436,7 @@ Please cite:
     # get displacement patterns
     time0 = time.clock_gettime(0)
     iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-zero center of mass momentum
+    # Displacements, Nirreps = get_displacement_patterns(el_ph_dir, iq, MF_params)
     Displacements, Nirreps = get_displacement_patterns(el_ph_dir, iq, MF_params)
 
     # when one wants to use just some irreps, we need to remove the other not used
@@ -466,26 +449,25 @@ Please cite:
         Nmodes = MF_params.Nmodes
 
     # get elph coefficients from .xml files
-
     elph, Kpoints_in_elph_file = get_el_ph_coeffs(el_ph_dir, iq, Nirreps, dfpt_irreps_list)
     time1 = time.clock_gettime(0)
     TASKS.append(['Reading ELPH coefficients', time1 - time0])
     
-    imodes_with_no_elph = []
-    for imode in range(Nmodes):
-        if np.all(elph[imode] == 0):
-            imodes_with_no_elph.append(imode)
-    if len(imodes_with_no_elph) > 0:
-        print(f'WARNING! The following modes have no elph coefficients and will be ignored in the forces calculation: {imodes_with_no_elph}')
-        print('This can happen if you are using just some irreps from the DFPT calculation.')
-        print('Please, check if this is ok for your calculation.')
-        print('The number of modes will be reduced accordingly.')
-        # removing modes with no elph coefficients from Displacements and elph
-        Displacements = np.delete(Displacements, imodes_with_no_elph, axis=0)
-        elph = np.delete(elph, imodes_with_no_elph, axis=0)
-        Nmodes = Nmodes - len(imodes_with_no_elph)
-        MF_params.Nmodes = Nmodes
-        print(f'Setting Nmodes to {Nmodes}.')
+    # imodes_with_no_elph = []
+    # for imode in range(Nmodes):
+    #     if np.all(elph[imode] == 0):
+    #         imodes_with_no_elph.append(imode)
+    # if len(imodes_with_no_elph) > 0:
+    #     print(f'WARNING! The following modes have no elph coefficients and will be ignored in the forces calculation: {imodes_with_no_elph}')
+    #     print('This can happen if you are using just some irreps from the DFPT calculation.')
+    #     print('Please, check if this is ok for your calculation.')
+    #     print('The number of modes will be reduced accordingly.')
+    #     # removing modes with no elph coefficients from Displacements and elph
+    #     Displacements = np.delete(Displacements, imodes_with_no_elph, axis=0)
+    #     elph = np.delete(elph, imodes_with_no_elph, axis=0)
+    #     Nmodes = Nmodes - len(imodes_with_no_elph)
+    #     MF_params.Nmodes = Nmodes
+    #     print(f'Setting Nmodes to {Nmodes}.')
         
     # print('!!!!!!!!!! Kpoints_in_elph_file !!!!!!!!!!!')
     # print(Kpoints_in_elph_file)
@@ -521,7 +503,7 @@ Please cite:
     TASKS.append(['Changing basis for k points', time1 - time0])
 
 
-    # filter data to get just g_c1c2 and g_v1v2
+    # filter elph to get just g_c1c2 and g_v1v2, cond and val states that are in the BSE Hamiltonian.
     time0 = time.clock_gettime(0)
     elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
     time1 = time.clock_gettime(0)
@@ -550,22 +532,25 @@ Please cite:
     # renormalze elph coefficients
     time0 = time.clock_gettime(0)
     if no_renorm_elph == False:
-        print('Renormalizing ELPH coefficients') 
+        print('Renormalizing ELPH coefficients following equation (5) of arxiv:2502.05144') 
         print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
         print('and <n|dHqp|m> = <n|dHdft|m> otherwise')
+        elph_cond, elph_val = renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, 
+                                                                     Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
     else:
         print('Not Renormalizing ELPH coefficients. Using <n|dHqp|m> = <n|dHdft|m> for all n and m')
-    elph_cond, elph_val = renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, 
-                                                                Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
+
 
     time1 = time.clock_gettime(0)
     TASKS.append(['Renormalization of ELPH coefficients', time1 - time0])
+    print('\n\n')
+
 
     # interpolation of elph coefficients a la BerkeleyGW code?
     time0 = time.clock_gettime(0)
     if elph_fine_a_la_bgw == False:
         
-        print('No interpolation on elph coeffs is used')
+        print('No interpolation on elph coeffs from a coarse grid to a fine grid is used')
         
         if trust_kpoints_order == False:
             print('Checking if kpoints of DFPT and BSE agree with each other')
@@ -590,6 +575,7 @@ Please cite:
         
     else:
         
+        # comment that one need to use a modified version of the BGW code to get those files
         print('Using interpolation "a la BerkeleyGW code"')
         print('Reading coefficients relating fine and coarse grids from files dtmat_non_bin_val and dtmat_non_bin_conds')
 
@@ -599,9 +585,9 @@ Please cite:
     time1 = time.clock_gettime(0)
     TASKS.append(['Interpolation of ELPH coefficients', time1 - time0])
 
-    time0 = time.clock_gettime(0)
 
-    print("Expanding ELPH matrices for vectorized multiplication")
+    time0 = time.clock_gettime(0)
+    print("\nExpanding ELPH matrices for vectorized multiplication")
 
     Shape_augmented = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds, Ncbnds, Nvbnds)
     Gc = np.zeros(Shape_augmented, dtype=np.complex64)
@@ -614,18 +600,6 @@ Please cite:
     print(f"Old shape for cond elph is {elph_cond.shape}. New shape is {Gc.shape} including off-diagonal elements and {Gc_diag.shape} for diagonal elements")
     print(f"Old shape for val elph is {elph_val.shape}. New shape is {Gv.shape} including off-diagonal elements and {Gv_diag.shape} for diagonal elements")
 
-    # Vectorized assignment for Gc_diag and Gv_diag
-    # Gc_diag[imode, ik, ic, iv] = elph_cond[imode, ik, ic, ic] for all imode, ik, ic, iv
-    # Gv_diag[imode, ik, ic, iv] = elph_val[imode, ik, iv, iv] for all imode, ik, ic, iv
-
-    # For Gc_diag: broadcast elph_cond diagonal over iv
-    diag_elph_cond = np.diagonal(elph_cond, axis1=2, axis2=3)  # shape: (Nmodes, Nkpoints_BSE, Ncbnds)
-    Gc_diag[:] = diag_elph_cond[:, :, :, np.newaxis]  # broadcast over iv
-
-    # For Gv_diag: broadcast elph_val diagonal over ic
-    diag_elph_val = np.diagonal(elph_val, axis1=2, axis2=3)  # shape: (Nmodes, Nkpoints_BSE, Nvbnds)
-    Gv_diag[:] = diag_elph_val[:, :, np.newaxis, :]  # broadcast over ic
-
     # For Gc: Gc[imode, ik, ic1, iv, ic2, iv] = elph_cond[imode, ik, ic1, ic2]
     # Only nonzero when iv == iv, so fill all iv
     for iv in range(Nvbnds):
@@ -636,96 +610,155 @@ Please cite:
     for ic in range(Ncbnds):
         Gv[:, :, ic, :, ic, :] = elph_val
         
+    # apply Q shift on valence states. Used when having finite momentum excitons.
+    Gv = apply_Qshift_on_valence_states(Qshift, Gv, Kpoints_in_elph_file_frac)
 
+    # Vectorized assignment for Gc_diag and Gv_diag
+    # Gc_diag[imode, ik, ic, iv] = elph_cond[imode, ik, ic, ic] for all imode, ik, ic, iv
+    # Gv_diag[imode, ik, ic, iv] = elph_val[imode, ik, iv, iv] for all imode, ik, ic, iv
+
+    # For Gc_diag: broadcast elph_cond diagonal over iv
+    diag_elph_cond = np.diagonal(elph_cond, axis1=2, axis2=3)  # shape: (Nmodes, Nkpoints_BSE, Ncbnds)
+    Gc_diag[:] = diag_elph_cond[:, :, :, np.newaxis]  # broadcast over iv. shape = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
+
+    # For Gv_diag: broadcast elph_val diagonal over ic
+    diag_elph_val = np.diagonal(elph_val, axis1=2, axis2=3)  # shape: (Nmodes, Nkpoints_BSE, Nvbnds)
+    Gv_diag[:] = diag_elph_val[:, :, np.newaxis, :]  # broadcast over ic. shape = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
+
+    time1 = time.clock_gettime(0)
+    TASKS.append(['ELPH matrices expansion (for vectorized multiplication)', time1 - time0])
+    
+    dRPA_dr_imode_mat = Gc - Gv
+    dRPA_dr_imode_diag_mat = Gc_diag - Gv_diag
+    
+    
     # Loading Kernel matrix elements
     if Calculate_Kernel == True:
-        print("Calculate_Kernel = True")
-        print(f"I will obtain the kernel matrix in the fine grid using the {hbse_file} file and eqp.dat file produced by absorption")
+        print(f"I will obtain the kernel matrix in the fine grid using the {hbse_file} and eqp.dat files produced by absorption")
         time0 = time.clock_gettime(0)
         
         # reconstruct kernel from hbse.h5 and eqp.dat in the fine grid
         # teste = load_hbse_matrix(hbse_file, Nkpoints_BSE, Ncbnds, Nvbnds)
-        kernel_matrix = get_kernel_from_hbse(hbse_file, Eqp_cond, Eqp_val)
-        
+        kernel_matrix = get_kernel_from_hbse(hbse_file, Eqp_cond, Eqp_val) # units eV
+        print('Finished loading kernel matrix elements from hbse file\n')
         time1 = time.clock_gettime(0)
         TASKS.append(['Loading kernel matrix elements', time1 - time0])
         
         time0 = time.clock_gettime(0)
-        print("Calculating d/dr_imode <kcv|K|kc'v'> matrix elements")
+        print("Calculating d/dr_imode <kcv|K|kc'v'> matrix elements. Equation (29) of arxiv:2502.05144")
+        DKernel_dr_imode_mat = calc_Dkernel_new(kernel_matrix, elph_cond, elph_val, Eqp_cond, Eqp_val, vectorized=do_vectorized_sums) # units ry/bohr
+        time1 = time.clock_gettime(0)
+        TASKS.append(['Calculating d/dr_imode <kcv|K|kc\'v\'> matrix elements', time1 - time0])
+
+    ####### Computing forces for each exciton pair and each mode ##########
+    
+    forces_A_B_RPA = []
+    forces_A_B_RPA_diag = []
+    forces_A_B_Kernel = []
+    
+    time_calc_RPA_diag, time_calc_RPA, time_calc_Kernel = 0.0, 0.0, 0.0
+
+    # running in serial
+    for exc_pair in exciton_pairs:
+        Akcv, Bkcv = Exciton_coeffs[exc_pair[0]-1], Exciton_coeffs[exc_pair[1]-1] # -1 because excitons_to_be_loaded is 0 indexed but exciton numbers are 1 indexed
         
-        DKernel_dr_imode = calc_Dkernel_new(kernel_matrix, elph_cond, elph_val, Eqp_cond, Eqp_val, vectorized=False)
-
-
-    time1 = time.clock_gettime(0)
-    TASKS.append(['ELPH matrices expansion (for vectorized multiplication)', time1 - time0])
-
-    Gv = apply_Qshift_on_valence_states(Qshift, Gv, Kpoints_in_elph_file_frac)
-
-    ########## Calculating exicted-state forces (no kernel part)  ############
-
-    time0_calculate_excited_state_forces = time.clock_gettime(0)
-
-    if run_parallel == True:
-        print(f"\n\n################################# Running in parallel with {num_processes} processes #################################")
+        time0 = time.clock_gettime(0)
+        forces_A_B = compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_imode_mat, elph_cond, elph_val, vectorized=do_vectorized_sums)
+        forces_A_B_RPA.append(f_disp_to_cart_basis(forces_A_B, Displacements))
+        time1 = time.clock_gettime(0)
+        time_calc_RPA += time1 - time0
         
-        if num_processes == 1:
-            print("Warning: Running in parallel with just one process. No speedup will be achieved! Change num_processes in forces.inp file.")
+        time0 = time.clock_gettime(0)
+        forces_A_B = compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_imode_diag_mat, elph_cond, elph_val, vectorized=do_vectorized_sums)
+        forces_A_B_RPA_diag.append(f_disp_to_cart_basis(forces_A_B, Displacements))
+        time1 = time.clock_gettime(0)
+        time_calc_RPA_diag += time1 - time0
+        
+        if Calculate_Kernel == True:
+            time0 = time.clock_gettime(0)
+            forces_A_B = compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=do_vectorized_sums)
+            forces_A_B_Kernel.append(f_disp_to_cart_basis(forces_A_B, Displacements))
+            time1 = time.clock_gettime(0)
+            time_calc_Kernel += time1 - time0
             
-        print("Total exciton-phonon matrix elements to be calculated: ", len(exciton_pairs))
+    TASKS.append(['Calculating forces with RPA_diag', time_calc_RPA_diag])
+    TASKS.append(['Calculating forces with RPA', time_calc_RPA])
+    TASKS.append(['Calculating forces with Kernel part', time_calc_Kernel])
+            
+    forces_A_B_RPA_diag = np.array(forces_A_B_RPA_diag)
+    forces_A_B_RPA = np.array(forces_A_B_RPA)
+    if Calculate_Kernel == True:
+        forces_A_B_Kernel = np.array(forces_A_B_Kernel)
         
-        def chunked_iterable(iterable, size):
-            it = iter(iterable)
-            while True:
-                chunk = list(islice(it, size))
-                if not chunk:
-                    break
-                yield chunk
-
-        worker_func = partial(
-            process_exciton_pair,
-            Nmodes=Nmodes,
-            Gc=Gc,
-            Gv=Gv,
-            Gc_diag=Gc_diag,
-            Gv_diag=Gv_diag,
-            Exciton_coeffs=Exciton_coeffs,
-            do_vectorized_sums=do_vectorized_sums,
-            DKernel_dr_imode=DKernel_dr_imode if Calculate_Kernel else None
-        )
-
-        ichunk = 0
-        if len(exciton_pairs) % num_processes == 0:
-            total_chunks = len(exciton_pairs) // num_processes
-        else:
-            total_chunks = len(exciton_pairs) // num_processes + 1
+    for i, exc_pair in enumerate(exciton_pairs):
+        iexc, jexc = exc_pair
+        report_forces(iexc-1, jexc-1, forces_A_B_RPA_diag[i], forces_A_B_RPA[i], forces_A_B_Kernel[i] if Calculate_Kernel else None, verbose=True)
         
-        for chunk in chunked_iterable(exciton_pairs_indexes, num_processes):
-            how_much_complete = (ichunk + 1) / total_chunks * 100
-            print(f"Progress excited-state forces calculation: {how_much_complete:.2f}%")
+    # ########## Calculating exicted-state forces (no kernel part)  ############
 
-            with Pool(processes=num_processes) as pool:
-                results = pool.map(worker_func, chunk)
-            for result in results:
-                iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel = result
-                report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel if Calculate_Kernel else None)
-            ichunk += 1
+    # time0_calculate_excited_state_forces = time.clock_gettime(0)
 
-    else:
-        print("\n\n################################# Running in serial ################################")
-        delta_time_load_excitons_coeffs = 0.0
+    # if run_parallel == True:
+    #     print(f"\n\n################################# Running in parallel with {num_processes} processes #################################")
         
-        print("Total exciton pairs to be calculated: ", len(exciton_pairs))
-        i_calc = 0
-        for iexc, jexc in exciton_pairs_indexes:
-            how_much_complete = (i_calc + 1) / len(exciton_pairs) * 100
-            print(f"Progress excited-state forces calculation: {how_much_complete:.2f}%")
-            Akcv, Bkcv, delta_time = load_exciton_coeffs(iexc, jexc)
-            Sum_DKinect_diag, Sum_DKinect_offdiag, delta_time = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
-            Sum_Dkernel = calc_force_kernel_part(Akcv, Bkcv, DKernel_dr_imode) if Calculate_Kernel else None
-            report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel if Calculate_Kernel else None)
-            i_calc += 1
+    #     if num_processes == 1:
+    #         print("Warning: Running in parallel with just one process. No speedup will be achieved! Change num_processes in forces.inp file.")
+            
+    #     print("Total exciton-phonon matrix elements to be calculated: ", len(exciton_pairs))
         
-    TASKS.append(['Calculation / report of forces (no kernel)', time.clock_gettime(0) - time0_calculate_excited_state_forces])
+    #     def chunked_iterable(iterable, size):
+    #         it = iter(iterable)
+    #         while True:
+    #             chunk = list(islice(it, size))
+    #             if not chunk:
+    #                 break
+    #             yield chunk
+
+    #     worker_func = partial(
+    #         process_exciton_pair,
+    #         Nmodes=Nmodes,
+    #         Gc=Gc,
+    #         Gv=Gv,
+    #         Gc_diag=Gc_diag,
+    #         Gv_diag=Gv_diag,
+    #         Exciton_coeffs=Exciton_coeffs,
+    #         do_vectorized_sums=do_vectorized_sums,
+    #         DKernel_dr_imode=DKernel_dr_imode if Calculate_Kernel else None
+    #     )
+
+    #     ichunk = 0
+    #     if len(exciton_pairs) % num_processes == 0:
+    #         total_chunks = len(exciton_pairs) // num_processes
+    #     else:
+    #         total_chunks = len(exciton_pairs) // num_processes + 1
+        
+    #     for chunk in chunked_iterable(exciton_pairs_indexes, num_processes):
+    #         how_much_complete = (ichunk + 1) / total_chunks * 100
+    #         print(f"Progress excited-state forces calculation: {how_much_complete:.2f}%")
+
+    #         with Pool(processes=num_processes) as pool:
+    #             results = pool.map(worker_func, chunk)
+    #         for result in results:
+    #             iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel = result
+    #             report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel if Calculate_Kernel else None)
+    #         ichunk += 1
+
+    # else:
+    #     print("\n\n################################# Running in serial ################################")
+    #     delta_time_load_excitons_coeffs = 0.0
+        
+    #     print("Total exciton pairs to be calculated: ", len(exciton_pairs))
+    #     i_calc = 0
+    #     for iexc, jexc in exciton_pairs_indexes:
+    #         how_much_complete = (i_calc + 1) / len(exciton_pairs) * 100
+    #         print(f"Progress excited-state forces calculation: {how_much_complete:.2f}%")
+    #         Akcv, Bkcv, delta_time = load_exciton_coeffs(iexc, jexc)
+    #         Sum_DKinect_diag, Sum_DKinect_offdiag, delta_time = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
+    #         Sum_Dkernel = calc_force_kernel_part(Akcv, Bkcv, DKernel_dr_imode) if Calculate_Kernel else None
+    #         report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel if Calculate_Kernel else None)
+    #         i_calc += 1
+        
+    # TASKS.append(['Calculation / report of forces (no kernel)', time.clock_gettime(0) - time0_calculate_excited_state_forces])
     
 
 
@@ -760,4 +793,24 @@ Please cite:
     print("-" * (task_column_width + time_column_width))  # Divider
     print(f"{'Total':<{task_column_width}}{TOTAL_TIME:>{time_column_width}.2f}")
 
+    print('''
+####################################################################
 
+Excited state forces calculation
+Developers: Rafael Del Grande, David Strubbe
+
+Please cite: 
+
+@misc{arxivdelgrande2025,
+    title={Revisiting ab-initio excited state forces from many-body Green's function formalism: approximations and benchmark}, 
+    author={Rafael R. Del Grande and David A. Strubbe},
+    year={2025},
+    eprint={2502.05144},
+    archivePrefix={arXiv},
+    primaryClass={cond-mat.mtrl-sci},
+    url={https://arxiv.org/abs/2502.05144}, 
+}
+
+####################################################################
+
+''')

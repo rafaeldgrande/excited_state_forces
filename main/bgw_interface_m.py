@@ -40,7 +40,7 @@ def read_eqp_data(eqp_file, BSE_params):
     Edft_val = np.zeros((Nkpoints, Nvbnds), dtype=float)
     Edft_cond = np.zeros((Nkpoints, Ncbnds), dtype=float)
     
-    print(f'Reading QP energies from {eqp_file}')
+    print(f'\n\nReading DFT and QP energies from file {eqp_file}')
     
     with open(eqp_file, 'r') as f:
         # Start with k-point index -1, since the first line of the file
@@ -69,6 +69,11 @@ def read_eqp_data(eqp_file, BSE_params):
                         # Store the DFT and QP energies for the valence band
                         Edft_val[ik, iband-1] = float(linha[2])
                         Eqp_val[ik, iband-1] = float(linha[3])
+                        
+    print(f'Finished reading energies from file {eqp_file}')
+    print('QP and DFT energy levels for cond bands have shape: ', Eqp_cond.shape, ' = (Nkpoints, Ncbnds)')
+    print('QP and DFT energy levels for val bands have shape: ', Eqp_val.shape, ' = (Nkpoints, Nvbnds)')
+    print('\n\n')
     
     return Eqp_val, Eqp_cond, Edft_val, Edft_cond
 
@@ -131,10 +136,11 @@ def load_hbse_matrix(hbse_file, Nkpoints_BSE, Ncbnds, Nvbnds):
         ik1, ic1, iv1 = reverse_bse_index(iexc1, Nkpoints_BSE, Ncbnds, Nvbnds)
         for iexc2 in range(Nexc):
             ik2, ic2, iv2 = reverse_bse_index(iexc2, Nkpoints_BSE, Ncbnds, Nvbnds)
-            hbse[ik1, ic1, iv1, ik2, ic2, iv2] = hbse_matrix_temp[iexc1, iexc2]
+            hbse[ik1, ic1, iv1, ik2, ic2, iv2] = hbse_matrix_temp[iexc2, iexc1]
     
     print('Original shape ', hbse_matrix_temp.shape)
-    print('New shape ', hbse.shape)     
+    print('New shape ', hbse.shape)   
+      
     return hbse
 
 def rpa_part_from_eqp(Eqp_cond, Eqp_val):
@@ -259,12 +265,16 @@ def load_excitons_coefficients(exciton_file, excitons_to_be_loaded):
     f_hdf5 = h5py.File(exciton_file, 'r')
     
     flavor_calc = f_hdf5['/exciton_header/flavor'][()]
-    eigenvecs   = f_hdf5['exciton_data/eigenvectors'][()]          # (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
+    eigenvecs   = f_hdf5['exciton_data/eigenvectors'][()] # (nQ, Nevecs, nk, nc, nv, ns, real or imag part)
+    eigenvalues   = f_hdf5['exciton_data/eigenvalues'][()]   # (Nevecs)
 
     if flavor_calc == 2:
         Akcv = eigenvecs[0, excitons_to_be_loaded_ini_0,:,:,:,0,0] + 1.0j*eigenvecs[0, excitons_to_be_loaded_ini_0,:,:,:,0,1]
     else:
         Akcv = eigenvecs[0, excitons_to_be_loaded_ini_0,:,:,:,0,0]
+        
+    for iexc in excitons_to_be_loaded_ini_0:
+        print(f'Exciton {iexc+1} energy (eV) = {eigenvalues[iexc]:.6f}')
 
     return Akcv
 
@@ -313,11 +323,12 @@ def get_params_from_eigenvecs_file(exciton_file):
     Nval = min(ifmax_values)
 
     if len(ifmax_values) == 1:
-        print(f' ---------> ifmax through k points is just one value ({ifmax_values[0]})')
+        print(f' ifmax through k points is just one value ({ifmax_values[0]})')
+        print(f" so we are dealing probably with a semiconductor. No warning regarging this.")
     else:
         print('######################################################\n')
         print(f'WARNING! ifmax changes through k points! It means that the system is metallic, and we STILL did not implement it.')
-        print('I will work with it as a semiconductor by setting the valence band to be min(ifmax) = {Nval}')
+        print(f'I will work with it as a semiconductor by setting the valence band to be min(ifmax) = {Nval}')
         print('######################################################\n')
 ################################################################################################
 

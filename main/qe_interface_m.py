@@ -44,6 +44,7 @@ def get_displacement_patterns(el_ph_dir, iq, MF_params):
     
     patterns_file = el_ph_dir+'patterns.'+str(iq + 1)+'.xml'
     print('\n\nReading displacement patterns file ', patterns_file)
+    print('This file contains the displacements patterns used by QE in the DFPT calculations.\n')
     
     tree = ET.parse(patterns_file)
     root = tree.getroot()
@@ -400,7 +401,7 @@ def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
             print("    Mean offdiag |g_ij| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
             print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
         
-        print('Finished applying acoustic sum rule.')
+        print('Finished applying acoustic sum rule.\n\n')
 
     return elph
 
@@ -428,6 +429,8 @@ def filter_elph_coeffs(elph, MF_params, BSE_params):
     iv = Nval - iQE + 1
     ic = iQE - Nval
     """
+    
+    print('\n\nSplitting elph coefficients into valence and conduction blocks\n')
 
     Nmodes   = MF_params.Nmodes
     Nval     = BSE_params.Nval
@@ -468,12 +471,15 @@ def filter_elph_coeffs(elph, MF_params, BSE_params):
             tuple_iteration = range(-1, -(Nvbnds_to_get+1), -1)  
             elph_val[imode, ik] = np.array([[temp[iv, jv] for iv in tuple_iteration] for jv in tuple_iteration])
 
+    print('Finished splitting elph coefficients into valence and conduction blocks')
+    print('    Shape of elph_cond = ', np.shape(elph_cond), ' (Nmodes, Nk points, Ncond, Ncond)')    
+    print('    Shape of elph_val = ', np.shape(elph_val), ' (Nmodes, Nk points, Nval, Nval)')
     # small report
-    print('\n')
-    print("Max real value of <c|dH|c'> (Ry/bohr): %.4f" %(np.max(np.real(elph_cond))))
-    print("Max imag value of <c|dH|c'> (Ry/bohr): %.4f" %(np.max(np.imag(elph_cond))))
-    print("Max real value of <v|dH|v'> (Ry/bohr): %.4f"  %(np.max(np.real(elph_val))))
-    print("Max imag value of <v|dH|v'> (Ry/bohr): %.4f"  %(np.max(np.imag(elph_val))))
+    print("Max real value of <c|dH|c'> (Ry/bohr): %.5f" %(np.max(np.real(elph_cond))))
+    print("Max imag value of <c|dH|c'> (Ry/bohr): %.5f" %(np.max(np.imag(elph_cond))))
+    print("Max real value of <v|dH|v'> (Ry/bohr): %.5f"  %(np.max(np.real(elph_val))))
+    print("Max imag value of <v|dH|v'> (Ry/bohr): %.5f"  %(np.max(np.imag(elph_val))))
+    print("\n\n")
 
     return elph_cond, elph_val
 
