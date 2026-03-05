@@ -2,21 +2,24 @@
 
 ## Overview
 
-This code calculates excited state forces after electronic excitation using a many-body Green's function formalism. The implementation combines exciton coefficients from the Bethe-Salpeter Equation (BSE) with electron-phonon coupling coefficients from DFPT to compute forces in excited states.
-
+This code calculates excited state forces after electronic excitation using a many-body Green's function formalism. It combines exciton coefficients from the Bethe-Salpeter Equation (BSE) with electron-phonon coupling coefficients from DFPT to compute forces in excited states.
 
 ## Theory
 
 The excited force expression is given by:
 
-$$ \vec{F} = \nabla \Omega = \sum_{\mu k cv c'v'} \hat{\mu} A_{kcv} A_{kc'v'} \left( g^{\mu}_ {kc,kc'} \delta(v,v') - g^{\mu}_{kv,kv'} \delta(c,c') \right) $$
+![eq_esf_rpa](figures/eq_esf_rpa.png)
 
 where:
-- $\hat{\mu}$ is a displacement pattern (phonon mode)
-- $A_{cvk}$ are exciton coefficients from the Bethe-Salpeter Equation
+- $\hat{\nu}$ is a displacement pattern (i.e. phonon mode)
+- $A_{\mathbf{k}cv}$ are exciton coefficients from the Bethe-Salpeter Equation
 - $g^{\nu}_{ki,kj}$ are electron-phonon coefficients connecting bands $i$ and $j$ at k-point $k$
 - $c,v$ represent conduction and valence band indices
 - $k$ represents k-point indices
+
+The electron-phonon coefficients at GW level are computed using our approximation:
+
+![eq_renorm_elph](figures/eq_renorm_elph.png)
 
 **For detailed implementation and benchmarks, see:** https://arxiv.org/abs/2502.05144
 
