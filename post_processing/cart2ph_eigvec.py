@@ -124,7 +124,7 @@ displacements = np.array(displacements)
 # those eigvecs are not normalized, then we have to do it
 print('Normalizing displacements')
 for i_eigvec in range(len(displacements)):
-   displacements[i_eigvec] = displacements[i_eigvec] / np.sqrt(np.dot(displacements[i_eigvec], displacements[i_eigvec]))
+   displacements[i_eigvec] = displacements[i_eigvec] / np.linalg.norm(displacements[i_eigvec])
 
 # calculating forces in ph basis and report this data
 print('Calculatinig forces in eigvecs basis')
