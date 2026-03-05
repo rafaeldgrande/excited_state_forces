@@ -1234,8 +1234,8 @@ def compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_imode_diag_mat, elph_cond,
     
 def compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=True):
     if vectorized:
-        print('Using vectorized version of A * dKernel_dr_imode * B')
+        # print('Using vectorized version of A * dKernel_dr_imode * B')
         return compute_A_dKernel_dr_imode_B_vectorized(Akcv, Bkcv, DKernel_dr_imode_mat)
     else:
-        print('Using non-vectorized version of A * dKernel_dr_imode * B')
+        # print('Using non-vectorized version of A * dKernel_dr_imode * B')
         return compute_A_dKernel_dr_imode_B_not_vectorized(Akcv, Bkcv, DKernel_dr_imode_mat)

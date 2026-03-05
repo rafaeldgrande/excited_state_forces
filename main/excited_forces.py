@@ -24,19 +24,6 @@ from excited_forces_classes import *
 tracemalloc.start()
 
 # functions
-  
-# def process_exciton_pair(pair, Nmodes, Gc, Gv, Gc_diag, Gv_diag, Exciton_coeffs, do_vectorized_sums, DKernel_dr_imode):
-#     iexc, jexc = pair
-#     # Akcv, Bkcv, delta_time1 = load_exciton_coeffs(iexc, jexc, verbose=False)
-#     Akcv = Exciton_coeffs[iexc]
-#     Bkcv = Exciton_coeffs[jexc]
-#     Sum_DKinect_diag, Sum_DKinect_offdiag, _ = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
-    
-#     if Calculate_Kernel:
-#         Sum_Dkernel = calc_force_kernel_part(Akcv, Bkcv, DKernel_dr_imode)
-#     else:
-#         Sum_Dkernel = None
-#     return iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel
 
 def translate_bse_to_dfpt_k_points():
 
@@ -157,84 +144,6 @@ def load_exciton_coeffs(iexc, jexc, verbose=False):
     delta_time = time.clock_gettime(0) - time0
     return Akcv, Bkcv, delta_time
 
-def load_excitons_coeffs(iexc, jexc, verbose=False):
-    time0 = time.clock_gettime(0)
-
-
-# main function that calculates ESF. There is a vectorized and a non-vectorized version
-# def calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums, verbose=False):
-#     if do_vectorized_sums == True:
-#         return calculate_excited_state_forces_vectorized(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, verbose)
-#     else:
-#         return calculate_excited_state_forces_not_vectorized(Akcv, Bkcv, verbose)
-    
-    
-# def calculate_excited_state_forces_vectorized(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, verbose=False):
-#     time0 = time.clock_gettime(0)
-        
-#     Sum_DKinect_diag    = np.zeros((Nmodes), dtype=np.complex64)
-#     Sum_DKinect_offdiag = np.zeros((Nmodes), dtype=np.complex64)
-    
-#     # build A_mat[ik, ic1, iv1, ic2, iv2] = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])
-#     A_mat = Akcv[:, :, :, np.newaxis, np.newaxis] * np.conj(Bkcv[:, np.newaxis, np.newaxis, :, :])
-#     A_mat_diag = Akcv * np.conj(Bkcv)
-    
-#     if verbose:
-#         print('Using vectorized sums for forces calculations')
-#         print('Creating matrix A_mat[ik, ic1, iv1, ic2, iv2] = Akcv[ik, ic1, iv1] * np.conj(Bkcv[ik, ic2, iv2])')
-#         print('Creating matrix A_mat_diag[ik, ic, iv] = Akcv[ik, ic, iv] * np.conj(Bkcv[ik, ic, iv]) for diagonal approximation')
-    
-#     for imode in range(Nmodes):
-        
-#         # Multiply A_mat * (Gc[imode] - Gv[imode])
-#         F_imode = A_mat * (Gc[imode] - Gv[imode])
-        
-#         # F_imode_diag = np.diagonal(F_imode, axis1=1, axis2=2)
-#         # F_imode_diag = np.diagonal(F_imode_diag, axis1=2, axis2=3)  # Now shape (nk, nc, nv)
-#         F_imode_diag = A_mat_diag * (Gc_diag[imode] - Gv_diag[imode])
-
-#         Sum_DKinect_diag[imode] = np.sum(F_imode_diag)
-#         Sum_DKinect_offdiag[imode] = np.sum(F_imode) - Sum_DKinect_diag[imode]
-            
-#     delta_time = time.clock_gettime(0) - time0
-
-#     return Sum_DKinect_diag, Sum_DKinect_offdiag, delta_time
-
-# def calculate_excited_state_forces_not_vectorized(Akcv, Bkcv, Nmodes, verbose=False):
-
-#     time0 = time.clock_gettime(0)
-#     if verbose:
-#         print('Not using vectorized sums for forces calculations')
-#     # instead of creating big matrix, calculate sums on the fly!
-    
-#     indexes_limited_BSE_sum = generate_indexes_limited_BSE_sum(limit_BSE_sum)
-
-#     if verbose:
-#         print('Creating list of indexes kcv for which sums are calculated')
-#     args_list_just_diag, args_list_just_offdiag = arg_lists_Dkinect(BSE_params, indexes_limited_BSE_sum, 
-#                                                                     just_RPA_diag, use_hermicity_F)
-
-#     Sum_DKinect_diag    = np.zeros((Nmodes), dtype=np.complex64)
-#     Sum_DKinect_offdiag = np.zeros((Nmodes), dtype=np.complex64)
-
-#     if verbose:
-#         print('\n\nCalculating diagonal matrix elements <kcv|dH/dx_mu|kcv>')
-#     for imode in range(Nmodes):
-#         print(f"Calculating mode {imode + 1} of {Nmodes}")
-#         Sum_DKinect_diag[imode] = calc_Dkinect_matrix_simplified(Akcv, Bkcv, elph_cond, elph_val, args_list_just_diag, imode)
-    
-#     if verbose:
-#         print("\n\nCalculating off-diagonal matrix elements <kcv|dH/dx_mu|kc'v'>") 
-#     for imode in range(Nmodes):
-        
-#         if verbose:
-#             print(f"Calculating mode {imode + 1} of {Nmodes}")
-#         Sum_DKinect_offdiag[imode] = calc_Dkinect_matrix_simplified(Akcv, Bkcv, elph_cond, elph_val, args_list_just_offdiag, imode)
-
-#     delta_time = time.clock_gettime(0) - time0
-
-#     return Sum_DKinect_diag, Sum_DKinect_offdiag, delta_time
-
 def f_disp_to_cart_basis(f_dis_basis, Displacements):
     '''
     Convert forces from displacement basis to cartesian basis.
@@ -283,8 +192,8 @@ def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, verbose=False):
 # Forces units are (eV/ang)\n'''
 
     arq_out.write(text)
-
-    print(text)
+    if verbose:
+        print(text)
     header = f'{"Atom":<5} {"dir":<5}     {"RPA_diag":<25}       {"RPA_diag_offdiag":<25}      {"RPA_diag_plus_Kernel":<25}'
     if verbose:
         print(header)
@@ -658,28 +567,72 @@ Please cite:
     
     time_calc_RPA_diag, time_calc_RPA, time_calc_Kernel = 0.0, 0.0, 0.0
 
-    # running in serial
-    for exc_pair in exciton_pairs:
-        Akcv, Bkcv = Exciton_coeffs[exc_pair[0]-1], Exciton_coeffs[exc_pair[1]-1] # -1 because excitons_to_be_loaded is 0 indexed but exciton numbers are 1 indexed
+    # Function to process a single exciton pair
+    def process_exciton_pair(exc_pair):
+        Akcv, Bkcv = Exciton_coeffs[exc_pair[0]-1], Exciton_coeffs[exc_pair[1]-1]
         
         time0 = time.clock_gettime(0)
         forces_A_B = compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_imode_mat, elph_cond, elph_val, vectorized=do_vectorized_sums)
-        forces_A_B_RPA.append(f_disp_to_cart_basis(forces_A_B, Displacements))
-        time1 = time.clock_gettime(0)
-        time_calc_RPA += time1 - time0
+        rpa = f_disp_to_cart_basis(forces_A_B, Displacements)
+        time_rpa = time.clock_gettime(0) - time0
         
         time0 = time.clock_gettime(0)
         forces_A_B = compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_imode_diag_mat, elph_cond, elph_val, vectorized=do_vectorized_sums)
-        forces_A_B_RPA_diag.append(f_disp_to_cart_basis(forces_A_B, Displacements))
-        time1 = time.clock_gettime(0)
-        time_calc_RPA_diag += time1 - time0
+        rpa_diag = f_disp_to_cart_basis(forces_A_B, Displacements)
+        time_rpa_diag = time.clock_gettime(0) - time0
         
+        kernel = None
+        time_kernel = 0.0
         if Calculate_Kernel == True:
             time0 = time.clock_gettime(0)
             forces_A_B = compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=do_vectorized_sums)
-            forces_A_B_Kernel.append(f_disp_to_cart_basis(forces_A_B, Displacements))
-            time1 = time.clock_gettime(0)
-            time_calc_Kernel += time1 - time0
+            kernel = f_disp_to_cart_basis(forces_A_B, Displacements)
+            time_kernel = time.clock_gettime(0) - time0
+        
+        return exc_pair, rpa, rpa_diag, kernel, time_rpa, time_rpa_diag, time_kernel
+    
+    total_pairs = len(exciton_pairs)
+    # running in parallel or serial
+    if run_parallel == False:
+        print("\n\n################################# Running in serial ################################")
+        print("Total exciton-phonon matrix elements to be calculated: ", total_pairs)
+        for i_pair, exc_pair in enumerate(exciton_pairs):
+            if i_pair > 0 and (i_pair == 1 or i_pair == 5 or i_pair % 10 == 0 or i_pair == total_pairs - 1):
+                progress = i_pair / total_pairs * 100
+                print(f"Progress excited-state forces calculation: {progress:.2f}% ({i_pair}/{total_pairs})")
+            exc_pair, rpa, rpa_diag, kernel, time_rpa, time_rpa_diag, time_kernel = process_exciton_pair(exc_pair)
+            forces_A_B_RPA.append(rpa)
+            forces_A_B_RPA_diag.append(rpa_diag)
+            if kernel is not None:
+                forces_A_B_Kernel.append(kernel)
+            time_calc_RPA += time_rpa
+            time_calc_RPA_diag += time_rpa_diag
+            time_calc_Kernel += time_kernel
+                
+    else:
+        print(f"\n\n################################# Running in parallel with {num_processes} processes #################################")
+        if num_processes == 1:
+            print("Warning: Running in parallel with just one process. No speedup will be achieved! Change num_processes in forces.inp file.")
+        print("Total exciton-phonon matrix elements to be calculated: ", total_pairs)
+        
+        import multiprocessing
+        ctx = multiprocessing.get_context('fork')
+        with ctx.Pool(processes=num_processes) as pool:
+            results = []
+            for i_pair, result in enumerate(pool.imap(process_exciton_pair, exciton_pairs)):
+                results.append(result)
+                if i_pair > 0 and (i_pair == 1 or i_pair == 5 or i_pair % 10 == 0 or i_pair == total_pairs - 1):
+                    progress = i_pair / total_pairs * 100
+                    print(f"Progress excited-state forces calculation: {progress:.2f}% ({i_pair}/{total_pairs})")
+        
+        for exc_pair, rpa, rpa_diag, kernel, time_rpa, time_rpa_diag, time_kernel in results:
+            forces_A_B_RPA.append(rpa)
+            forces_A_B_RPA_diag.append(rpa_diag)
+            if kernel is not None:
+                forces_A_B_Kernel.append(kernel)
+            time_calc_RPA += time_rpa
+            time_calc_RPA_diag += time_rpa_diag
+            time_calc_Kernel += time_kernel
             
     TASKS.append(['Calculating forces with RPA_diag', time_calc_RPA_diag])
     TASKS.append(['Calculating forces with RPA', time_calc_RPA])
@@ -692,80 +645,7 @@ Please cite:
         
     for i, exc_pair in enumerate(exciton_pairs):
         iexc, jexc = exc_pair
-        report_forces(iexc-1, jexc-1, forces_A_B_RPA_diag[i], forces_A_B_RPA[i], forces_A_B_Kernel[i] if Calculate_Kernel else None, verbose=True)
-        
-    # ########## Calculating exicted-state forces (no kernel part)  ############
-
-    # time0_calculate_excited_state_forces = time.clock_gettime(0)
-
-    # if run_parallel == True:
-    #     print(f"\n\n################################# Running in parallel with {num_processes} processes #################################")
-        
-    #     if num_processes == 1:
-    #         print("Warning: Running in parallel with just one process. No speedup will be achieved! Change num_processes in forces.inp file.")
-            
-    #     print("Total exciton-phonon matrix elements to be calculated: ", len(exciton_pairs))
-        
-    #     def chunked_iterable(iterable, size):
-    #         it = iter(iterable)
-    #         while True:
-    #             chunk = list(islice(it, size))
-    #             if not chunk:
-    #                 break
-    #             yield chunk
-
-    #     worker_func = partial(
-    #         process_exciton_pair,
-    #         Nmodes=Nmodes,
-    #         Gc=Gc,
-    #         Gv=Gv,
-    #         Gc_diag=Gc_diag,
-    #         Gv_diag=Gv_diag,
-    #         Exciton_coeffs=Exciton_coeffs,
-    #         do_vectorized_sums=do_vectorized_sums,
-    #         DKernel_dr_imode=DKernel_dr_imode if Calculate_Kernel else None
-    #     )
-
-    #     ichunk = 0
-    #     if len(exciton_pairs) % num_processes == 0:
-    #         total_chunks = len(exciton_pairs) // num_processes
-    #     else:
-    #         total_chunks = len(exciton_pairs) // num_processes + 1
-        
-    #     for chunk in chunked_iterable(exciton_pairs_indexes, num_processes):
-    #         how_much_complete = (ichunk + 1) / total_chunks * 100
-    #         print(f"Progress excited-state forces calculation: {how_much_complete:.2f}%")
-
-    #         with Pool(processes=num_processes) as pool:
-    #             results = pool.map(worker_func, chunk)
-    #         for result in results:
-    #             iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel = result
-    #             report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel if Calculate_Kernel else None)
-    #         ichunk += 1
-
-    # else:
-    #     print("\n\n################################# Running in serial ################################")
-    #     delta_time_load_excitons_coeffs = 0.0
-        
-    #     print("Total exciton pairs to be calculated: ", len(exciton_pairs))
-    #     i_calc = 0
-    #     for iexc, jexc in exciton_pairs_indexes:
-    #         how_much_complete = (i_calc + 1) / len(exciton_pairs) * 100
-    #         print(f"Progress excited-state forces calculation: {how_much_complete:.2f}%")
-    #         Akcv, Bkcv, delta_time = load_exciton_coeffs(iexc, jexc)
-    #         Sum_DKinect_diag, Sum_DKinect_offdiag, delta_time = calculate_excited_state_forces(Akcv, Bkcv, Nmodes, Gc, Gv, Gc_diag, Gv_diag, do_vectorized_sums)
-    #         Sum_Dkernel = calc_force_kernel_part(Akcv, Bkcv, DKernel_dr_imode) if Calculate_Kernel else None
-    #         report_forces(iexc, jexc, Sum_DKinect_diag, Sum_DKinect_offdiag, Sum_Dkernel if Calculate_Kernel else None)
-    #         i_calc += 1
-        
-    # TASKS.append(['Calculation / report of forces (no kernel)', time.clock_gettime(0) - time0_calculate_excited_state_forces])
-    
-
-
-        
-        # print("Calculating forces with kernel part included")
-        # 
-        # DSum_Kernel = calc_force_kernel_part(Akcv, Bkcv, DKernel_dr_imode)
+        report_forces(iexc-1, jexc-1, forces_A_B_RPA_diag[i], forces_A_B_RPA[i], forces_A_B_Kernel[i] if Calculate_Kernel else None, verbose=len(exciton_pairs)==1)
         
     
 
