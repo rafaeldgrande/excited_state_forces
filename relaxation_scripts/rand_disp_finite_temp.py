@@ -67,7 +67,7 @@ Masses = []
 arq = open(atomic_pos_file)
 for line in arq:
     line_split = line.split()
-    x, y, z = float(line_split[2]), float(line_split[3]), float(line_split[4])
+    x, y, z = float(line_split[1]), float(line_split[2]), float(line_split[3])
     atomic_pos.append(x)
     atomic_pos.append(y)
     atomic_pos.append(z)
