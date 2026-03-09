@@ -500,7 +500,7 @@ Please cite:
     if save_elph_coeffs == True:
         time0 = time.clock_gettime(0)
         print('\nSaving elph coefficients in hdf5 files\n')
-        save_elph_coeffs_hdf5(elph_cond, elph_val, elph_fine_a_la_bgw, no_renorm_elph, 'elph_coeffs.h5')
+        save_elph_coeffs_hdf5(elph_cond, elph_val, Displacements, elph_fine_a_la_bgw, no_renorm_elph, 'elph_coeffs.h5')
         time1 = time.clock_gettime(0)
         TASKS.append(['Saving ELPH coefficients in hdf5 file', time1 - time0])
 
