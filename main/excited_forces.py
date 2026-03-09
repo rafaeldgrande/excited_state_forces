@@ -3,8 +3,8 @@ TESTES_DEV = False
 verbosity = 'high'
 
 # TODO organize the code!
-# TODO format prints from forces calculations!
-# TODO in the beginning say how many calculation will be done and how much I would have done if used every thing,
+# TODO save elph_cond and elph_val in h5 format for being reused in a new calc
+
 
 
 TASKS = []
@@ -252,6 +252,8 @@ if __name__ == "__main__":
     do_vectorized_sums = config['do_vectorized_sums']
     read_exciton_pairs_file = config['read_exciton_pairs_file']
     hbse_file = config['hbse_file']
+    save_elph_coeffs = config['save_elph_coeffs']
+    load_elph_coeffs_hdf5 = config['load_elph_coeffs_hdf5']
     
     if run_parallel == True:
         from multiprocessing import Pool
@@ -493,6 +495,14 @@ Please cite:
 
     time1 = time.clock_gettime(0)
     TASKS.append(['Interpolation of ELPH coefficients', time1 - time0])
+    
+    # save elph coefficients in hdf5 file for being reused in a new calculation
+    if save_elph_coeffs == True:
+        time0 = time.clock_gettime(0)
+        print('\nSaving elph coefficients in hdf5 files\n')
+        save_elph_coeffs_hdf5(elph_cond, elph_val, elph_fine_a_la_bgw, no_renorm_elph, 'elph_coeffs.h5')
+        time1 = time.clock_gettime(0)
+        TASKS.append(['Saving ELPH coefficients in hdf5 file', time1 - time0])
 
 
     time0 = time.clock_gettime(0)

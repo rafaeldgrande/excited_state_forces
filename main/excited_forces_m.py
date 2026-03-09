@@ -1239,3 +1239,45 @@ def compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=Tr
     else:
         # print('Using non-vectorized version of A * dKernel_dr_imode * B')
         return compute_A_dKernel_dr_imode_B_not_vectorized(Akcv, Bkcv, DKernel_dr_imode_mat)
+    
+def save_elph_coeffs_hdf5(elph_cond, elph_val, elph_fine_a_la_bgw, no_renorm_elph, filename='elph_coeffs.h5'):
+    with h5py.File(filename, 'w') as f:
+        nmodes = elph_cond.shape[0]
+        nk, nc = elph_cond.shape[1], elph_cond.shape[2]
+        nv = elph_val.shape[2]
+        
+        ds = f.create_dataset('nmodes', data=nmodes)
+        ds.attrs['description'] = 'Number of phonon modes'
+
+        ds = f.create_dataset('nk', data=nk)
+        ds.attrs['description'] = 'Number of k-points'
+
+        ds = f.create_dataset('nc', data=nc)
+        ds.attrs['description'] = 'Number of conduction bands.'
+
+        ds = f.create_dataset('nv', data=nv)
+        ds.attrs['description'] = 'Number of valence bands.'
+
+        ds = f.create_dataset('elph_cond', data=elph_cond)
+        ds.attrs['description'] = (
+            'Electron-phonon matrix elements for conduction bands. '
+            'Shape: (nmodes, nk, nc, nc)'
+        )
+
+        ds = f.create_dataset('elph_val', data=elph_val)
+        ds.attrs['description'] = (
+            'Electron-phonon matrix elements for valence bands. '
+            'Shape: (nmodes, nk, nv, nv)'
+        )
+
+        ds = f.create_dataset('elph_fine_a_la_bgw', data=elph_fine_a_la_bgw)
+        ds.attrs['description'] = (
+            'If True, electron-phonon matrix elements interpolated from a coarse grid to a fine grid using the interpolation from BerkeleyGW code.'
+        )
+
+        ds = f.create_dataset('no_renorm_elph', data=no_renorm_elph)
+        ds.attrs['description'] = (
+            'If True, skip the renormalization of the electron-phonon matrix elements.'
+        )
+
+    print(f'Electron-phonon coefficients saved in {filename}')

@@ -133,6 +133,9 @@ config = {
     # The code will calculate the exciton_phoonon coefficients <iexc|dH|jexc> for all pairs
     "read_exciton_pairs_file": False,
     "exciton_pairs": [],
+    
+    'save_elph_coeffs': False, # if true, save elph coefficients in hdf5 file
+    'load_elph_coeffs_hdf5': False, # if true, load elph coefficients from hdf5 file
 }
 
 def true_or_false(text, default_value):
@@ -185,7 +188,8 @@ def read_input(input_file):
                     'read_Acvk_pos', 'no_renorm_elph', 'elph_fine_a_la_bgw',
                     'write_dK_mat', 'trust_kpoints_order', 'run_parallel', 
                     'use_Acvk_single_transition',
-                    'limit_BSE_sum', 'do_vectorized_sums', 'read_exciton_pairs_file'
+                    'limit_BSE_sum', 'do_vectorized_sums', 'read_exciton_pairs_file',
+                    'save_elph_coeffs', 'load_elph_coeffs_hdf5'
                 ]:
                     config[key] = true_or_false(value[0], config.get(key, False))
                 # List of integers
