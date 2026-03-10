@@ -194,7 +194,7 @@ def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, verbose=False):
     arq_out.write(text)
     if verbose:
         print(text)
-    header = f'{"Atom":<5} {"dir":<5}     {"RPA_diag":<25}       {"RPA_diag_offdiag":<25}      {"RPA_diag_plus_Kernel":<25}'
+    header = f'# {"Atom":<5} {"dir":<5}     {"RPA_diag":<25}       {"RPA_diag_offdiag":<25}      {"RPA_diag_plus_Kernel":<25}'
     if verbose:
         print(header)
     arq_out.write(header + '\n')
@@ -500,7 +500,7 @@ Please cite:
     if save_elph_coeffs == True:
         time0 = time.clock_gettime(0)
         print('\nSaving elph coefficients in hdf5 files\n')
-        save_elph_coeffs_hdf5(elph_cond, elph_val, Displacements, elph_fine_a_la_bgw, no_renorm_elph, 'elph_coeffs.h5')
+        save_elph_coeffs_hdf5(elph_cond, elph_val, Displacements, elph_fine_a_la_bgw, no_renorm_elph, Kpoints_in_elph_file_frac, 'elph_coeffs.h5')
         time1 = time.clock_gettime(0)
         TASKS.append(['Saving ELPH coefficients in hdf5 file', time1 - time0])
 

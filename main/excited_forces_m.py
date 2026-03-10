@@ -1240,7 +1240,7 @@ def compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=Tr
         # print('Using non-vectorized version of A * dKernel_dr_imode * B')
         return compute_A_dKernel_dr_imode_B_not_vectorized(Akcv, Bkcv, DKernel_dr_imode_mat)
     
-def save_elph_coeffs_hdf5(elph_cond, elph_val, displacement_patterns, elph_fine_a_la_bgw, no_renorm_elph, filename='elph_coeffs.h5'):
+def save_elph_coeffs_hdf5(elph_cond, elph_val, displacement_patterns, elph_fine_a_la_bgw, no_renorm_elph, Kpoints_in_elph_file_frac, filename='elph_coeffs.h5'):
     with h5py.File(filename, 'w') as f:
         nmodes = elph_cond.shape[0]
         nk, nc = elph_cond.shape[1], elph_cond.shape[2]
@@ -1260,6 +1260,9 @@ def save_elph_coeffs_hdf5(elph_cond, elph_val, displacement_patterns, elph_fine_
         
         ds = f.create_dataset('displacement_patterns', data=displacement_patterns)
         ds.attrs['description'] = 'Displacement patterns for each phonon mode. Shape: (nmodes, natoms, 3)'
+        
+        ds = f.create_dataset('Kpoints_in_elph_file_frac', data=Kpoints_in_elph_file_frac)
+        ds.attrs['description'] = 'K-points in fractional coordinates. Shape: (nk, 3)'
 
         ds = f.create_dataset('elph_cond', data=elph_cond)
         ds.attrs['description'] = (
