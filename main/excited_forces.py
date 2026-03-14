@@ -260,6 +260,24 @@ if __name__ == "__main__":
         from functools import partial
         from itertools import islice
 
+    # datetime object containing current date and time
+    now = datetime.now()
+
+    # dd/mm/YY H:M:S
+    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+    print("\n\nExecution date: ", dt_string)
+    import subprocess
+
+    try:
+        _script_dir = os.path.dirname(os.path.abspath(__file__))
+        _hash = subprocess.check_output(["git", "-C", _script_dir, "rev-parse", "--short", "HEAD"], text=True).strip()
+        _date = subprocess.check_output(["git", "-C", _script_dir, "log", "-1", "--format=%ad", "--date=short"], text=True).strip()
+        CODE_VERSION = f"{_hash} from ({_date})"
+    except Exception:
+        CODE_VERSION = "not found"
+
+    print("Code version:", CODE_VERSION)
+    
     print('''
         
 ####################################################################
@@ -282,23 +300,6 @@ Please cite:
 ####################################################################
 
 ''')
-
-    # datetime object containing current date and time
-    now = datetime.now()
-
-    # dd/mm/YY H:M:S
-    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-    print("\n\nExecution date: ", dt_string)
-    import subprocess
-    
-    try:
-        _hash = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
-        _date = subprocess.check_output(["git", "log", "-1", "--format=%ad", "--date=short"], text=True).strip()
-        CODE_VERSION = f"1.0.0-{_hash} ({_date})"
-    except Exception:
-        CODE_VERSION = "1.0.0"
-
-    print("Code version:", CODE_VERSION)
     
 
     ######################### RUNNING CODE ##############################
