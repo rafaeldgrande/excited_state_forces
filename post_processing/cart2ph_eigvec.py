@@ -68,34 +68,14 @@ forces_cart_file = sys.argv[1]
 eigvecs_file = sys.argv[2]
 output_file = sys.argv[3]
 
+NAMES = ['RPA_diag', 'RPA_diag_offiag', 'RPA_diag+Kernel']
+
 print('File with forces in cartesian basis: ', forces_cart_file)
 print('File with phonon eigenvectors: ', eigvecs_file)
 
 # reading forces file in cartesian basis
-print('Reading forces file in cartesian basis')
-arq_forces = open(forces_cart_file)
-
-forces_cart = []
-for line in arq_forces:
-   line_split = line.split()
-   if len(line_split) > 0:
-      if line_split[0] == '#':  # -> # Atom  dir  RPA_diag RPA_diag_offiag Kernel Kernel_mod
-         NAMES = line_split[3:]
-         for i_name in range(len(NAMES)):
-            forces_cart.append([])
-      else:
-         for ii in range(2, len(line_split)):
-            try:
-               forces_cart[ii-2].append(float(line_split[ii]))
-            except:
-               forces_cart[ii-2].append(complex(line_split[ii]))
-
-arq_forces.close()
-
-# transforming each force in array
-for i_force in range(len(forces_cart)):
-   forces_cart[i_force] = np.array(forces_cart[i_force])
-
+print('Reading forces file in cartesian basis')               
+forces_cart = np.loadtxt(forces_cart_file, usecols=[2, 3, 4], dtype=complex)               
 print('Finished reading forces file')
 
 
@@ -130,17 +110,19 @@ for i_eigvec in range(len(displacements)):
 print('Calculatinig forces in eigvecs basis')
 print('Writing data in forces_phonons_basis.out \n\n')
 
+COL_WIDTH = 25
 with open(output_file, 'w') as output:
-   output.write('# i_eigvec ')
+   output.write(f'# {"i_eigvec":>10s}')
    for name in NAMES:
-      output.write(f'{name:>40s}')
+      output.write(f'{name:>{COL_WIDTH}s}')
    output.write('\n')
 
    for i_eigvec in range(len(displacements)):
-      line_output = f'{i_eigvec+1:3d} '
-      for i_force in range(len(forces_cart)):
-         f_ph_basis = np.dot(displacements[i_eigvec], forces_cart[i_force])
-         line_output += f'{f_ph_basis:40.10f}'
+      line_output = f'  {i_eigvec+1:>10d}'
+      for i_force in range(len(NAMES)):
+         f_ph_basis = np.dot(displacements[i_eigvec], forces_cart[:, i_force])
+         cplx_str = f'{f_ph_basis.real:.8f}{f_ph_basis.imag:+.8f}j'
+         line_output += f'{cplx_str:>{COL_WIDTH}s}'
       line_output += '\n'
       output.write(line_output)
 print('Done!')
