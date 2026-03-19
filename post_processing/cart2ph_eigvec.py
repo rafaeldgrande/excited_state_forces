@@ -110,7 +110,7 @@ for i_eigvec in range(len(displacements)):
 print('Calculatinig forces in eigvecs basis')
 print('Writing data in forces_phonons_basis.out \n\n')
 
-COL_WIDTH = 25
+COL_WIDTH = 30
 with open(output_file, 'w') as output:
    output.write(f'# {"i_eigvec":>10s}')
    for name in NAMES:
