@@ -194,14 +194,14 @@ def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, verbose=False):
     arq_out.write(text)
     if verbose:
         print(text)
-    header = f'# {"Atom":<5} {"dir":<5}     {"RPA_diag":<25}       {"RPA_diag_offdiag":<25}      {"RPA_diag_plus_Kernel":<25}'
+    header = f'# {"Atom":<5} {"dir":<5}        {"RPA_diag":<25}          {"RPA_diag_offdiag":<25}         {"RPA_diag_plus_Kernel":<25}'
     if verbose:
         print(header)
     arq_out.write(header + '\n')
 
     for iatom in range(Nat):
         for idir in range(3):
-            text = f'{iatom+1:<5} {DIRECTION[idir]:<5}     {F_RPA_diag[iatom, idir]:<25.8f}       {F_RPA[iatom, idir]:<25.8f}      {(F_kernel+F_RPA_diag)[iatom, idir]:<25.8f}'
+            text = f'{iatom+1:<5} {DIRECTION[idir]:<5}         {F_RPA_diag[iatom, idir]:<25.8f}           {F_RPA[iatom, idir]:<25.8f}         {(F_kernel+F_RPA_diag)[iatom, idir]:<25.8f}'
             if verbose:
                 print(text)
             arq_out.write(text + '\n')
