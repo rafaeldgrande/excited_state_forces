@@ -60,69 +60,115 @@ PRIMCOORD    2
 ...
     '''
 
+import argparse
 import sys
 import numpy as np
 
+def get_phonon_displacements(eigvecs_file):
+   # getting phonon displacements
+   print('Reading eigvecs file')
+   arq_eigvecs = open(eigvecs_file)
+
+   displacements = []
+
+   for line in arq_eigvecs:
+      line_split = line.split()
+      if len(line_split) == 7:
+         dx = float(line_split[4])
+         dy = float(line_split[5]) 
+         dz = float(line_split[6])
+         displacements[-1].append(dx)
+         displacements[-1].append(dy)
+         displacements[-1].append(dz)
+      elif len(line_split) == 2:
+         if line_split[0] == 'PRIMCOORD':
+            displacements.append([])
+
+   # converting it to array         
+   displacements = np.array(displacements)
+
+   # those eigvecs are not normalized, then we have to do it
+   print('Normalizing displacements')
+   for i_eigvec in range(len(displacements)):
+      displacements[i_eigvec] = displacements[i_eigvec] / np.linalg.norm(displacements[i_eigvec])
+      
+   return displacements
+
+def read_exciton_pairs():
+   exciton_pairs = []
+   with open('exciton_pairs.dat', 'r') as arq:
+      for line in arq:
+         linha = line.split()
+         if len(linha) == 1:
+            exciton_pairs.append((int(linha[0]), int(linha[0])))
+         elif len(linha) == 2:
+            exciton_pairs.append((int(linha[0]), int(linha[1])))
+   return exciton_pairs
+
+def cart_to_ph(displacements, forces_cart, output_file):
+   with open(output_file, 'w') as output:
+      output.write(f'# {"i_eigvec":>10s}')
+      for name in NAMES:
+         output.write(f'{name:>{COL_WIDTH}s}')
+      output.write('\n')
+
+      for i_eigvec in range(len(displacements)):
+         line_output = f'  {i_eigvec+1:>10d}'
+         for i_force in range(len(NAMES)):
+            f_ph_basis = np.dot(displacements[i_eigvec], forces_cart[:, i_force])
+            cplx_str = f'{f_ph_basis.real:.8f}{f_ph_basis.imag:+.8f}j'
+            line_output += f'{cplx_str:>{COL_WIDTH}s}'
+         line_output += '\n'
+         output.write(line_output)
+
 # taking inputs
-forces_cart_file = sys.argv[1]
-eigvecs_file = sys.argv[2]
-output_file = sys.argv[3]
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--forces_cart_file', default='forces_cart.out', type=str, help='File with forces in cartesian basis')
+parser.add_argument('--eigvecs_file', type=str, default='modes.axsf', help='File with phonon eigenvectors')
+parser.add_argument('--output_file', type=str, default='forces_ph.out', help='Output file for forces in phonon basis')
+parser.add_argument('--read_exciton_pairs_file', default=False, action='store_true', help='Read exciton pairs from exciton_pairs.dat file instead of using iexc and jexc from forces.inp')
+args = parser.parse_args()
+
+forces_cart_file = args.forces_cart_file
+eigvecs_file = args.eigvecs_file
+output_file = args.output_file   
+read_exciton_pairs_file = args.read_exciton_pairs_file
+print('read_exciton_pairs_file: ', read_exciton_pairs_file)
 
 NAMES = ['RPA_diag', 'RPA_diag_offiag', 'RPA_diag+Kernel']
-
-print('File with forces in cartesian basis: ', forces_cart_file)
-print('File with phonon eigenvectors: ', eigvecs_file)
-
-# reading forces file in cartesian basis
-print('Reading forces file in cartesian basis')               
-forces_cart = np.loadtxt(forces_cart_file, usecols=[2, 3, 4], dtype=complex)               
-print('Finished reading forces file')
-
-
-# getting phonon displacements
-print('Reading eigvecs file')
-arq_eigvecs = open(eigvecs_file)
-
-displacements = []
-
-for line in arq_eigvecs:
-   line_split = line.split()
-   if len(line_split) == 7:
-      dx = float(line_split[4])
-      dy = float(line_split[5]) 
-      dz = float(line_split[6])
-      displacements[-1].append(dx)
-      displacements[-1].append(dy)
-      displacements[-1].append(dz)
-   elif len(line_split) == 2:
-      if line_split[0] == 'PRIMCOORD':
-         displacements.append([])
-
-# converting it to array         
-displacements = np.array(displacements)
-
-# those eigvecs are not normalized, then we have to do it
-print('Normalizing displacements')
-for i_eigvec in range(len(displacements)):
-   displacements[i_eigvec] = displacements[i_eigvec] / np.linalg.norm(displacements[i_eigvec])
-
-# calculating forces in ph basis and report this data
-print('Calculatinig forces in eigvecs basis')
-print('Writing data in forces_phonons_basis.out \n\n')
-
 COL_WIDTH = 30
-with open(output_file, 'w') as output:
-   output.write(f'# {"i_eigvec":>10s}')
-   for name in NAMES:
-      output.write(f'{name:>{COL_WIDTH}s}')
-   output.write('\n')
 
-   for i_eigvec in range(len(displacements)):
-      line_output = f'  {i_eigvec+1:>10d}'
-      for i_force in range(len(NAMES)):
-         f_ph_basis = np.dot(displacements[i_eigvec], forces_cart[:, i_force])
-         cplx_str = f'{f_ph_basis.real:.8f}{f_ph_basis.imag:+.8f}j'
-         line_output += f'{cplx_str:>{COL_WIDTH}s}'
-      line_output += '\n'
-      output.write(line_output)
+displacements = get_phonon_displacements(eigvecs_file)
+
+
+if read_exciton_pairs_file == False:
+   print('File with forces in cartesian basis: ', forces_cart_file)
+   print('File with phonon eigenvectors: ', eigvecs_file)   
+   # reading forces file in cartesian basis
+   print('Reading forces file in cartesian basis')               
+   forces_cart = np.loadtxt(forces_cart_file, usecols=[2, 3, 4], dtype=complex)               
+   print('Finished reading forces file')
+   # calculating forces in ph basis and report this data
+   print('Calculatinig forces in eigvecs basis')
+   print('Writing data in forces_phonons_basis.out \n\n')
+   cart_to_ph(displacements, forces_cart, 'forces_phonons_basis.out')
+else:
+   print('Reading exciton pairs from exciton_pairs.dat file')
+   exciton_pairs = read_exciton_pairs()
+   print(f'Total of exciton pairs read: {len(exciton_pairs)}')
+   
+   counter = 0
+
+   for exciton_pair in exciton_pairs:
+      iexc = exciton_pair[0]
+      jexc = exciton_pair[1]
+      forces_cart = np.loadtxt(f'forces_cart.out_{iexc}_{jexc}', usecols=[2, 3, 4], dtype=complex) 
+      output_file = f'forces_ph.out_{iexc}_{jexc}'
+      cart_to_ph(displacements, forces_cart, output_file)
+      counter += 1
+      if counter % 100 == 0:
+         print(f'Processed {counter} exciton pairs out of {len(exciton_pairs)}. {counter/len(exciton_pairs)*100:.2f}% done.')
+
+
 print('Done!')
