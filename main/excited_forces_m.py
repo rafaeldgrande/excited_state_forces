@@ -1240,7 +1240,7 @@ def compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=Tr
         # print('Using non-vectorized version of A * dKernel_dr_imode * B')
         return compute_A_dKernel_dr_imode_B_not_vectorized(Akcv, Bkcv, DKernel_dr_imode_mat)
     
-def save_elph_coeffs_hdf5(elph_cond, elph_val, displacement_patterns, elph_fine_a_la_bgw, no_renorm_elph, Kpoints_in_elph_file_frac, filename='elph_coeffs.h5'):
+def save_elph_coeffs_hdf5(elph_cond, elph_val, elph_cond_not_renorm, elph_val_not_renorm, displacement_patterns, elph_fine_a_la_bgw, no_renorm_elph, Kpoints_in_elph_file_frac, filename='elph_coeffs.h5'):
     with h5py.File(filename, 'w') as f:
         nmodes = elph_cond.shape[0]
         nk, nc = elph_cond.shape[1], elph_cond.shape[2]
@@ -1275,6 +1275,18 @@ def save_elph_coeffs_hdf5(elph_cond, elph_val, displacement_patterns, elph_fine_
             'Electron-phonon matrix elements for valence bands. '
             'Shape: (nmodes, nk, nv, nv)'
         )
+        
+        ds = f.create_dataset('elph_cond_not_renorm', data=elph_cond_not_renorm)
+        ds.attrs['description'] = (
+            'Electron-phonon matrix elements for conduction bands without renormalization. '
+            'Shape: (nmodes, nk, nc, nc)'
+        )
+        
+        ds = f.create_dataset('elph_val_not_renorm', data=elph_val_not_renorm)
+        ds.attrs['description'] = (
+            'Electron-phonon matrix elements for valence bands without renormalization. '
+            'Shape: (nmodes, nk, nv, nv)'
+        )
 
         ds = f.create_dataset('elph_fine_a_la_bgw', data=elph_fine_a_la_bgw)
         ds.attrs['description'] = (
@@ -1287,3 +1299,17 @@ def save_elph_coeffs_hdf5(elph_cond, elph_val, displacement_patterns, elph_fine_
         )
 
     print(f'Electron-phonon coefficients saved in {filename}')
+    
+def load_elph_coeffs_hdf5(elph_coeffs_file_to_be_loaded):
+    with h5py.File(elph_coeffs_file_to_be_loaded, 'r') as f:
+        elph_cond                = f['elph_cond'][:]
+        elph_val                 = f['elph_val'][:]
+        displacement_patterns    = f['displacement_patterns'][:]
+        elph_fine_a_la_bgw       = bool(f['elph_fine_a_la_bgw'][()])
+        no_renorm_elph           = bool(f['no_renorm_elph'][()])
+        Kpoints_in_elph_file_frac = f['Kpoints_in_elph_file_frac'][:]
+        elph_cond_not_renorm     = f['elph_cond_not_renorm'][:]
+        elph_val_not_renorm      = f['elph_val_not_renorm'][:]
+
+    print(f'Electron-phonon coefficients loaded from {elph_coeffs_file_to_be_loaded}')
+    return elph_cond, elph_val, elph_cond_not_renorm, elph_val_not_renorm, displacement_patterns, elph_fine_a_la_bgw, no_renorm_elph, Kpoints_in_elph_file_frac

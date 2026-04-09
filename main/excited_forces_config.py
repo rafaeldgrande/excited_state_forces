@@ -135,7 +135,9 @@ config = {
     "exciton_pairs": [],
     
     'save_elph_coeffs': False, # if true, save elph coefficients in hdf5 file
-    'load_elph_coeffs_hdf5': False, # if true, load elph coefficients from hdf5 file
+    'load_elph_coeffs': False, # if true, load elph coefficients from hdf5 file
+    'just_save_elph_coeffs': False, # If true code stops after saving elph coeffs and does not calculate excitd state forces
+    'elph_coeffs_file_to_be_loaded': "elph_coeffs.h5" # file from where elph coefficients will be loaded
 }
 
 def true_or_false(text, default_value):
@@ -177,7 +179,7 @@ def read_input(input_file):
                 # String keys
                 elif key in [
                     'eqp_file', 'exciton_file', 'el_ph_dir', 'dyn_file',
-                    'kernel_file', 'Acvk_directory', 'hbse_file'
+                    'kernel_file', 'Acvk_directory', 'hbse_file', 'elph_coeffs_file_to_be_loaded'
                 ]:
                     config[key] = value[0]
                 # Boolean keys
@@ -189,7 +191,8 @@ def read_input(input_file):
                     'write_dK_mat', 'trust_kpoints_order', 'run_parallel', 
                     'use_Acvk_single_transition',
                     'limit_BSE_sum', 'do_vectorized_sums', 'read_exciton_pairs_file',
-                    'save_elph_coeffs', 'load_elph_coeffs_hdf5'
+                    'save_elph_coeffs', 'just_save_elph_coeffs',
+                    'load_elph_coeffs'
                 ]:
                     config[key] = true_or_false(value[0], config.get(key, False))
                 # List of integers

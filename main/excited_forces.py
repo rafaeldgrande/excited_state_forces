@@ -207,6 +207,53 @@ def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, verbose=False):
             arq_out.write(text + '\n')
 
     arq_out.close()
+    
+def print_final_msg(TASKS):
+    # datetime object containing current date and time
+    now = datetime.now()
+    # dd/mm/YY H:M:S
+    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+    print("\n\nFinished calculations at: ", dt_string)
+
+    # timing report
+    print("\n\n\n\n")
+    TOTAL_TIME = 0.0
+
+    # Set the column widths
+    task_column_width = 60
+    time_column_width = 10
+
+    print(f"{'Task':<{task_column_width}}{'Time (seconds)':>{time_column_width}}")  # Header
+    print("-" * (task_column_width + time_column_width))  # Divider
+
+    for task in TASKS:
+        TOTAL_TIME += task[1]
+        print(f"{task[0]:<{task_column_width}}{task[1]:>{time_column_width}.2f}")
+
+    print("-" * (task_column_width + time_column_width))  # Divider
+    print(f"{'Total':<{task_column_width}}{TOTAL_TIME:>{time_column_width}.2f}")
+
+    print('''
+####################################################################
+
+Excited state forces calculation
+Developers: Rafael Del Grande, David Strubbe
+
+Please cite: 
+
+@misc{arxivdelgrande2025,
+    title={Revisiting ab-initio excited state forces from many-body Green's function formalism: approximations and benchmark}, 
+    author={Rafael R. Del Grande and David A. Strubbe},
+    year={2025},
+    eprint={2502.05144},
+    archivePrefix={arXiv},
+    primaryClass={cond-mat.mtrl-sci},
+    url={https://arxiv.org/abs/2502.05144}, 
+}
+
+####################################################################
+
+''')
 
 ################################################## code starts here ################################################
 
@@ -253,7 +300,9 @@ if __name__ == "__main__":
     read_exciton_pairs_file = config['read_exciton_pairs_file']
     hbse_file = config['hbse_file']
     save_elph_coeffs = config['save_elph_coeffs']
-    load_elph_coeffs_hdf5 = config['load_elph_coeffs_hdf5']
+    load_elph_coeffs = config['load_elph_coeffs']
+    just_save_elph_coeffs = config['just_save_elph_coeffs']
+    elph_coeffs_file_to_be_loaded = config["elph_coeffs_file_to_be_loaded"]
     
     if run_parallel == True:
         from multiprocessing import Pool
@@ -353,169 +402,191 @@ Please cite:
     # Shape Eqp_cond = (Nkpoints_BSE, Ncbnds)
     time1 = time.clock_gettime(0)
     TASKS.append(['Reading QP and DFT energy levels', time1 - time0])
-
-    # Getting elph coefficients
-    # get displacement patterns
-    time0 = time.clock_gettime(0)
-    iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-zero center of mass momentum
-    # Displacements, Nirreps = get_displacement_patterns(el_ph_dir, iq, MF_params)
-    Displacements, Nirreps = get_displacement_patterns(el_ph_dir, iq, MF_params)
-
-    # when one wants to use just some irreps, we need to remove the other not used
-    if len(dfpt_irreps_list) != 0:
-        Displacements = Displacements[dfpt_irreps_list, :, :]
-        MF_params.Nmodes = len(dfpt_irreps_list)
-        Nmodes = len(dfpt_irreps_list)
-        print(f"Not using all irreps. Setting Nmodes to {Nmodes}.")
-    else:
-        Nmodes = MF_params.Nmodes
-
-    # get elph coefficients from .xml files
-    elph, Kpoints_in_elph_file = get_el_ph_coeffs(el_ph_dir, iq, Nirreps, dfpt_irreps_list)
-    time1 = time.clock_gettime(0)
-    TASKS.append(['Reading ELPH coefficients', time1 - time0])
     
-    # imodes_with_no_elph = []
-    # for imode in range(Nmodes):
-    #     if np.all(elph[imode] == 0):
-    #         imodes_with_no_elph.append(imode)
-    # if len(imodes_with_no_elph) > 0:
-    #     print(f'WARNING! The following modes have no elph coefficients and will be ignored in the forces calculation: {imodes_with_no_elph}')
-    #     print('This can happen if you are using just some irreps from the DFPT calculation.')
-    #     print('Please, check if this is ok for your calculation.')
-    #     print('The number of modes will be reduced accordingly.')
-    #     # removing modes with no elph coefficients from Displacements and elph
-    #     Displacements = np.delete(Displacements, imodes_with_no_elph, axis=0)
-    #     elph = np.delete(elph, imodes_with_no_elph, axis=0)
-    #     Nmodes = Nmodes - len(imodes_with_no_elph)
-    #     MF_params.Nmodes = Nmodes
-    #     print(f'Setting Nmodes to {Nmodes}.')
+    
+    if load_elph_coeffs == True and os.path.isfile(elph_coeffs_file_to_be_loaded):
+        time0 = time.clock_gettime(0)
+        elph_cond, elph_val, elph_cond_not_renorm, elph_val_not_renorm, Displacements, elph_fine_a_la_bgw, no_renorm_elph, Kpoints_in_elph_file_frac = load_elph_coeffs_hdf5(elph_coeffs_file_to_be_loaded)
+        Nmodes = elph_cond.shape[0]
+        time1 = time.clock_gettime(0)
+        TASKS.append(['Loading ELPH coefficients from .h5 file', time1 - time0])
+    else:
+        if load_elph_coeffs == True:
+            print(f'WARNING: {elph_coeffs_file_to_be_loaded} not found. Loading ELPH coefficients from XML files.')
+
+        # Getting elph coefficients
+        # get displacement patterns
+        time0 = time.clock_gettime(0)
+        iq = 0  # FIXME -> generalize for set of q points. used for excitons with non-zero center of mass momentum
+        # Displacements, Nirreps = get_displacement_patterns(el_ph_dir, iq, MF_params)
+        Displacements, Nirreps = get_displacement_patterns(el_ph_dir, iq, MF_params)
+
+        # when one wants to use just some irreps, we need to remove the other not used
+        if len(dfpt_irreps_list) != 0:
+            Displacements = Displacements[dfpt_irreps_list, :, :]
+            MF_params.Nmodes = len(dfpt_irreps_list)
+            Nmodes = len(dfpt_irreps_list)
+            print(f"Not using all irreps. Setting Nmodes to {Nmodes}.")
+        else:
+            Nmodes = MF_params.Nmodes
+
+        # get elph coefficients from .xml files
+        elph, Kpoints_in_elph_file = get_el_ph_coeffs(el_ph_dir, iq, Nirreps, dfpt_irreps_list)
+        time1 = time.clock_gettime(0)
+        TASKS.append(['Reading ELPH coefficients', time1 - time0])
         
-    # print('!!!!!!!!!! Kpoints_in_elph_file !!!!!!!!!!!')
-    # print(Kpoints_in_elph_file)
-    # print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        # imodes_with_no_elph = []
+        # for imode in range(Nmodes):
+        #     if np.all(elph[imode] == 0):
+        #         imodes_with_no_elph.append(imode)
+        # if len(imodes_with_no_elph) > 0:
+        #     print(f'WARNING! The following modes have no elph coefficients and will be ignored in the forces calculation: {imodes_with_no_elph}')
+        #     print('This can happen if you are using just some irreps from the DFPT calculation.')
+        #     print('Please, check if this is ok for your calculation.')
+        #     print('The number of modes will be reduced accordingly.')
+        #     # removing modes with no elph coefficients from Displacements and elph
+        #     Displacements = np.delete(Displacements, imodes_with_no_elph, axis=0)
+        #     elph = np.delete(elph, imodes_with_no_elph, axis=0)
+        #     Nmodes = Nmodes - len(imodes_with_no_elph)
+        #     MF_params.Nmodes = Nmodes
+        #     print(f'Setting Nmodes to {Nmodes}.')
+            
+        # print('!!!!!!!!!! Kpoints_in_elph_file !!!!!!!!!!!')
+        # print(Kpoints_in_elph_file)
+        # print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
-    Nkpoints_DFPT = len(Kpoints_in_elph_file)
+        Nkpoints_DFPT = len(Kpoints_in_elph_file)
 
-    # change basis for k points from dfpt calculations
-    # those k points are in cartesian basis. we're changing 
-    # it to reciprocal lattice basis
+        # change basis for k points from dfpt calculations
+        # those k points are in cartesian basis. we're changing 
+        # it to reciprocal lattice basis
 
-    time0 = time.clock_gettime(0)
-    mat_reclattvecs_to_cart = np.transpose(BSE_params.rec_cell_vecs)
-    mat_cart_to_reclattvecs = np.linalg.inv(mat_reclattvecs_to_cart)
+        time0 = time.clock_gettime(0)
+        mat_reclattvecs_to_cart = np.transpose(BSE_params.rec_cell_vecs)
+        mat_cart_to_reclattvecs = np.linalg.inv(mat_reclattvecs_to_cart)
 
-    Kpoints_in_elph_file_frac = []
+        Kpoints_in_elph_file_frac = []
 
-    for ik in range(Nkpoints_DFPT):
-        K_cart = mat_cart_to_reclattvecs @ Kpoints_in_elph_file[ik]
-        for icomp in range(3):
-            K_cart[icomp] = correct_comp_vector(K_cart[icomp])
-        Kpoints_in_elph_file_frac.append(K_cart)
+        for ik in range(Nkpoints_DFPT):
+            K_cart = mat_cart_to_reclattvecs @ Kpoints_in_elph_file[ik]
+            for icomp in range(3):
+                K_cart[icomp] = correct_comp_vector(K_cart[icomp])
+            Kpoints_in_elph_file_frac.append(K_cart)
+            
+        Kpoints_in_elph_file_frac = np.array(Kpoints_in_elph_file_frac) # shape (Nkpoints_DFPT, 3)
+
+        if log_k_points == True:
+            arq_kpoints_log = open('Kpoints_dfpt_cart_basis', 'w')
+            for K_cart in Kpoints_in_elph_file_frac:
+                arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
+            arq_kpoints_log.close()   
+
+        time1 = time.clock_gettime(0)
+        TASKS.append(['Changing basis for k points', time1 - time0])
+
+
+        # filter elph to get just g_c1c2 and g_v1v2, cond and val states that are in the BSE Hamiltonian.
+        time0 = time.clock_gettime(0)
+        elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
+        time1 = time.clock_gettime(0)
+        TASKS.append(['Filtering ELPH data to ELPH_cond and ELPH_val', time1 - time0])
+
+        # apply acoustic sum rule over elph coefficients
+        time0 = time.clock_gettime(0)
+        if acoutic_sum_rule == True:
+            print('Applying acoustic sum rule for conduction bands. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
+            elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
+        if acoutic_sum_rule == True:
+            print('Applying acoustic sum rule for valence bands. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
+            elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
+        if not acoutic_sum_rule:
+            print('Not applying acoustic sum rule over elph coefficients. Check later if the force on the center of mass is negligible!')
+        time1 = time.clock_gettime(0)
+        TASKS.append(['Impose ASR on ELPH coefficients.', time1 - time0])
+
+        del elph
+        report_ram()
         
-    Kpoints_in_elph_file_frac = np.array(Kpoints_in_elph_file_frac) # shape (Nkpoints_DFPT, 3)
+        # saving not renormalized elph coeffs
+        elph_cond_not_renorm = np.copy(elph_cond)
+        elph_val_not_renorm = np.copy(elph_val)
 
-    if log_k_points == True:
-        arq_kpoints_log = open('Kpoints_dfpt_cart_basis', 'w')
-        for K_cart in Kpoints_in_elph_file_frac:
-            arq_kpoints_log.write(f"{K_cart[0]:.9f}    {K_cart[1]:.9f}     {K_cart[2]:.9f} \n")
-        arq_kpoints_log.close()   
+        # renormalze elph coefficients
+        time0 = time.clock_gettime(0)
+        if no_renorm_elph == False:
+            print('Renormalizing ELPH coefficients following equation (5) of arxiv:2502.05144') 
+            print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
+            print('and <n|dHqp|m> = <n|dHdft|m> otherwise')
+            elph_cond, elph_val = renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, 
+                                                                        Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
+        else:
+            print('Not Renormalizing ELPH coefficients. Using <n|dHqp|m> = <n|dHdft|m> for all n and m')
 
-    time1 = time.clock_gettime(0)
-    TASKS.append(['Changing basis for k points', time1 - time0])
+        time1 = time.clock_gettime(0)
+        TASKS.append(['Renormalization of ELPH coefficients', time1 - time0])
+        print('\n\n')
 
 
-    # filter elph to get just g_c1c2 and g_v1v2, cond and val states that are in the BSE Hamiltonian.
-    time0 = time.clock_gettime(0)
-    elph_cond, elph_val = filter_elph_coeffs(elph, MF_params, BSE_params) 
-    time1 = time.clock_gettime(0)
-    TASKS.append(['Filtering ELPH data to ELPH_cond and ELPH_val', time1 - time0])
+        # interpolation of elph coefficients a la BerkeleyGW code?
+        time0 = time.clock_gettime(0)
+        if elph_fine_a_la_bgw == False:
+            
+            print('No interpolation on elph coeffs from a coarse grid to a fine grid is used')
+            
+            if trust_kpoints_order == False:
+                print('Checking if kpoints of DFPT and BSE agree with each other')
 
-    # apply acoustic sum rule over elph coefficients
-    time0 = time.clock_gettime(0)
-    if acoutic_sum_rule == True:
-        print('Applying acoustic sum rule for conduction bands. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
-        elph_cond = impose_ASR(elph_cond, Displacements, MF_params, acoutic_sum_rule)
-    if acoutic_sum_rule == True:
-        print('Applying acoustic sum rule for valence bands. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
-        elph_val = impose_ASR(elph_val, Displacements, MF_params, acoutic_sum_rule)
-    if not acoutic_sum_rule:
-        print('Not applying acoustic sum rule over elph coefficients. Check later if the force on the center of mass is negligible!')
-    time1 = time.clock_gettime(0)
-    TASKS.append(['Impose ASR on ELPH coefficients.', time1 - time0])
+                # Checking kpoints from DFPT and BSE calculations
+                # The kpoints in eigenvecs.h5 are not in the same order in the
+                # input for the fine grid calculation.
+                # The k points in BSE are reported in reciprocal lattice vectors basis
+                # and in DFPT those k points are reported in cartersian basis in units
+                # of reciprocal lattice
 
+                # It SEEMS that the order of k points in the eqp.dat (produced by the absorption code)
+                # is the same than the order of k points in the eigenvecs file
+                # Maybe it would be necessary to check it later!
+
+                # Now checking if everything is ok with ikBSE_to_ikDFPT list
+                # if something is wrong kill the code
+                check_k_points_BSE_DFPT()
+            else:
+                print('As trust_kpoints_order is true, I am not mapping k points from BSE with k points from DFPT.')
+                print('I am assuming they are informed in the same order in both calculations')
+            
+        else:
+            
+            # comment that one need to use a modified version of the BGW code to get those files
+            print('Using interpolation "a la BerkeleyGW code"')
+            print('Reading coefficients relating fine and coarse grids from files dtmat_non_bin_val and dtmat_non_bin_conds')
+
+            elph_cond = elph_interpolate_bgw(elph_cond, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE, BSE_params.Ncbnds)
+            elph_val  = elph_interpolate_bgw(elph_val, 'dtmat_non_bin_val', BSE_params.Nkpoints_BSE, BSE_params.Nvbnds)
+            
+            elph_cond_not_renorm = elph_interpolate_bgw(elph_cond_not_renorm, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE, BSE_params.Ncbnds)
+            elph_val_not_renorm = elph_interpolate_bgw(elph_val_not_renorm, 'dtmat_non_bin_val', BSE_params.Nkpoints_BSE, BSE_params.Nvbnds)
+
+
+        time1 = time.clock_gettime(0)
+        TASKS.append(['Interpolation of ELPH coefficients', time1 - time0])
+        
+        # save elph coefficients in hdf5 file for being reused in a new calculation
+        if save_elph_coeffs == True:
+            time0 = time.clock_gettime(0)
+            print('\nSaving elph coefficients in hdf5 files\n')
+            save_elph_coeffs_hdf5(elph_cond, elph_val, elph_cond_not_renorm, elph_val_not_renorm, Displacements, elph_fine_a_la_bgw, no_renorm_elph, Kpoints_in_elph_file_frac, 'elph_coeffs.h5')
+            time1 = time.clock_gettime(0)
+            TASKS.append(['Saving ELPH coefficients in hdf5 file', time1 - time0])
+
+        if just_save_elph_coeffs:
+            print('just_save_elph_coeffs = True')
+            print('Finishing code execution here. Not calculating excited state forces!')
+            print_final_msg(TASKS)
+            raise SystemExit(0)
+ 
     # Let's put all k points from BSE grid in the first Brillouin zone
     ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
-
-    del elph
-    report_ram()
-
-
-    # renormalze elph coefficients
-    time0 = time.clock_gettime(0)
-    if no_renorm_elph == False:
-        print('Renormalizing ELPH coefficients following equation (5) of arxiv:2502.05144') 
-        print('where <n|dHqp|m> = <n|dHdft|m>(Eqp_n - Eqp_m)/(Edft_n - Edft_m) when Edft_n != Edft_m')
-        print('and <n|dHqp|m> = <n|dHdft|m> otherwise')
-        elph_cond, elph_val = renormalize_elph_considering_kpt_order(elph_cond, elph_val, Eqp_val, Eqp_cond, Edft_val, 
-                                                                     Edft_cond, MF_params, BSE_params, ikBSE_to_ikDFPT)
-    else:
-        print('Not Renormalizing ELPH coefficients. Using <n|dHqp|m> = <n|dHdft|m> for all n and m')
-
-
-    time1 = time.clock_gettime(0)
-    TASKS.append(['Renormalization of ELPH coefficients', time1 - time0])
-    print('\n\n')
-
-
-    # interpolation of elph coefficients a la BerkeleyGW code?
-    time0 = time.clock_gettime(0)
-    if elph_fine_a_la_bgw == False:
-        
-        print('No interpolation on elph coeffs from a coarse grid to a fine grid is used')
-        
-        if trust_kpoints_order == False:
-            print('Checking if kpoints of DFPT and BSE agree with each other')
-
-            # Checking kpoints from DFPT and BSE calculations
-            # The kpoints in eigenvecs.h5 are not in the same order in the
-            # input for the fine grid calculation.
-            # The k points in BSE are reported in reciprocal lattice vectors basis
-            # and in DFPT those k points are reported in cartersian basis in units
-            # of reciprocal lattice
-
-            # It SEEMS that the order of k points in the eqp.dat (produced by the absorption code)
-            # is the same than the order of k points in the eigenvecs file
-            # Maybe it would be necessary to check it later!
-
-            # Now checking if everything is ok with ikBSE_to_ikDFPT list
-            # if something is wrong kill the code
-            check_k_points_BSE_DFPT()
-        else:
-            print('As trust_kpoints_order is true, I am not mapping k points from BSE with k points from DFPT.')
-            print('I am assuming they are informed in the same order in both calculations')
-        
-    else:
-        
-        # comment that one need to use a modified version of the BGW code to get those files
-        print('Using interpolation "a la BerkeleyGW code"')
-        print('Reading coefficients relating fine and coarse grids from files dtmat_non_bin_val and dtmat_non_bin_conds')
-
-        elph_cond = elph_interpolate_bgw(elph_cond, 'dtmat_non_bin_cond', BSE_params.Nkpoints_BSE, BSE_params.Ncbnds)
-        elph_val  = elph_interpolate_bgw(elph_val, 'dtmat_non_bin_val', BSE_params.Nkpoints_BSE, BSE_params.Nvbnds)
-
-    time1 = time.clock_gettime(0)
-    TASKS.append(['Interpolation of ELPH coefficients', time1 - time0])
     
-    # save elph coefficients in hdf5 file for being reused in a new calculation
-    if save_elph_coeffs == True:
-        time0 = time.clock_gettime(0)
-        print('\nSaving elph coefficients in hdf5 files\n')
-        save_elph_coeffs_hdf5(elph_cond, elph_val, Displacements, elph_fine_a_la_bgw, no_renorm_elph, Kpoints_in_elph_file_frac, 'elph_coeffs.h5')
-        time1 = time.clock_gettime(0)
-        TASKS.append(['Saving ELPH coefficients in hdf5 file', time1 - time0])
-
-
     time0 = time.clock_gettime(0)
     print("\nExpanding ELPH matrices for vectorized multiplication")
 
@@ -669,49 +740,5 @@ Please cite:
         report_forces(iexc-1, jexc-1, forces_A_B_RPA_diag[i], forces_A_B_RPA[i], forces_A_B_Kernel[i] if Calculate_Kernel else None, verbose=len(exciton_pairs)==1)
         
     
+    print_final_msg(TASKS)
 
-    # datetime object containing current date and time
-    now = datetime.now()
-    # dd/mm/YY H:M:S
-    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-    print("\n\nFinished calculations at: ", dt_string)
-
-    # timing report
-    print("\n\n\n\n")
-    TOTAL_TIME = 0.0
-
-    # Set the column widths
-    task_column_width = 60
-    time_column_width = 10
-
-    print(f"{'Task':<{task_column_width}}{'Time (seconds)':>{time_column_width}}")  # Header
-    print("-" * (task_column_width + time_column_width))  # Divider
-
-    for task in TASKS:
-        TOTAL_TIME += task[1]
-        print(f"{task[0]:<{task_column_width}}{task[1]:>{time_column_width}.2f}")
-
-    print("-" * (task_column_width + time_column_width))  # Divider
-    print(f"{'Total':<{task_column_width}}{TOTAL_TIME:>{time_column_width}.2f}")
-
-    print('''
-####################################################################
-
-Excited state forces calculation
-Developers: Rafael Del Grande, David Strubbe
-
-Please cite: 
-
-@misc{arxivdelgrande2025,
-    title={Revisiting ab-initio excited state forces from many-body Green's function formalism: approximations and benchmark}, 
-    author={Rafael R. Del Grande and David A. Strubbe},
-    year={2025},
-    eprint={2502.05144},
-    archivePrefix={arXiv},
-    primaryClass={cond-mat.mtrl-sci},
-    url={https://arxiv.org/abs/2502.05144}, 
-}
-
-####################################################################
-
-''')
