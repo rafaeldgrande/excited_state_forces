@@ -3,9 +3,6 @@ TESTES_DEV = False
 verbosity = 'high'
 
 # TODO organize the code!
-# TODO save elph_cond and elph_val in h5 format for being reused in a new calc
-
-
 
 TASKS = []
 TIMING = []
@@ -405,9 +402,13 @@ Please cite:
     
     
     if load_elph_coeffs == True and os.path.isfile(elph_coeffs_file_to_be_loaded):
+        print('load_elph_coeffs = ', load_elph_coeffs)
+        print(f'Loading ELPH coefficients from file {elph_coeffs_file_to_be_loaded}')
         time0 = time.clock_gettime(0)
         elph_cond, elph_val, elph_cond_not_renorm, elph_val_not_renorm, Displacements, elph_fine_a_la_bgw, no_renorm_elph, Kpoints_in_elph_file_frac = load_elph_coeffs_hdf5(elph_coeffs_file_to_be_loaded)
         Nmodes = elph_cond.shape[0]
+        # Let's put all k points from BSE grid in the first Brillouin zone
+        ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
         time1 = time.clock_gettime(0)
         TASKS.append(['Loading ELPH coefficients from .h5 file', time1 - time0])
     else:
@@ -484,6 +485,8 @@ Please cite:
         time1 = time.clock_gettime(0)
         TASKS.append(['Changing basis for k points', time1 - time0])
 
+        # Let's put all k points from BSE grid in the first Brillouin zone
+        ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
 
         # filter elph to get just g_c1c2 and g_v1v2, cond and val states that are in the BSE Hamiltonian.
         time0 = time.clock_gettime(0)
@@ -584,8 +587,7 @@ Please cite:
             print_final_msg(TASKS)
             raise SystemExit(0)
  
-    # Let's put all k points from BSE grid in the first Brillouin zone
-    ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
+
     
     time0 = time.clock_gettime(0)
     print("\nExpanding ELPH matrices for vectorized multiplication")
