@@ -1,7 +1,11 @@
 
+from pathlib import Path
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+
+config_dir = Path(__file__).parent.parent / 'presentation.mplstyle'
+plt.style.use(config_dir)
 
 def bose_einstein_distribution(energy, temperature):
     """Calculate the Bose-Einstein distribution for a given energy and temperature."""
@@ -83,11 +87,12 @@ for imode in range(Nmodes):
             
             plt.sca(axs[ialpha, ibeta])
             plt.title(f'{cart_dir[ialpha]}{cart_dir[ibeta]} component')
-            plt.plot(excitaion_energies, raman_d2, label=f'd2:')
-            plt.plot(excitaion_energies, raman_d3, label=f'd3+d2', linestyle='dashed')
-    
-    plt.xlabel('Excitation Energy (eV)')
-    plt.ylabel('Raman Intensity (a.u.)')
+            plt.plot(excitaion_energies, raman_d2, label=f'Just diag exc-ph')
+            plt.plot(excitaion_energies, raman_d3, label=f'Diag + offdiag exc-ph') #, linestyle='dashed')
+
+    axs[0, 2].legend()
+    f.supxlabel('Excitation Energy (eV)')
+    f.supylabel('Raman Intensity (a.u.)')
     # plt.legend()
     plt.savefig(f'raman_spectrum_mode_{imode+1}.png')
     plt.close()
@@ -104,6 +109,8 @@ excitation_grid, freq_grid = np.meshgrid(excitaion_energies, freq_axis)
 
 for ialpha in range(3):
     for ibeta in range(3):
+        
+        print(f'Calculating raman map for {cart_dir[ialpha]}{cart_dir[ibeta]} polarization')
 
         raman_intensity_map_d2 = np.zeros_like(excitation_grid)
         raman_intensity_map_d3 = np.zeros_like(excitation_grid)
@@ -121,26 +128,27 @@ for ialpha in range(3):
             raman_intensity_map_d2 += lorentzian[:, np.newaxis] * raman_d2[np.newaxis, :]
             raman_intensity_map_d3 += lorentzian[:, np.newaxis] * raman_d3[np.newaxis, :]
 
-        f, axs = plt.subplots(ncols=2, figsize=(15, 8), sharex=True, sharey=True)
+        f, axs = plt.subplots(ncols=2, figsize=(15, 6), sharex=True, sharey=True)
         
         plt.sca(axs[0])
         plt.title(f'{cart_dir[ialpha]}{cart_dir[ibeta]} component - d2', fontsize=18)
         plt.pcolormesh(excitation_grid, freq_grid, raman_intensity_map_d2, shading='auto')
         plt.colorbar(label='Raman Intensity (a.u.)')
-        plt.xlabel('Excitation Energy (eV)')
-        plt.ylabel('Phonon Frequency (cm$^{-1}$)')
+        plt.xlabel(r'$\Omega_{\rm{exc}}$ (eV)')
+        plt.ylabel(r'$\omega_{\rm{ph}}$ (cm$^{-1}$)')
         
         plt.sca(axs[1])
         plt.title(f'{cart_dir[ialpha]}{cart_dir[ibeta]} component - d3+d2', fontsize=18)
         plt.pcolormesh(excitation_grid, freq_grid, raman_intensity_map_d3, shading='auto')
         plt.colorbar(label='Raman Intensity (a.u.)')
-        plt.xlabel('Excitation Energy (eV)')
-        plt.ylabel('Phonon Frequency (cm$^{-1}$)')
+        plt.xlabel(r'$\Omega_{\rm{exc}}$ (eV)')
+        plt.ylabel(r'$\omega_{\rm{ph}}$ (cm$^{-1}$)')
         
         plt.savefig(f'raman_intensity_map_{cart_dir[ialpha]}{cart_dir[ibeta]}.png', dpi=300)
         plt.close()
         
 
+print('Calculating raman map for unpolarized light')
 raman_intensity_map_d2 = np.zeros_like(excitation_grid)
 raman_intensity_map_d3 = np.zeros_like(excitation_grid)
 for imode in range(Nmodes):
@@ -157,21 +165,21 @@ for imode in range(Nmodes):
     raman_intensity_map_d2 += lorentzian[:, np.newaxis] * raman_d2[np.newaxis, :]
     raman_intensity_map_d3 += lorentzian[:, np.newaxis] * raman_d3[np.newaxis, :]        
 
-f, axs = plt.subplots(ncols=2, figsize=(15, 8), sharex=True, sharey=True)
+f, axs = plt.subplots(ncols=2, figsize=(15, 6), sharex=True, sharey=True)
 
 plt.sca(axs[0])
 plt.title(f'Unpolarized - d2', fontsize=18)
 plt.pcolormesh(excitation_grid, freq_grid, raman_intensity_map_d2, shading='auto')
 plt.colorbar(label='Raman Intensity (a.u.)')
-plt.xlabel('Excitation Energy (eV)')
-plt.ylabel('Phonon Frequency (cm$^{-1}$)')
+plt.xlabel(r'$\Omega_{\rm{exc}}$ (eV)')
+plt.ylabel(r'$\omega_{\rm{ph}}$ (cm$^{-1}$)')
 
 plt.sca(axs[1])
 plt.title(f'Unpolarized - d3+d2', fontsize=18)
 plt.pcolormesh(excitation_grid, freq_grid, raman_intensity_map_d3, shading='auto')
 plt.colorbar(label='Raman Intensity (a.u.)')
-plt.xlabel('Excitation Energy (eV)')
-plt.ylabel('Phonon Frequency (cm$^{-1}$)')
+plt.xlabel(r'$\Omega_{\rm{exc}}$ (eV)')
+plt.ylabel(r'$\omega_{\rm{ph}}$ (cm$^{-1}$)')
 
 plt.savefig(f'raman_intensity_map_unpolarized.png', dpi=300)
 plt.close()
