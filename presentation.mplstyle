@@ -90,7 +90,7 @@ legend.labelcolor:    None
 
 
 figure.figsize:     6.4, 4.8  # figure size in inches
-figure.dpi:         200       # figure dots per inch                    
+figure.dpi:         400       # figure dots per inch                    
 figure.constrained_layout.use: True  # When True, automatically make plot
                                        # elements fit on the figure. (Not
                                        # compatible with `autolayout`, above)
