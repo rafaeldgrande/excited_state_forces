@@ -2,6 +2,7 @@
 from pathlib import Path
 import numpy as np
 import h5py
+import argparse
 import matplotlib.pyplot as plt
 
 config_dir = Path(__file__).parent.parent / 'presentation.mplstyle'
@@ -9,7 +10,8 @@ plt.style.use(config_dir)
 
 def bose_einstein_distribution(energy, temperature):
     """Calculate the Bose-Einstein distribution for a given energy and temperature."""
-    return 1 / (np.exp(energy / (k_B * temperature)) - 1)
+    E = max(energy, 1e-8)  # Avoid division by zero for zero energy
+    return 1 / (np.exp(E / (k_B * temperature)) - 1)
 
 # constants
 k_B = 8.617333262145e-5  # Boltzmann constant in eV/K
@@ -18,10 +20,18 @@ h = 4.135667696e-15  # Planck's constant in eV*s
 rec_cm_to_eV = 1.239841984e-4  # Conversion factor from cm^-1 to eV
 
 
+parser = argparse.ArgumentParser(description='Calculate resonant Raman spectra')
+parser.add_argument('--temperature', type=float, default=300, help='Temperature in Kelvin (default: 300)')
+parser.add_argument('--susceptibility-file', type=str, default='susceptibility_tensors.h5', help='HDF5 file with susceptibility tensors (default: susceptibility_tensors.h5)')
+parser.add_argument('--freqs-file', type=str, default='freqs.dat', help='File with phonon frequencies in cm^-1 (default: freqs.dat)')
+
+args = parser.parse_args()
+
+T = args.temperature
+susceptibility_tensors_file = args.susceptibility_file
+freqs_file = args.freqs_file
+
 log_scale = False  # Set to True to plot Raman intensity on a logarithmic scale, False for linear scale
-T = 300 # Temperature in Kelvin
-susceptibility_tensors_file = 'susceptibility_tensors.h5'
-freqs_file = 'freqs.dat'  # File containing phonon frequencies in cm^-1
 cart_dir = ['x', 'y', 'z']  # Cartesian directions for the susceptibility tensor components
 
 freqs_rec_cm = np.loadtxt(freqs_file)  # Load phonon frequencies in cm^-1

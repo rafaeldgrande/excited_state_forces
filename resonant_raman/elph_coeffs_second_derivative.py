@@ -37,44 +37,55 @@ def compute_second_order_elph(elph, E, Displacements):
     
     # --- rotate elph to cartesian (atom-direction) basis -------------------
     # g_cart[beta, k, n, l] = sum_mu  D[mu, beta] * elph[mu, k, n, l]
-    g_cart = np.einsum('mb,mknl->bknl', Displacements, elph)
-
-    # Nmodes, Nk, nbands, _ = elph.shape
-    # term1 = np.zeros_like(g_cart)
-    # term2 = np.zeros_like(g_cart)
+    # g_cart = np.einsum('mb,mknl->bknl', Displacements, elph)
     
-    # for beta in range(Nmodes):
-    #     for ik in range(Nk):
-    #         for n in range(nbands):
-    #             for m in range(nbands):
-    #                 sum1 = 0.0
-    #                 sum2 = 0.0
-    #                 for l in range(nbands):
-    #                     dE_nl = E[n, ik] - E[l, ik]
-    #                     dE_ml = E[m, ik] - E[l, ik]
-    #                     if np.abs(dE_nl) > TOL_ZERO:
-    #                         sum1 += g_cart[beta, ik, n, l] * g_cart[beta, ik, l, m] / dE_nl
-    #                     if np.abs(dE_ml) > TOL_ZERO:
-    #                         sum2 += g_cart[beta, ik, n, l] * g_cart[beta, ik, l, m] / dE_ml
-    #                 term1[beta, ik, n, m] = -sum1
-    #                 term2[beta, ik, n, m] = -sum2
+    # elph has shape (nmodes, nk, nbands, nbands)
+    # displacement shape (Nmodes, Natoms, 3)
+    g_cart = np.zeros_like(elph)
+    for imode in range(Displacements.shape[1]):
+        disp_flattened = Displacements[imode].flatten()  # shape (3*Natoms,)
+        for ialpha in range(disp_flattened.shape[0]):
+            unit_vector = np.zeros_like(disp_flattened)
+            unit_vector[ialpha] = 1.0
+            g_cart[ialpha] += np.dot(disp_flattened, unit_vector) * elph[imode]
 
-    # dE[k, i, j] = E[i, k] - E[j, k]   (E has shape (nbands, nk))
-    dE = E.T[:, :, None] - E.T[:, None, :]  # (nk, nbands, nbands)
-    mask = np.abs(dE) < TOL_ZERO
-    dE_safe = np.where(mask, 1.0, dE)
 
-    # term1[b, k, n, m] = -sum_l  g_cart[b,k,n,l] / dE[k,n,l]  * g_cart[b,k,l,m]
-    weighted1 = np.where(mask, 0.0, g_cart / dE_safe[np.newaxis])  # (b, nk, nbands, nbands)
-    term1 = -np.einsum('bknl,bklm->bknm', weighted1, g_cart)
+    Nmodes, Nk, nbands, _ = elph.shape
+    term1 = np.zeros_like(g_cart)
+    term2 = np.zeros_like(g_cart)
+    
+    for beta in range(Nmodes):
+        for ik in range(Nk):
+            for n in range(nbands):
+                for m in range(nbands):
+                    sum1 = 0.0
+                    sum2 = 0.0
+                    for l in range(nbands):
+                        dE_nl = E[n, ik] - E[l, ik]
+                        dE_ml = E[m, ik] - E[l, ik]
+                        if np.abs(dE_nl) > TOL_ZERO:
+                            sum1 += g_cart[beta, ik, n, l] * g_cart[beta, ik, l, m] / dE_nl
+                        if np.abs(dE_ml) > TOL_ZERO:
+                            sum2 += g_cart[beta, ik, n, l] * g_cart[beta, ik, l, m] / dE_ml
+                    term1[beta, ik, n, m] = -sum1
+                    term2[beta, ik, n, m] = -sum2
 
-    # term2[b, k, n, m] = -sum_l  g_cart[b,k,n,l] * g_cart[b,k,l,m] / dE[k,m,l]
-    # dE[k,m,l] == dE.T[k,l,m]
-    dE_T = dE.transpose(0, 2, 1)                                    # (nk, nbands, nbands)
-    mask_T = np.abs(dE_T) < TOL_ZERO
-    dE_T_safe = np.where(mask_T, 1.0, dE_T)
-    weighted2 = np.where(mask_T, 0.0, g_cart / dE_T_safe[np.newaxis])  # (b, nk, l, m)
-    term2 = -np.einsum('bknl,bklm->bknm', g_cart, weighted2)
+    # # dE[k, i, j] = E[i, k] - E[j, k]   (E has shape (nbands, nk))
+    # dE = E.T[:, :, None] - E.T[:, None, :]  # (nk, nbands, nbands)
+    # mask = np.abs(dE) < TOL_ZERO
+    # dE_safe = np.where(mask, 1.0, dE)
+
+    # # term1[b, k, n, m] = -sum_l  g_cart[b,k,n,l] / dE[k,n,l]  * g_cart[b,k,l,m]
+    # weighted1 = np.where(mask, 0.0, g_cart / dE_safe[np.newaxis])  # (b, nk, nbands, nbands)
+    # term1 = -np.einsum('bknl,bklm->bknm', weighted1, g_cart)
+
+    # # term2[b, k, n, m] = -sum_l  g_cart[b,k,n,l] * g_cart[b,k,l,m] / dE[k,m,l]
+    # # dE[k,m,l] == dE.T[k,l,m]
+    # dE_T = dE.transpose(0, 2, 1)                                    # (nk, nbands, nbands)
+    # mask_T = np.abs(dE_T) < TOL_ZERO
+    # dE_T_safe = np.where(mask_T, 1.0, dE_T)
+    # weighted2 = np.where(mask_T, 0.0, g_cart / dE_T_safe[np.newaxis])  # (b, nk, l, m)
+    # term2 = -np.einsum('bknl,bklm->bknm', g_cart, weighted2)
 
     return term1 + term2
 
@@ -117,18 +128,43 @@ if __name__ == '__main__':
 
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../main')))
     from excited_forces_m import load_elph_coeffs_hdf5
+    from excited_forces_m import save_elph_coeffs_hdf5
 
-    bands_dft, bands_qp, Kpoints, Nk, band_indexes = read_eqp_dat_file(eqp_file)
+    bands_dft, bands_qp, Kpoints, Nk_in_eqp_file, band_indexes = read_eqp_dat_file(eqp_file)
     ival = np.where(band_indexes == Nval)[0][0] + 1
     E_val_dft  = bands_dft[:ival]   # shape (Nv, Nk)
     E_cond_dft = bands_dft[ival:]   # shape (Nc, Nk)
     E_val_qp   = bands_qp[:ival]
     E_cond_qp  = bands_qp[ival:]
+    
+    print('E_cond_qp.shape:', E_cond_qp.shape)
+    print('E_val_qp.shape:', E_val_qp.shape)
 
     (elph_cond, elph_val,
      elph_cond_not_renorm, elph_val_not_renorm,
      Displacements, elph_fine_a_la_bgw,
      no_renorm_elph, Kpoints_in_elph_file_frac) = load_elph_coeffs_hdf5(elph_coeffs_file_to_be_loaded)
+    
+    print('Loaded elph coefficients from file:', elph_coeffs_file_to_be_loaded)
+    print('elph_cond shape:', elph_cond.shape) # shape (nmodes, Nk, Nc, Nc)
+    print('elph_val shape:', elph_val.shape)   # shape (nmodes, Nk, Nv, Nv)
+    Nk_in_elph_file = elph_cond.shape[1]
+    
+    if Nk_in_elph_file != Nk_in_eqp_file:
+        print(f'Error: Number of k-points in elph file ({Nk_in_elph_file}) does not match number of k-points in eqp file ({Nk_in_eqp_file}).')
+        sys.exit(1)
+        
+    if elph_cond.shape[2] > E_cond_qp.shape[0]:
+        print(f'Error: Number of conduction bands in elph file ({elph_cond.shape[2]}) is greater than the number of conduction bands in eqp file ({E_cond_qp.shape[0]}).')
+        sys.exit(1)
+    elif elph_cond.shape[2] < E_cond_qp.shape[0]:
+        print(f'Number of conduction bands in elph file ({elph_cond.shape[2]}) is less than the number of conduction bands in eqp file ({E_cond_qp.shape[0]}). Only the first {elph_cond.shape[2]} conduction bands will be used for the calculation.')
+
+    if elph_val.shape[2] > E_val_qp.shape[0]:
+        print(f'Error: Number of valence bands in elph file ({elph_val.shape[2]}) is greater than the number of valence bands in eqp file ({E_val_qp.shape[0]}).')
+        sys.exit(1)
+    elif elph_val.shape[2] < E_val_qp.shape[0]:
+        print(f'Number of valence bands in elph file ({elph_val.shape[2]}) is less than the number of valence bands in eqp file ({E_val_qp.shape[0]}). Only the first {elph_val.shape[2]} valence bands will be used for the calculation.')
 
     # shape of elph_* arrays: (nmodes, nk, nbnds, nbnds)
 
@@ -141,12 +177,11 @@ if __name__ == '__main__':
     print('g2_val  shape:', g2_val.shape)
     
     # save the results in an hdf5 file
-    with h5py.File('second_derivative_elph_coeffs.h5', 'w') as hf:
-        hf.create_dataset('g2_cond', data=g2_cond)
-        hf.create_dataset('g2_val', data=g2_val)
-        hf.create_dataset('g2_cond_not_renorm', data=g2_cond_not_renorm)
-        hf.create_dataset('g2_val_not_renorm', data=g2_val_not_renorm)
-        hf.create_dataset('Displacements', data=Displacements)
-        hf.create_dataset('Kpoints_in_elph_file_frac', data=Kpoints_in_elph_file_frac)
-        
+    # save in the same format as the original elph coefficients, i.e. with the same dimensions and indexing
+    # so it can be read by excited_state.py to compute second derivatives of exciton-phonon matrix elements 
+    
+    save_elph_coeffs_hdf5(g2_cond, g2_val, g2_cond_not_renorm, g2_val_not_renorm, 
+                          Displacements, elph_fine_a_la_bgw, no_renorm_elph, 
+                          Kpoints_in_elph_file_frac, '2nd_derivative_elph_coeffs.h5')
+
     print('Second-order e-ph coefficients computed and saved to second_derivative_elph_coeffs.h5')
