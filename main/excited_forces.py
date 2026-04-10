@@ -154,7 +154,10 @@ def f_disp_to_cart_basis(f_dis_basis, Displacements):
         for imode in range(Nmodes):
             f_cart[iatom] = f_cart[iatom] + Displacements[imode, iatom] * f_dis_basis[imode]
 
-    return -f_cart * Ry2eV / bohr2A
+    if use_second_derivatives_elph_coeffs == False:
+        return -f_cart * Ry2eV / bohr2A
+    else:
+        return -f_cart * Ry2eV / bohr2A**2
 
 def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, verbose=False):
     # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
@@ -185,8 +188,12 @@ def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, verbose=False):
         
     text = '''# RPA_diag is equation (1) of arxiv:2502.05144, with d/dr <kcv|K^eh|k'c'v'> = 0
 # RPA is equation (3) of arxiv:2502.05144, with  <kcv|d K^eh / dr|k'c'v'> = 0
-# RPA_diag_plus_Kernel is equation (1) of arxiv:2502.05144 with  <kcv|d K^eh / dr|k'c'v'> = 0
-# Forces units are (eV/ang)\n'''
+# RPA_diag_plus_Kernel is equation (1) of arxiv:2502.05144 with  <kcv|d K^eh / dr|k'c'v'> = 0'''
+
+    if use_second_derivatives_elph_coeffs == False:
+        text += '''\n# Forces units are (eV/ang)\n'''
+    else:
+        text += '''\n# exc-ph units are (eV/ang^2)\n'''
 
     arq_out.write(text)
     if verbose:
@@ -300,6 +307,7 @@ if __name__ == "__main__":
     load_elph_coeffs = config['load_elph_coeffs']
     just_save_elph_coeffs = config['just_save_elph_coeffs']
     elph_coeffs_file_to_be_loaded = config["elph_coeffs_file_to_be_loaded"]
+    use_second_derivatives_elph_coeffs = config['use_second_derivatives_elph_coeffs']
     
     if run_parallel == True:
         from multiprocessing import Pool
@@ -323,6 +331,16 @@ if __name__ == "__main__":
         CODE_VERSION = "not found"
 
     print("Code version:", CODE_VERSION)
+    
+    print('''
+This code calcultes excited state forces based on Hellman-Feynman theorem 
+within the Bethe-Salpeter Hamiltonian. F = - <S|dH/dR|S> where |S> is the excitonic state and H is the BSE Hamiltonian.
+The code report forces with the minus sign, so if you want to use 
+exciton-phonon matrix elements multiply the results by -1.
+
+More details can be found at: https://github.com/rafaeldgrande/excited_state_forces
+and in our paper below:
+          ''')
     
     print('''
         
@@ -360,6 +378,9 @@ Please cite:
 
     if NQ == 1:
         Qshift = Qshift[0] # orignal shape is (1,3), now it is (3,)
+        
+    if use_second_derivatives_elph_coeffs == True:
+        print('Using second derivatives of elph coefficients to calculate forces. The units of exc-ph matrix elements in this case will be eV/angstrom**2.')
 
     read_exciton_pairs(config)
 
@@ -400,7 +421,7 @@ Please cite:
     time1 = time.clock_gettime(0)
     TASKS.append(['Reading QP and DFT energy levels', time1 - time0])
     
-    
+    # elph coeffs are saved in ry/bohr. if second derivatives units is ry / bohr**2
     if load_elph_coeffs == True and os.path.isfile(elph_coeffs_file_to_be_loaded):
         print('load_elph_coeffs = ', load_elph_coeffs)
         print(f'Loading ELPH coefficients from file {elph_coeffs_file_to_be_loaded}')
@@ -574,10 +595,13 @@ Please cite:
         TASKS.append(['Interpolation of ELPH coefficients', time1 - time0])
         
         # save elph coefficients in hdf5 file for being reused in a new calculation
+        # elph coeffs are saved in ry/bohr. if second derivatives units is ry / bohr**2
         if save_elph_coeffs == True:
             time0 = time.clock_gettime(0)
             print('\nSaving elph coefficients in hdf5 files\n')
-            save_elph_coeffs_hdf5(elph_cond, elph_val, elph_cond_not_renorm, elph_val_not_renorm, Displacements, elph_fine_a_la_bgw, no_renorm_elph, Kpoints_in_elph_file_frac, 'elph_coeffs.h5')
+            save_elph_coeffs_hdf5(elph_cond, elph_val, elph_cond_not_renorm, elph_val_not_renorm, 
+                                  Displacements, elph_fine_a_la_bgw, no_renorm_elph, 
+                                  Kpoints_in_elph_file_frac, 'elph_coeffs.h5')
             time1 = time.clock_gettime(0)
             TASKS.append(['Saving ELPH coefficients in hdf5 file', time1 - time0])
 

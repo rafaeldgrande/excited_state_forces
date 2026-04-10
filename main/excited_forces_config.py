@@ -137,7 +137,10 @@ config = {
     'save_elph_coeffs': False, # if true, save elph coefficients in hdf5 file
     'load_elph_coeffs': False, # if true, load elph coefficients from hdf5 file
     'just_save_elph_coeffs': False, # If true code stops after saving elph coeffs and does not calculate excitd state forces
-    'elph_coeffs_file_to_be_loaded': "elph_coeffs.h5" # file from where elph coefficients will be loaded
+    'elph_coeffs_file_to_be_loaded': "elph_coeffs.h5", # file from where elph coefficients will be loaded
+    'use_second_derivatives_elph_coeffs': False # if true, use the second derivatives of elph coefficients 
+                                                # (g2_cond and g2_val) instead of the first derivatives to calculate the forces. 
+                                                # The unit here in this case is ry / bohr**2 
 }
 
 def true_or_false(text, default_value):
@@ -192,7 +195,7 @@ def read_input(input_file):
                     'use_Acvk_single_transition',
                     'limit_BSE_sum', 'do_vectorized_sums', 'read_exciton_pairs_file',
                     'save_elph_coeffs', 'just_save_elph_coeffs',
-                    'load_elph_coeffs'
+                    'load_elph_coeffs', 'use_second_derivatives_elph_coeffs'
                 ]:
                     config[key] = true_or_false(value[0], config.get(key, False))
                 # List of integers
