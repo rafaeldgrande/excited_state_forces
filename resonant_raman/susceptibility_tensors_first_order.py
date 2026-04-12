@@ -30,7 +30,7 @@ def calculate_tensor_not_vectorized(ialpha, ibeta):
         for iexc in range(Nexc):
             # <0|r_alpha|S><S|dH/dr_imode|S><S|r_beta|0>
             num = pa[iexc] * pb[iexc].conjugate() * exc_ph[imode, iexc, iexc]
-            denom = (Ex - exc_energies[iexc] + 1j*gamma) * (Ex + freqs_eV[imode] - exc_energies[iexc] + 1j*gamma)
+            denom = (Ex - exc_energies[iexc] + 1j*gamma) * (Ex - freqs_eV[imode] - exc_energies[iexc] + 1j*gamma)
             acc += num / denom
         d2[imode] = -acc
 
@@ -40,7 +40,7 @@ def calculate_tensor_not_vectorized(ialpha, ibeta):
             for iexc2 in range(Nexc):
                 # <0|r_alpha|S><S|dH/dr_imode|S'><S'|r_beta|0>
                 num = pa[iexc1] * pb[iexc2].conjugate() * exc_ph[imode, iexc1, iexc2]
-                denom = (Ex - exc_energies[iexc1] + 1j*gamma) * (Ex + freqs_eV[imode] - exc_energies[iexc2] + 1j*gamma)
+                denom = (Ex - exc_energies[iexc1] + 1j*gamma) * (Ex - freqs_eV[imode] - exc_energies[iexc2] + 1j*gamma)
                 acc += num / denom
         d3[imode] = -acc
 
@@ -70,8 +70,8 @@ def calculate_tensor_vectorize_over_excitons(ialpha, ibeta):
     for imode in range(Nmodes):
         print(f'mode {imode+1}/{Nmodes}, (alpha = {ialpha+1}, beta = {ibeta+1}). Vectorized over excitons, not modes.')
 
-        # D2[s, f] = D1[s, f] + freqs_eV[imode]  (Nexc, Nfreq)
-        inv_D2 = 1.0 / (D1 + freqs_eV[imode])
+        # D2[s, f] = D1[s, f] - freqs_eV[imode]  (Nexc, Nfreq)
+        inv_D2 = 1.0 / (D1 - freqs_eV[imode])
 
         # d2: sum_s P_diag[s] * exc_ph[m,s,s] * inv_D1[s,f] * inv_D2[s,f]
         num_d2 = np.diag(P_outer) * np.diag(exc_ph[imode])  # (Nexc,)
@@ -109,8 +109,8 @@ def calculate_tensor_vectorized_over_modes_and_excitons(ialpha, ibeta):
     D1     = Ex[np.newaxis, :] - exc_energies[:, np.newaxis] + 1j * gamma
     inv_D1 = 1.0 / D1
 
-    # inv_D2[m, s, f] = 1 / (D1[s, f] + freqs_eV[m])      (Nmodes, Nexc, Nfreq)
-    inv_D2 = 1.0 / (D1[np.newaxis] + freqs_eV[:, np.newaxis, np.newaxis])
+    # inv_D2[m, s, f] = 1 / (D1[s, f] - freqs_eV[m])      (Nmodes, Nexc, Nfreq)
+    inv_D2 = 1.0 / (D1[np.newaxis] - freqs_eV[:, np.newaxis, np.newaxis])
 
     # exc_ph_diag[m, s] = exc_ph[m, s, s]                  (Nmodes, Nexc)
     exc_ph_diag = np.einsum('mii->mi', exc_ph)
@@ -134,8 +134,8 @@ parser.add_argument('--h5_file', default='exciton_phonon_couplings.h5')
 parser.add_argument('--dip_mom_file_b1', default='eigenvalues_b1.dat')
 parser.add_argument('--dip_mom_file_b2', default='eigenvalues_b2.dat')
 parser.add_argument('--dip_mom_file_b3', default='eigenvalues_b3.dat')
-parser.add_argument('--dE', type=float, default=0.002, help='Energy step in eV for the Ex grid')
-parser.add_argument('--gamma', type=float, default=0.05, help='Broadening parameter in eV')
+parser.add_argument('--dE', type=float, default=0.001, help='Energy step in eV for the Ex grid')
+parser.add_argument('--gamma', type=float, default=0.01, help='Broadening parameter in eV')
 parser.add_argument('--vectorized_flavor', type=int, default=2, choices=[0, 1, 2], help='0: no vectorization (triple loop), 1: vectorize over excitons only, 2: vectorize over both excitons and modes (more memory usage but faster)')
 parser.add_argument('--test_functions', action='store_true', help='Run all three implementations on Nexc=10 and check they agree')
 parser.add_argument('--freqs_file', default='freqs.dat', help='File containing phonon frequencies in cm^-1')

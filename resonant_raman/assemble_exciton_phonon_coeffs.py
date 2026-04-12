@@ -7,7 +7,7 @@ pair_indexes_to_load = []
 
 def read_excited_state_forces_file_ph(filename):
     # read excited state forces in ph basis
-    data = np.loadtxt(filename, dtype=complex)
+    data = -np.loadtxt(filename, dtype=complex) # minus sign comes from the fact that excited_forces.py computes F = - <A|dH/dR|A> and here we want to save the exciton-phonon matrix elements <A|dH/dR|A> without the minus sign.
     rpa_diag = data[:, 1]
     rpa_offdiag = data[:, 2]
     rpa_diag_plus_kernel = data[:, 3]

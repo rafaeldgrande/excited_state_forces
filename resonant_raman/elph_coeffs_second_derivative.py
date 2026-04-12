@@ -3,31 +3,33 @@
 import numpy as np
 
 TOL_ZERO = 1e-6  # threshold below which states are considered degenerate
+ry2eV = 13.605693122994  # conversion factor from Rydberg to eV
+eV2ry = 1.0 / ry2eV
 
 def compute_second_order_elph(elph, E, Displacements):
     """
     Compute second-order electron-phonon coupling coefficients via second-order
     perturbation theory:
 
-        g_beta_knm^(2) = - sum_{alpha,l} g_alpha_knl * g_beta_klm / (E_kn - E_kl)
-                         - sum_{alpha,l} g_beta_knl * g_alpha_klm / (E_km - E_kl)
+        g_beta_knm^(2) = - sum_{l} g_beta_knl * g_beta_klm / (E_kn - E_kl)
+                         - sum_{l} g_beta_knl * g_beta_klm / (E_km - E_kl)
 
     The sum over alpha runs over all cartesian (atom-direction) degrees of freedom.
     If `elph` is in the normal-mode basis it is rotated to cartesian first via
     `Displacements`.  The returned array is in the same cartesian basis (first
     index = displacement-pattern / atom-direction index).
+    
+    g_beta_knl has units of ry/bohr, while E_nk has unit of eV, so E_nk is converted to ry when loaded
+    The units of g2 will be ry/bohr^2.
 
     Parameters
     ----------
     elph : np.ndarray, shape (nmodes, nkpoints, nbands, nbands)
-        Electron-phonon coupling coefficients, possibly in normal-mode basis.
-        elph[mu, k, n, m] = g_{mu, k, n->m}
+        Electron-phonon coupling coefficients
     E : np.ndarray, shape (nbands, nkpoints)
         Single-particle energies.  E[n, k] = energy of band n at k-point k.
-    Displacements : np.ndarray, shape (nmodes, nmodes)
-        Displacement patterns.  Displacements[mu, :] = [x1,y1,z1, x2,y2,z2, ...]
-        Row mu gives the cartesian displacements of all atoms for normal mode mu.
-        Used to rotate elph from normal-mode to cartesian basis.
+    Displacements : np.ndarray, shape (nmodes, Natoms, 3)
+        Displacement patterns.  Displacements[mu, :] = [[x1,y1,z1], [x2,y2,z2], ...]
 
     Returns
     -------
@@ -36,13 +38,12 @@ def compute_second_order_elph(elph, E, Displacements):
     """
     
     # --- rotate elph to cartesian (atom-direction) basis -------------------
-    # g_cart[beta, k, n, l] = sum_mu  D[mu, beta] * elph[mu, k, n, l]
-    # g_cart = np.einsum('mb,mknl->bknl', Displacements, elph)
+    # g_cart[alpha, k, n, m] = sum_modes  dot(Displacements[modes], unit_vector_for_alpha) * elph[modes, k, n, m]
     
     # elph has shape (nmodes, nk, nbands, nbands)
     # displacement shape (Nmodes, Natoms, 3)
     g_cart = np.zeros_like(elph)
-    for imode in range(Displacements.shape[1]):
+    for imode in range(Displacements.shape[0]):
         disp_flattened = Displacements[imode].flatten()  # shape (3*Natoms,)
         for ialpha in range(disp_flattened.shape[0]):
             unit_vector = np.zeros_like(disp_flattened)
@@ -70,23 +71,6 @@ def compute_second_order_elph(elph, E, Displacements):
                     term1[beta, ik, n, m] = -sum1
                     term2[beta, ik, n, m] = -sum2
 
-    # # dE[k, i, j] = E[i, k] - E[j, k]   (E has shape (nbands, nk))
-    # dE = E.T[:, :, None] - E.T[:, None, :]  # (nk, nbands, nbands)
-    # mask = np.abs(dE) < TOL_ZERO
-    # dE_safe = np.where(mask, 1.0, dE)
-
-    # # term1[b, k, n, m] = -sum_l  g_cart[b,k,n,l] / dE[k,n,l]  * g_cart[b,k,l,m]
-    # weighted1 = np.where(mask, 0.0, g_cart / dE_safe[np.newaxis])  # (b, nk, nbands, nbands)
-    # term1 = -np.einsum('bknl,bklm->bknm', weighted1, g_cart)
-
-    # # term2[b, k, n, m] = -sum_l  g_cart[b,k,n,l] * g_cart[b,k,l,m] / dE[k,m,l]
-    # # dE[k,m,l] == dE.T[k,l,m]
-    # dE_T = dE.transpose(0, 2, 1)                                    # (nk, nbands, nbands)
-    # mask_T = np.abs(dE_T) < TOL_ZERO
-    # dE_T_safe = np.where(mask_T, 1.0, dE_T)
-    # weighted2 = np.where(mask_T, 0.0, g_cart / dE_T_safe[np.newaxis])  # (b, nk, l, m)
-    # term2 = -np.einsum('bknl,bklm->bknm', g_cart, weighted2)
-
     return term1 + term2
 
 def read_eqp_dat_file(eqp_file):
@@ -101,7 +85,10 @@ def read_eqp_dat_file(eqp_file):
         temp = data[ibnd+1::Nbnds+1]
         bands_dft.append(temp[:, 2])
         bands_qp.append(temp[:, 3])
-    return np.array(bands_dft), np.array(bands_qp), Kpoints, Nk, band_indexes
+        
+    bands_dft = np.array(bands_dft) * eV2ry  # shape (Nbnds, Nk)
+    bands_qp = np.array(bands_qp) * eV2ry  # shape (Nbnds, Nk)
+    return bands_dft, bands_qp, Kpoints, Nk, band_indexes
 
 
 # ---------------------------------------------------------------------------

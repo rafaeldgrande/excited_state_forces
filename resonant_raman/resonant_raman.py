@@ -8,193 +8,235 @@ import matplotlib.pyplot as plt
 config_dir = Path(__file__).parent.parent / 'presentation.mplstyle'
 plt.style.use(config_dir)
 
-def bose_einstein_distribution(energy, temperature):
-    """Calculate the Bose-Einstein distribution for a given energy and temperature."""
-    E = max(energy, 1e-8)  # Avoid division by zero for zero energy
-    return 1 / (np.exp(E / (k_B * temperature)) - 1)
+ignore_0_freq_modes = True
 
 # constants
-k_B = 8.617333262145e-5  # Boltzmann constant in eV/K
-c = 2.99792458e-4  # Speed of light in eV*cm
-h = 4.135667696e-15  # Planck's constant in eV*s
-rec_cm_to_eV = 1.239841984e-4  # Conversion factor from cm^-1 to eV
+k_B          = 8.617333262145e-5   # Boltzmann constant in eV/K
+rec_cm_to_eV = 1.239841984e-4      # cm^-1 to eV
+hbar         = 6.582119569e-16     # reduced Planck constant in eV*s
 
+FLAVOR_DESC = {
+    0: 'First-order, diagonal e-ph only (d2)',
+    1: 'First-order, diagonal + off-diagonal e-ph (d3)',
+    2: 'First-order d3 + second-order triple-resonance',
+    3: 'First-order d3 + second-order triple-resonance + double-resonance',
+}
 
-parser = argparse.ArgumentParser(description='Calculate resonant Raman spectra')
-parser.add_argument('--temperature', type=float, default=300, help='Temperature in Kelvin (default: 300)')
-parser.add_argument('--susceptibility-file', type=str, default='susceptibility_tensors.h5', help='HDF5 file with susceptibility tensors (default: susceptibility_tensors.h5)')
-parser.add_argument('--freqs-file', type=str, default='freqs.dat', help='File with phonon frequencies in cm^-1 (default: freqs.dat)')
-
+parser = argparse.ArgumentParser(description='Compute resonant Raman intensity maps')
+parser.add_argument('--temperature',       type=float, default=300,
+                    help='Temperature in Kelvin (default: 300)')
+parser.add_argument('--first-order-file',  type=str,
+                    default='susceptibility_tensors_first_order.h5',
+                    help='HDF5 file from susceptibility_tensors_first_order.py')
+parser.add_argument('--second-order-file', type=str,
+                    default='susceptibility_tensors_second_order.h5',
+                    help='HDF5 file from susceptibility_tensors_second_order.py '
+                         '(required for flavors 2 and 3)')
+parser.add_argument('--freqs-file',        type=str, default='freqs.dat',
+                    help='File with phonon frequencies in cm^-1 (default: freqs.dat)')
+parser.add_argument('--flavor',            type=int, default=0,
+                    choices=list(FLAVOR_DESC.keys()),
+                    help='Which susceptibility to use:\n' +
+                         '\n'.join(f'  {k}: {v}' for k, v in FLAVOR_DESC.items()))
+parser.add_argument('--output',            type=str, default='resonant_raman_data.h5',
+                    help='Output HDF5 file (default: resonant_raman_data.h5)')
+parser.add_argument('--nfreq-ph',          type=int, default=500,
+                    help='Number of points on the phonon frequency axis (default: 500)')
 args = parser.parse_args()
 
-T = args.temperature
-susceptibility_tensors_file = args.susceptibility_file
-freqs_file = args.freqs_file
+T                  = args.temperature
+first_order_file   = args.first_order_file
+second_order_file  = args.second_order_file
+freqs_file         = args.freqs_file
+flavor             = args.flavor
+output_file        = args.output
+Nfreq_ph           = args.nfreq_ph
 
-log_scale = False  # Set to True to plot Raman intensity on a logarithmic scale, False for linear scale
-cart_dir = ['x', 'y', 'z']  # Cartesian directions for the susceptibility tensor components
+print(f'Flavor {flavor}: {FLAVOR_DESC[flavor]}')
 
-freqs_rec_cm = np.loadtxt(freqs_file)  # Load phonon frequencies in cm^-1
-freqs_eV = freqs_rec_cm * rec_cm_to_eV  # Convert frequencies
+cart_dir = ['x', 'y', 'z']
 
-with h5py.File(susceptibility_tensors_file, 'r') as f:
-    excitaion_energies = f['excitation_energies'][:]
-    alpha_tensor_d2 = f['alpha_tensor_d2'][:] # shape (3, 3, Nmodes, Ndata)
-    alpha_tensor_d3 = f['alpha_tensor_d3'][:] # shape (3, 3, Nmodes, Ndata)
-    
-Nmodes = alpha_tensor_d2.shape[2]
+freqs_rec_cm = np.loadtxt(freqs_file)
+freqs_eV     = freqs_rec_cm * rec_cm_to_eV
 
-# unpolarized tensors
-alpha_d2 = (alpha_tensor_d2[0, 0] + alpha_tensor_d2[1, 1] + alpha_tensor_d2[2, 2]) / 3.0
+# ---------------------------------------------------------------------------
+# Load susceptibility tensors
+# ---------------------------------------------------------------------------
+print(f'Reading first-order susceptibilities from {first_order_file}')
+with h5py.File(first_order_file, 'r') as f:
+    excitation_energies_1st = f['excitation_energies'][:]   # (Nfreq_1st,)
+    alpha_tensor_d2         = f['alpha_tensor_d2'][:]       # (3, 3, Nmodes, Nfreq_1st)
+    alpha_tensor_d3         = f['alpha_tensor_d3'][:]       # (3, 3, Nmodes, Nfreq_1st)
 
-gamma2_d2 = ( 0.5 * (np.abs(alpha_tensor_d2[0, 0] - alpha_tensor_d2[1,1])**2 +
-                     np.abs(alpha_tensor_d2[1, 1] - alpha_tensor_d2[2,2])**2 +
-                     np.abs(alpha_tensor_d2[2, 2] - alpha_tensor_d2[0,0])**2  ) +
-             3/4 *  (np.abs(alpha_tensor_d2[0, 1] + alpha_tensor_d2[1,0])**2 +
-                     np.abs(alpha_tensor_d2[0, 2] + alpha_tensor_d2[2,0])**2 +
-                     np.abs(alpha_tensor_d2[1, 2] + alpha_tensor_d2[2,1])**2 ) )
+alpha_tensor_first_order = alpha_tensor_d2 if flavor == 0 else alpha_tensor_d3
 
-delta2_d2 = 3/4 * ((np.abs(alpha_tensor_d2[0, 1] - alpha_tensor_d2[1,0])**2 +
-                     np.abs(alpha_tensor_d2[0, 2] - alpha_tensor_d2[2,0])**2 +
-                     np.abs(alpha_tensor_d2[1, 2] - alpha_tensor_d2[2,1])**2 ))
+excitation_energies = excitation_energies_1st  # default; overridden below for flavors 2/3
+if flavor >= 2:
+    print(f'Reading second-order susceptibilities from {second_order_file}')
+    with h5py.File(second_order_file, 'r') as f:
+        excitation_energies       = f['excitation_energies'][:]           # (Nfreq_2nd,)
+        alpha_tensor_second_order = f['alpha_tensor_triple_resonance'][:] # (3,3,Nmodes,Nmodes,Nfreq_2nd)
+        if flavor == 3:
+            alpha_tensor_double_res = f['alpha_tensor_double_resonance'][:]  # (3,3,Nmodes,Nfreq_2nd)
 
-alpha_d3 = (alpha_tensor_d3[0, 0] + alpha_tensor_d3[1, 1] + alpha_tensor_d3[2, 2]) / 3.0
+Nmodes      = alpha_tensor_first_order.shape[2]
+flavor_label = FLAVOR_DESC[flavor]
 
-gamma2_d3 = ( 0.5 * (np.abs(alpha_tensor_d3[0, 0] - alpha_tensor_d3[1,1])**2 +
-                     np.abs(alpha_tensor_d3[1, 1] - alpha_tensor_d3[2,2])**2 +
-                     np.abs(alpha_tensor_d3[2, 2] - alpha_tensor_d3[0,0])**2  ) +
-             3/4 *  (np.abs(alpha_tensor_d3[0, 1] + alpha_tensor_d3[1,0])**2 +
-                     np.abs(alpha_tensor_d3[0, 2] + alpha_tensor_d3[2,0])**2 +
-                     np.abs(alpha_tensor_d3[1, 2] + alpha_tensor_d3[2,1])**2 ) )
+if flavor == 3:
+    for imode in range(Nmodes):
+        alpha_tensor_second_order[:, :, imode, imode, :] += alpha_tensor_double_res[:, :, imode, :]
 
-delta2_d3 = 3/4 * ((np.abs(alpha_tensor_d3[0, 1] - alpha_tensor_d3[1,0])**2 +
-                     np.abs(alpha_tensor_d3[0, 2] - alpha_tensor_d3[2,0])**2 +
-                     np.abs(alpha_tensor_d3[1, 2] - alpha_tensor_d3[2,1])**2 ))
+# I(alpha,beta) ∝ |Σ_i  w_i · α¹[i]  +  Σ_ij w_i·w_j · α²[i,j]|²
+# where w_i = sqrt((n_i+1) · ħ/(2·ω_i))
 
-tensor_d2_unpolarized = 45 * alpha_d2**2 + 7 * gamma2_d2 + 5 * delta2_d2
-tensor_d3_unpolarized = 45 * alpha_d3**2 + 7 * gamma2_d3 + 5 * delta2_d3
+Nfreq_1st = excitation_energies_1st.shape[0]
+Nfreq     = excitation_energies.shape[0]
 
-def raman_cross_section(excitation, intensity, freqs_eV, T, log_scale=False):
-    cross_section = excitation**3 * np.abs(intensity)**2 * (1 + bose_einstein_distribution(freqs_eV, T)) * freqs_eV
-    if log_scale == False:
-        return cross_section
-    else:
-        return np.log10(cross_section + 1e-2)  # add small value to avoid log(0)
-    
-for imode in range(Nmodes):
-    n_phonon = bose_einstein_distribution(freqs_eV[imode], T)
-    print(f'Phonon mode {imode+1} / {Nmodes}: frequency = {freqs_rec_cm[imode]:.4f} cm-1, occupation number = {n_phonon:.4f}')
-    f, axs = plt.subplots(3, 3, figsize=(15, 15), sharex=True, sharey=True)
-    f.suptitle(f'Phonon mode {imode+1} at T={T} K and frequency {freqs_rec_cm[imode]:.2f} cm-1', fontsize=12)
-    
-    for ialpha in range(3):
-        for ibeta in range(3):
-            d2 = alpha_tensor_d2[ialpha, ibeta, imode, :]
-            d3 = alpha_tensor_d3[ialpha, ibeta, imode, :]
-            
-            raman_d2 = raman_cross_section(excitaion_energies, d2, freqs_eV[imode], T, log_scale=log_scale)
-            raman_d3 = raman_cross_section(excitaion_energies, d3, freqs_eV[imode], T, log_scale=log_scale)
-            
-            plt.sca(axs[ialpha, ibeta])
-            plt.title(f'{cart_dir[ialpha]}{cart_dir[ibeta]} component')
-            plt.plot(excitaion_energies, raman_d2, label=f'Just diag exc-ph')
-            plt.plot(excitaion_energies, raman_d3, label=f'Diag + offdiag exc-ph') #, linestyle='dashed')
+safe_freqs_eV = np.maximum(freqs_eV, 1e-8)
+bose_occ      = 1.0 / (np.exp(safe_freqs_eV / (k_B * T)) - 1)          # (Nmodes,)
+phonon_weight = np.sqrt((bose_occ + 1) * hbar / (2 * safe_freqs_eV))    # (Nmodes,)
 
-    axs[0, 2].legend()
-    f.supxlabel('Excitation Energy (eV)')
-    f.supylabel('Raman Intensity (a.u.)')
-    # plt.legend()
-    plt.savefig(f'raman_spectrum_mode_{imode+1}.png')
-    plt.close()
-    
-min_vib_freq = np.min(freqs_rec_cm)
-max_vib_freq = np.max(freqs_rec_cm)
+def is_valid_mode(imode):
+    return not (freqs_rec_cm[imode] < 1e-2 and ignore_0_freq_modes)
 
-# 2d map of Raman intensity as a function of excitation energy and phonon frequency
+def unpolarized_invariant(alpha_ab):
+    """
+    Compute the unpolarized Raman invariant 45|ᾱ|² + 7γ² + 5δ² for a single
+    excitation-energy slice of the susceptibility tensor.
 
-# phonon_broadening = 10.0  # Lorentzian FWHM in cm^-1
-phonon_broadening = (max_vib_freq - min_vib_freq) / 50.0  # Set broadening to 1/50 of the total phonon frequency range
-freq_axis = np.linspace(min_vib_freq - 5*phonon_broadening, max_vib_freq + 5*phonon_broadening, 500)
-excitation_grid, freq_grid = np.meshgrid(excitaion_energies, freq_axis)
+    alpha_ab : (3, 3, Nfreq) complex array  — the weighted tensor for one mode/pair
+    Returns  : (Nfreq,) real array
+    """
+    a = alpha_ab  # shorthand
+    alpha_bar = (a[0,0] + a[1,1] + a[2,2]) / 3.0
+    gamma2 = (0.5 * (np.abs(a[0,0] - a[1,1])**2 +
+                     np.abs(a[1,1] - a[2,2])**2 +
+                     np.abs(a[2,2] - a[0,0])**2) +
+              3/4 * (np.abs(a[0,1] + a[1,0])**2 +
+                     np.abs(a[0,2] + a[2,0])**2 +
+                     np.abs(a[1,2] + a[2,1])**2))
+    delta2 = 3/4 * (np.abs(a[0,1] - a[1,0])**2 +
+                    np.abs(a[0,2] - a[2,0])**2 +
+                    np.abs(a[1,2] - a[2,1])**2)
+    return 45 * np.abs(alpha_bar)**2 + 7 * gamma2 + 5 * delta2
 
+# ---------------------------------------------------------------------------
+# Build phonon frequency axis
+# ---------------------------------------------------------------------------
+min_vib_freq    = np.min(freqs_rec_cm)
+max_vib_freq    = np.max(freqs_rec_cm)
+phonon_broad_meV = 10.0                                  # meV
+gamma_lor        = (phonon_broad_meV * 1e-3) / rec_cm_to_eV  # cm^-1
+
+freq_axis_hi = (2 * max_vib_freq if flavor >= 2 else max_vib_freq) + 5 * gamma_lor
+freq_axis    = np.linspace(max(0.0, min_vib_freq - 5 * gamma_lor), freq_axis_hi, Nfreq_ph)
+
+# meshgrid: x = phonon freq, y = excitation energy  → both (Nfreq, Nfreq_ph)
+freq_grid, excitation_grid = np.meshgrid(freq_axis, excitation_energies)
+
+# ---------------------------------------------------------------------------
+# Compute Raman intensity maps
+# raman_maps[ialpha, ibeta, iE_exc, iE_ph]  — polarization-resolved
+# raman_map_unpol[iE_exc, iE_ph]            — unpolarized (45|ᾱ|²+7γ²+5δ²)
+# ---------------------------------------------------------------------------
+raman_maps     = np.zeros((3, 3, Nfreq, Nfreq_ph))
+raman_map_unpol = np.zeros((Nfreq, Nfreq_ph))
+
+print('Computing Raman intensity maps...')
 for ialpha in range(3):
     for ibeta in range(3):
-        
-        print(f'Calculating raman map for {cart_dir[ialpha]}{cart_dir[ibeta]} polarization')
+        pol = f'{cart_dir[ialpha]}{cart_dir[ibeta]}'
+        print(f'  {pol}')
 
-        raman_intensity_map_d2 = np.zeros_like(excitation_grid)
-        raman_intensity_map_d3 = np.zeros_like(excitation_grid)
+        raman_map = np.zeros((Nfreq, Nfreq_ph))
+
+        # First-order: |w_i · α¹[i, Eexc]|² placed at ω_i
+        # α¹ covers only Nfreq_1st points; zero elsewhere on the larger grid
         for imode in range(Nmodes):
-            d2 = alpha_tensor_d2[ialpha, ibeta, imode, :]
-            d3 = alpha_tensor_d3[ialpha, ibeta, imode, :]
+            if not is_valid_mode(imode):
+                continue
+            intensity = np.zeros(Nfreq)
+            intensity[:Nfreq_1st] = np.abs(phonon_weight[imode] *
+                                           alpha_tensor_first_order[ialpha, ibeta, imode, :])**2
+            lorentz = gamma_lor**2 / ((freq_axis - freqs_rec_cm[imode])**2 + gamma_lor**2)
+            raman_map += intensity[:, np.newaxis] * lorentz[np.newaxis, :]
 
-            raman_d2 = raman_cross_section(excitaion_energies, d2, freqs_eV[imode], T, log_scale=log_scale)
-            raman_d3 = raman_cross_section(excitaion_energies, d3, freqs_eV[imode], T, log_scale=log_scale)
+        # Second-order: |w_i·w_j · α²[i,j, Eexc]|² placed at ω_i+ω_j
+        if flavor >= 2:
+            for imode in range(Nmodes):
+                for jmode in range(Nmodes):
+                    freq_cm_pair = freqs_rec_cm[imode] + freqs_rec_cm[jmode]
+                    if freq_cm_pair < 1e-2 and ignore_0_freq_modes:
+                        continue
+                    w_ij      = phonon_weight[imode] * phonon_weight[jmode]
+                    intensity = np.abs(w_ij *
+                                       alpha_tensor_second_order[ialpha, ibeta, imode, jmode, :])**2
+                    lorentz   = gamma_lor**2 / ((freq_axis - freq_cm_pair)**2 + gamma_lor**2)
+                    raman_map += intensity[:, np.newaxis] * lorentz[np.newaxis, :]
 
-            # Lorentzian weight along phonon frequency axis, centered at mode frequency
-            gamma = phonon_broadening / 2
-            lorentzian = gamma**2 / ((freq_axis - freqs_rec_cm[imode])**2 + gamma**2)
+        raman_maps[ialpha, ibeta] = raman_map
 
-            raman_intensity_map_d2 += lorentzian[:, np.newaxis] * raman_d2[np.newaxis, :]
-            raman_intensity_map_d3 += lorentzian[:, np.newaxis] * raman_d3[np.newaxis, :]
-
-        f, axs = plt.subplots(ncols=2, figsize=(15, 6), sharex=True, sharey=True)
-        
-        plt.sca(axs[0])
-        plt.title(f'{cart_dir[ialpha]}{cart_dir[ibeta]} component - d2', fontsize=18)
-        plt.pcolormesh(excitation_grid, freq_grid, raman_intensity_map_d2, shading='auto')
-        plt.colorbar(label='Raman Intensity (a.u.)')
-        plt.xlabel(r'$\Omega_{\rm{exc}}$ (eV)')
-        plt.ylabel(r'$\omega_{\rm{ph}}$ (cm$^{-1}$)')
-        
-        plt.sca(axs[1])
-        plt.title(f'{cart_dir[ialpha]}{cart_dir[ibeta]} component - d3+d2', fontsize=18)
-        plt.pcolormesh(excitation_grid, freq_grid, raman_intensity_map_d3, shading='auto')
-        plt.colorbar(label='Raman Intensity (a.u.)')
-        plt.xlabel(r'$\Omega_{\rm{exc}}$ (eV)')
-        plt.ylabel(r'$\omega_{\rm{ph}}$ (cm$^{-1}$)')
-        
-        plt.savefig(f'raman_intensity_map_{cart_dir[ialpha]}{cart_dir[ibeta]}.png', dpi=300)
+        fig, ax = plt.subplots(figsize=(8, 6), constrained_layout=True)
+        ax.set_title(f'{pol} — flavor {flavor}: {flavor_label}', fontsize=12)
+        pcm = ax.pcolormesh(freq_grid, excitation_grid, raman_map, shading='auto')
+        fig.colorbar(pcm, ax=ax, label='Raman Intensity (a.u.)')
+        ax.set_xlabel(r'$\omega_{\rm{ph}}$ (cm$^{-1}$)')
+        ax.set_ylabel(r'$\Omega_{\rm{exc}}$ (eV)')
+        plt.savefig(f'raman_map_{pol}_flavor_{flavor}.png', dpi=300)
         plt.close()
-        
 
-print('Calculating raman map for unpolarized light')
-raman_intensity_map_d2 = np.zeros_like(excitation_grid)
-raman_intensity_map_d3 = np.zeros_like(excitation_grid)
+# ---------------------------------------------------------------------------
+# Unpolarized map: accumulate unpolarized invariant per mode/pair
+# ---------------------------------------------------------------------------
+print('  unpolarized')
+
+# First-order unpolarized
 for imode in range(Nmodes):
-    d2 = tensor_d2_unpolarized[imode, :]
-    d3 = tensor_d3_unpolarized[imode, :]
+    if not is_valid_mode(imode):
+        continue
+    # weighted tensor: (3, 3, Nfreq_1st) → embed in (3, 3, Nfreq)
+    alpha_weighted = np.zeros((3, 3, Nfreq), dtype=complex)
+    alpha_weighted[:, :, :Nfreq_1st] = (phonon_weight[imode] *
+                                         alpha_tensor_first_order[:, :, imode, :])
+    intensity = unpolarized_invariant(alpha_weighted)               # (Nfreq,)
+    lorentz   = gamma_lor**2 / ((freq_axis - freqs_rec_cm[imode])**2 + gamma_lor**2)
+    raman_map_unpol += intensity[:, np.newaxis] * lorentz[np.newaxis, :]
 
-    raman_d2 = raman_cross_section(excitaion_energies, d2, freqs_eV[imode], T, log_scale=log_scale)
-    raman_d3 = raman_cross_section(excitaion_energies, d3, freqs_eV[imode], T, log_scale=log_scale)
+# Second-order unpolarized
+if flavor >= 2:
+    for imode in range(Nmodes):
+        for jmode in range(Nmodes):
+            freq_cm_pair = freqs_rec_cm[imode] + freqs_rec_cm[jmode]
+            if freq_cm_pair < 1e-2 and ignore_0_freq_modes:
+                continue
+            w_ij          = phonon_weight[imode] * phonon_weight[jmode]
+            alpha_weighted = w_ij * alpha_tensor_second_order[:, :, imode, jmode, :]  # (3,3,Nfreq)
+            intensity      = unpolarized_invariant(alpha_weighted)                     # (Nfreq,)
+            lorentz        = gamma_lor**2 / ((freq_axis - freq_cm_pair)**2 + gamma_lor**2)
+            raman_map_unpol += intensity[:, np.newaxis] * lorentz[np.newaxis, :]
 
-    # Lorentzian weight along phonon frequency axis, centered at mode frequency
-    gamma = phonon_broadening / 2
-    lorentzian = gamma**2 / ((freq_axis - freqs_rec_cm[imode])**2 + gamma**2)
-
-    raman_intensity_map_d2 += lorentzian[:, np.newaxis] * raman_d2[np.newaxis, :]
-    raman_intensity_map_d3 += lorentzian[:, np.newaxis] * raman_d3[np.newaxis, :]        
-
-f, axs = plt.subplots(ncols=2, figsize=(15, 6), sharex=True, sharey=True)
-
-plt.sca(axs[0])
-plt.title(f'Unpolarized - d2', fontsize=18)
-plt.pcolormesh(excitation_grid, freq_grid, raman_intensity_map_d2, shading='auto')
-plt.colorbar(label='Raman Intensity (a.u.)')
-plt.xlabel(r'$\Omega_{\rm{exc}}$ (eV)')
-plt.ylabel(r'$\omega_{\rm{ph}}$ (cm$^{-1}$)')
-
-plt.sca(axs[1])
-plt.title(f'Unpolarized - d3+d2', fontsize=18)
-plt.pcolormesh(excitation_grid, freq_grid, raman_intensity_map_d3, shading='auto')
-plt.colorbar(label='Raman Intensity (a.u.)')
-plt.xlabel(r'$\Omega_{\rm{exc}}$ (eV)')
-plt.ylabel(r'$\omega_{\rm{ph}}$ (cm$^{-1}$)')
-
-plt.savefig(f'raman_intensity_map_unpolarized.png', dpi=300)
+fig, ax = plt.subplots(figsize=(8, 6), constrained_layout=True)
+ax.set_title(f'Unpolarized — flavor {flavor}: {flavor_label}', fontsize=12)
+pcm = ax.pcolormesh(freq_grid, excitation_grid, raman_map_unpol, shading='auto')
+fig.colorbar(pcm, ax=ax, label='Raman Intensity (a.u.)')
+ax.set_xlabel(r'$\omega_{\rm{ph}}$ (cm$^{-1}$)')
+ax.set_ylabel(r'$\Omega_{\rm{exc}}$ (eV)')
+plt.savefig(f'raman_map_unpolarized_flavor_{flavor}.png', dpi=300)
 plt.close()
 
+# ---------------------------------------------------------------------------
+# Save to HDF5
+# ---------------------------------------------------------------------------
+print(f'Saving Raman maps to {output_file}')
+with h5py.File(output_file, 'w') as hf:
+    hf.attrs['flavor']        = flavor
+    hf.attrs['flavor_label']  = flavor_label
+    hf.attrs['temperature_K'] = T
+    hf.create_dataset('excitation_energies',  data=excitation_energies)  # (Nfreq,) eV
+    hf.create_dataset('freq_axis_cm',         data=freq_axis)            # (Nfreq_ph,) cm^-1
+    hf.create_dataset('phonon_frequencies_cm', data=freqs_rec_cm)        # (Nmodes,) cm^-1
+    # raman_maps[ialpha, ibeta, iE_exc, iE_ph]
+    hf.create_dataset('raman_maps',            data=raman_maps)            # (3,3,Nfreq,Nfreq_ph)
+    hf.create_dataset('raman_map_unpolarized', data=raman_map_unpol)      # (Nfreq,Nfreq_ph)
 
-    
-print('Raman spectra calculated and saved as PNG files.')
-
+print('Done.')
