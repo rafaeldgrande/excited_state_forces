@@ -116,7 +116,7 @@ def cart_to_ph(displacements, forces_cart, output_file):
          line_output = f'  {i_eigvec+1:>10d}'
          for i_force in range(len(NAMES)):
             f_ph_basis = np.dot(displacements[i_eigvec], forces_cart[:, i_force])
-            cplx_str = f'{f_ph_basis.real:.8f}{f_ph_basis.imag:+.8f}j'
+            cplx_str = f'{f_ph_basis.real:.8e}{f_ph_basis.imag:+.8e}j'
             line_output += f'{cplx_str:>{COL_WIDTH}s}'
          line_output += '\n'
          output.write(line_output)
@@ -137,7 +137,7 @@ read_exciton_pairs_file = args.read_exciton_pairs_file
 print('read_exciton_pairs_file: ', read_exciton_pairs_file)
 
 NAMES = ['RPA_diag', 'RPA_diag_offiag', 'RPA_diag+Kernel']
-COL_WIDTH = 30
+COL_WIDTH = 40
 
 displacements = get_phonon_displacements(eigvecs_file)
 
