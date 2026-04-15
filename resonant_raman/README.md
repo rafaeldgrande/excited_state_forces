@@ -63,11 +63,11 @@ The unpolarized Raman invariant used for the powder-averaged intensity is $45\ve
 
 The first derivative is given by
 
-$$\left\langle A | \frac{\partial H^{\rm{BSE}}}{\partial Q_\nu} | B \right\rangle = \sum_{vc\mathbf{k}} A^{*}_{vc\mathbf{k}} B_{vc\mathbf{k}} (g^{\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
+$$\left\langle A \left| \frac{\partial H^{\rm{BSE}}}{\partial Q_\nu} \right| B \right\rangle = \sum_{vc\mathbf{k}} A^{*}_{vc\mathbf{k}} B_{vc\mathbf{k}} (g^{\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
 
 and the second derivative is given by
 
-$$\left\langle A | \frac{\partial^2 H^{\rm{BSE}}}{\partial Q_\nu^2} | B \right\rangle = \sum_{vc\mathbf{k}} A^{*}_{vc\mathbf{k}} B_{vc\mathbf{k}} (g^{(2)\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{(2)\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
+$$\left\langle A \left| \frac{\partial^2 H^{\rm{BSE}}}{\partial Q_\nu^2} \right| B \right\rangle = \sum_{vc\mathbf{k}} A^{*}_{vc\mathbf{k}} B_{vc\mathbf{k}} (g^{(2)\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{(2)\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
 
 where $g^{\nu}_{\mathbf{k}ij}$ is the electron-phonon coefficient at GW level:
 
