@@ -1,9 +1,16 @@
 
+import argparse
 import numpy as np
 import h5py
 
 exciton_pairs_file = 'exciton_pairs.dat'
 pair_indexes_to_load = []
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--exc_ph_file', default='exciton_phonon_couplings.h5')
+
+args = parser.parse_args()
+assembled_exc_ph_file = args.exc_ph_file
 
 def read_excited_state_forces_file_ph(filename):
     # read excited state forces in ph basis
@@ -61,7 +68,7 @@ for pair in pair_indexes_to_load:
         print(f'  Loaded {counter} pairs of {len(pair_indexes_to_load)} ({100.0*counter/len(pair_indexes_to_load):.2f} %)')
 
 # saving data in hdf5 file
-with h5py.File('exciton_phonon_couplings.h5', 'w') as hf:
+with h5py.File(assembled_exc_ph_file, 'w') as hf:
     hf.create_dataset('rpa_diag', data=data[0])
     hf.create_dataset('rpa_offdiag', data=data[1])
     hf.create_dataset('rpa_diag_plus_kernel', data=data[2])

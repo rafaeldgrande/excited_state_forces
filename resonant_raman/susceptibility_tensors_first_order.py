@@ -130,7 +130,7 @@ def calculate_tensor_vectorized_over_modes_and_excitons(ialpha, ibeta):
     return d2, d3
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--h5_file', default='exciton_phonon_couplings.h5')
+parser.add_argument('--exc_ph_file', default='exciton_phonon_couplings.h5')
 parser.add_argument('--dip_mom_file_b1', default='eigenvalues_b1.dat')
 parser.add_argument('--dip_mom_file_b2', default='eigenvalues_b2.dat')
 parser.add_argument('--dip_mom_file_b3', default='eigenvalues_b3.dat')
@@ -142,7 +142,7 @@ parser.add_argument('--freqs_file', default='freqs.dat', help='File containing p
 parser.add_argument('--limit_Nexc', type=int, default=None, help='Limit number of excitons to load (for testing)')
 args = parser.parse_args()
 
-h5_file = args.h5_file
+exc_ph_file = args.exc_ph_file
 dip_mom_file_b1 = args.dip_mom_file_b1
 dip_mom_file_b2 = args.dip_mom_file_b2
 dip_mom_file_b3 = args.dip_mom_file_b3
@@ -158,7 +158,7 @@ flavor_desc = {0: 'no vectorization (triple loop)',
                1: 'vectorized over excitons',
                2: 'vectorized over excitons and modes'}
 print('--- Options ---')
-print(f'  h5_file           : {h5_file}')
+print(f'  exc_ph_file       : {exc_ph_file}')
 print(f'  freqs_file        : {freqs_file}')
 print(f'  dip_mom_file_b1   : {dip_mom_file_b1}')
 print(f'  dip_mom_file_b2   : {dip_mom_file_b2}')
@@ -175,8 +175,8 @@ freqs_rec_cm = np.loadtxt(freqs_file)  # Load phonon frequencies in cm^-1
 freqs_eV = freqs_rec_cm * rec_cm_to_eV  # Convert frequencies. shape (Nmodes,)
 
 
-print(f'Reading data from {h5_file}')
-with h5py.File(h5_file, 'r') as hf:
+print(f'Reading data from {exc_ph_file}')
+with h5py.File(exc_ph_file, 'r') as hf:
     # rpa_diag_data = hf['rpa_diag'][:]  # shape: (Nmodes, Nexciton, Nexciton)
     exc_ph = hf['rpa_offdiag'][:]  # shape: (Nmodes, Nexciton, Nexciton)
 print('Data read successfully.')

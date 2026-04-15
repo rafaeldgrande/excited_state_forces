@@ -1,8 +1,26 @@
 
 import argparse
+import os
 import time
 import numpy as np
 import h5py
+import multiprocessing as mp
+
+# ---------------------------------------------------------------------------
+# Module-level state shared with fork-based worker processes (COW, no copy)
+# ---------------------------------------------------------------------------
+_mp_D1        = None
+_mp_pa_inv_D1 = None
+_mp_pb_conj   = None
+_mp_so_exc_ph = None
+_mp_freqs_eV  = None
+
+def _dbl_worker(imode):
+    """Per-mode worker for the double-resonance parallel function."""
+    inv_D2    = 1.0 / (_mp_D1 - 2.0 * _mp_freqs_eV[imode])   # (Nexc, Nfreq)
+    pb_inv_D2 = _mp_pb_conj[:, np.newaxis] * inv_D2           # (Nexc, Nfreq)
+    T         = _mp_so_exc_ph[imode] @ pb_inv_D2              # (Nexc, Nfreq)
+    return imode, -(_mp_pa_inv_D1 * T).sum(axis=0)            # (Nfreq,)
 
 def _gb(*shapes_and_dtypes):
     """Sum of array sizes in GB. Args: alternating (shape_tuple, dtype) pairs."""
@@ -209,6 +227,59 @@ def calculate_tensor_vectorize_over_excitons_double_resonance(ialpha, ibeta):
     return M
 
 
+def calculate_tensor_vectorize_over_excitons_double_resonance_parallel(ialpha, ibeta, nworkers=None):
+    """
+    Same math as calculate_tensor_vectorize_over_excitons_double_resonance.
+    The imode loop is parallelised with multiprocessing (fork context).
+
+    Large read-only arrays (D1, pa_inv_D1, second_order_exc_ph, …) are stored
+    in module-level globals before the pool is created so that forked workers
+    inherit them via copy-on-write — no per-task pickling of big arrays.
+    Only the small (Nfreq,) result is sent back per mode.
+    """
+    global _mp_D1, _mp_pa_inv_D1, _mp_pb_conj, _mp_so_exc_ph, _mp_freqs_eV
+
+    pa = pos_operator_list[ialpha]
+    pb = pos_operator_list[ibeta]
+
+    ram = _gb((Nexc, Nfreq), complex,   # D1
+              (Nexc, Nfreq), complex,   # inv_D1
+              (Nexc, Nfreq), complex,   # pa_inv_D1
+              (Nexc, Nfreq), complex,   # inv_D2  (per worker — amortised)
+              (Nexc, Nfreq), complex,   # pb_inv_D2
+              (Nexc, Nfreq), complex,   # T
+              (Nmodes, Nfreq), complex) # M
+    print(f'  (alpha={ialpha+1}, beta={ibeta+1}) RAM — D1, inv_D1, pa_inv_D1, '
+          f'inv_D2, pb_inv_D2, T, M — total {ram:.3f} GB')
+
+    t0 = time.perf_counter()
+
+    # Mode-independent quantities — computed once in the parent process
+    D1        = Ex[np.newaxis, :] - exc_energies[:, np.newaxis] + 1j * gamma  # (Nexc, Nfreq)
+    inv_D1    = 1.0 / D1                                                        # (Nexc, Nfreq)
+    pa_inv_D1 = pa[:, np.newaxis] * inv_D1                                      # (Nexc, Nfreq)
+
+    # Publish to module globals before forking — workers see them for free (COW)
+    _mp_D1        = D1
+    _mp_pa_inv_D1 = pa_inv_D1
+    _mp_pb_conj   = pb.conjugate()
+    _mp_so_exc_ph = second_order_exc_ph
+    _mp_freqs_eV  = freqs_eV
+
+    n = nworkers or os.cpu_count()
+    print(f'  (alpha={ialpha+1}, beta={ibeta+1}) — multiprocess over {Nmodes} modes, {n} workers')
+
+    M = np.zeros((Nmodes, Nfreq), dtype=complex)
+    ctx = mp.get_context('fork')
+    with ctx.Pool(n) as pool:
+        for imode, val in pool.imap_unordered(_dbl_worker, range(Nmodes)):
+            M[imode] = val
+            print(f'    mode {imode+1}/{Nmodes} done')
+
+    print(f'  (alpha={ialpha+1}, beta={ibeta+1}) done in {time.perf_counter() - t0:.3f} s')
+    return M
+
+
 def calculate_tensor_vectorized_over_modes_and_excitons_double_resonance(ialpha, ibeta):
     pa = pos_operator_list[ialpha]
     pb = pos_operator_list[ibeta]
@@ -245,7 +316,7 @@ def calculate_tensor_vectorized_over_modes_and_excitons_double_resonance(ialpha,
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--exc_ph_file', default='exciton_phonon_couplings.h5')
+parser.add_argument('--first_order_exc_ph_file', default='1st_order_exciton_phonon_couplings.h5')
 parser.add_argument('--second_order_exc_ph_file', default='2nd_order_exciton_phonon_couplings.h5')
 parser.add_argument('--dip_mom_file_b1', default='eigenvalues_b1.dat')
 parser.add_argument('--dip_mom_file_b2', default='eigenvalues_b2.dat')
@@ -253,17 +324,21 @@ parser.add_argument('--dip_mom_file_b3', default='eigenvalues_b3.dat')
 parser.add_argument('--dE', type=float, default=0.001, help='Energy step in eV for the Ex grid')
 parser.add_argument('--gamma', type=float, default=0.01, help='Broadening parameter in eV')
 parser.add_argument('--vectorized_flavor', type=int, default=2, choices=[0, 1, 2], help='0: no vectorization (triple loop), 1: vectorize over excitons only, 2: vectorize over both excitons and modes (more memory usage but faster)')
+parser.add_argument('--nworkers', type=int, default=None,
+                    help='Number of worker processes for double-resonance (flavor 1 only). '
+                         'Default: None (serial). Set to -1 to use all CPUs.')
 parser.add_argument('--test_functions', action='store_true', help='Run all three implementations on Nexc=10 and check they agree')
 parser.add_argument('--freqs_file', default='freqs.dat', help='File containing phonon frequencies in cm^-1')
 parser.add_argument('--limit_Nexc', type=int, default=None, help='Limit number of excitons to load (for testing)')
 args = parser.parse_args()
 
-exc_ph_file = args.exc_ph_file
+first_order_exc_ph_file = args.first_order_exc_ph_file
 second_order_exc_ph_file = args.second_order_exc_ph_file
 dip_mom_file_b1 = args.dip_mom_file_b1
 dip_mom_file_b2 = args.dip_mom_file_b2
 dip_mom_file_b3 = args.dip_mom_file_b3
 vectorized_flavor = args.vectorized_flavor
+nworkers          = None if args.nworkers is None else (None if args.nworkers == -1 else args.nworkers)
 test_functions = args.test_functions
 freqs_file = args.freqs_file
 dE = args.dE
@@ -273,9 +348,9 @@ limit_Nexc = args.limit_Nexc # int or None
 
 flavor_desc = {0: 'no vectorization (triple loop)',
                1: 'vectorized over excitons',
-               2: 'vectorized over excitons and modes'}
+               2: 'vectorized over excitons and modes (fully vectorized)'}
 print('--- Options ---')
-print(f'  exc_ph_file       : {exc_ph_file}')
+print(f'  1st_order_exc_ph_file : {first_order_exc_ph_file}')
 print(f'  2nd_order_exc_ph_file : {second_order_exc_ph_file}')
 print(f'  freqs_file        : {freqs_file}')
 print(f'  dip_mom_file_b1   : {dip_mom_file_b1}')
@@ -284,6 +359,7 @@ print(f'  dip_mom_file_b3   : {dip_mom_file_b3}')
 print(f'  dE                : {dE} eV')
 print(f'  gamma             : {gamma} eV')
 print(f'  vectorized_flavor : {vectorized_flavor} ({flavor_desc[vectorized_flavor]})')
+print(f'  nworkers          : {args.nworkers} (double-resonance parallel processes; None=serial, -1=all CPUs)')
 print(f'  test_functions    : {test_functions}')
 print(f'  limit_Nexc        : {args.limit_Nexc} (None means no limit)')
 print('---------------\n')
@@ -411,7 +487,10 @@ for ialpha in range(3):
             alpha_tensor_double_res[ialpha, ibeta] = calculate_tensor_vectorized_over_modes_and_excitons_double_resonance(ialpha, ibeta)
         elif vectorized_flavor == 1:
             alpha_tensor_triple_res[ialpha, ibeta] = calculate_tensor_vectorize_over_excitons_triple_resonance(ialpha, ibeta)
-            alpha_tensor_double_res[ialpha, ibeta] = calculate_tensor_vectorize_over_excitons_double_resonance(ialpha, ibeta)
+            if nworkers is not None:
+                alpha_tensor_double_res[ialpha, ibeta] = calculate_tensor_vectorize_over_excitons_double_resonance_parallel(ialpha, ibeta, nworkers=nworkers)
+            else:
+                alpha_tensor_double_res[ialpha, ibeta] = calculate_tensor_vectorize_over_excitons_double_resonance(ialpha, ibeta)
         else:
             alpha_tensor_triple_res[ialpha, ibeta] = calculate_tensor_not_vectorized_triple_resonance(ialpha, ibeta)
             alpha_tensor_double_res[ialpha, ibeta] = calculate_tensor_not_vectorized_double_resonance(ialpha, ibeta)

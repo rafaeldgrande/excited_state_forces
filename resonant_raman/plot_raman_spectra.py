@@ -25,10 +25,12 @@ rec_cm_to_eV = 1.239841984e-4      # cm^-1 to eV
 hbar         = 6.582119569e-16     # eV*s
 
 FLAVOR_DESC = {
-    0: 'First-order, diagonal e-ph only (d2)',
-    1: 'First-order, diagonal + off-diagonal e-ph (d3)',
-    2: 'First-order d3 + second-order triple-resonance',
-    3: 'First-order d3 + second-order triple-resonance + double-resonance',
+    0: 'First-order d2 only',
+    1: 'First-order d3 only',
+    2: 'Second-order triple resonance only',
+    3: 'Second-order triple + double resonance',
+    4: 'Second-order triple resonance + first-order d3',
+    5: 'Second-order triple + double resonance + first-order d3',
 }
 
 parser = argparse.ArgumentParser(
@@ -39,7 +41,7 @@ parser.add_argument('--first-order-file',  type=str,
                     default='susceptibility_tensors_first_order.h5')
 parser.add_argument('--second-order-file', type=str,
                     default='susceptibility_tensors_second_order.h5',
-                    help='Required for flavor >= 2')
+                    help='Required for flavors 2–5')
 parser.add_argument('--Eexc',              type=float, nargs='+', required=True,
                     help='One or more excitation energies in eV')
 parser.add_argument('--broadening',        type=float, default=10.0,
@@ -75,24 +77,32 @@ Nmodes       = len(freqs_rec_cm)
 # ---------------------------------------------------------------------------
 # Load raw susceptibility tensors
 # ---------------------------------------------------------------------------
-print(f'Reading first-order susceptibilities from {args.first_order_file}')
-with h5py.File(args.first_order_file, 'r') as f:
-    excitation_energies_1st = f['excitation_energies'][:]   # (Nfreq_1st,)
-    alpha_d2                = f['alpha_tensor_d2'][:]
-    alpha_d3                = f['alpha_tensor_d3'][:]
+# Derived flags
+has_first_order  = flavor in {0, 1, 4, 5}
+use_d2           = flavor == 0
+has_second_order = flavor in {2, 3, 4, 5}
+has_double       = flavor in {3, 5}
 
-alpha_1st = alpha_d2 if flavor == 0 else alpha_d3            # (3,3,Nmodes,Nfreq_1st)
+alpha_1st               = None
+excitation_energies_1st = None
+if has_first_order:
+    print(f'Reading first-order susceptibilities from {args.first_order_file}')
+    with h5py.File(args.first_order_file, 'r') as f:
+        excitation_energies_1st = f['excitation_energies'][:]
+        alpha_d2                = f['alpha_tensor_d2'][:]
+        alpha_d3                = f['alpha_tensor_d3'][:]
+    alpha_1st = alpha_d2 if use_d2 else alpha_d3            # (3,3,Nmodes,Nfreq_1st)
 
-excitation_energies_2nd   = excitation_energies_1st
-alpha_2nd                 = None
-if flavor >= 2:
+alpha_2nd               = None
+excitation_energies_2nd = None
+if has_second_order:
     print(f'Reading second-order susceptibilities from {args.second_order_file}')
     with h5py.File(args.second_order_file, 'r') as f:
-        excitation_energies_2nd = f['excitation_energies'][:]         # (Nfreq_2nd,)
-        alpha_2nd               = f['alpha_tensor_triple_resonance'][:]  # (3,3,Nmodes,Nmodes,Nfreq_2nd)
-        if flavor == 3:
+        excitation_energies_2nd = f['excitation_energies'][:]
+        alpha_2nd               = f['alpha_tensor_triple_resonance'][:]
+        if has_double:
             alpha_double = f['alpha_tensor_double_resonance'][:]
-    if flavor == 3:
+    if has_double:
         for imode in range(Nmodes):
             alpha_2nd[:, :, imode, imode, :] += alpha_double[:, :, imode, :]
 
@@ -123,7 +133,7 @@ def unpolarized_invariant(alpha_ab):
 # ---------------------------------------------------------------------------
 valid_mask   = np.array([is_valid_mode(im) for im in range(Nmodes)])
 min_raman    = max(0.0, np.min(freqs_rec_cm[valid_mask]) - 5 * gamma_cm)
-max_raman    = (2 * np.max(freqs_rec_cm) if flavor >= 2 else np.max(freqs_rec_cm)) + 5 * gamma_cm
+max_raman    = (2 * np.max(freqs_rec_cm) if has_second_order else np.max(freqs_rec_cm)) + 5 * gamma_cm
 raman_axis   = np.linspace(min_raman, max_raman, Npoints)  # cm^-1
 
 # ---------------------------------------------------------------------------
@@ -133,29 +143,34 @@ results = []   # list of (Eexc_actual, spectrum_unpol, spectra_pol)
 
 cart_dir = ['x', 'y', 'z']
 
+# Reference energy grid and Eexc_actual come from whichever grid is active
+ref_energies = excitation_energies_2nd if has_second_order else excitation_energies_1st
+
 for Eexc in Eexc_targets:
-    iE_1st = int(np.argmin(np.abs(excitation_energies_1st - Eexc)))
-    iE_2nd = int(np.argmin(np.abs(excitation_energies_2nd - Eexc)))
-    Eexc_actual_1st = excitation_energies_1st[iE_1st]
-    print(f'Eexc = {Eexc:.4f} eV → 1st-order index {iE_1st} ({Eexc_actual_1st:.4f} eV)')
+    iE_ref      = int(np.argmin(np.abs(ref_energies - Eexc)))
+    Eexc_actual = ref_energies[iE_ref]
+    iE_1st = int(np.argmin(np.abs(excitation_energies_1st - Eexc))) if has_first_order else None
+    iE_2nd = int(np.argmin(np.abs(excitation_energies_2nd - Eexc))) if has_second_order else None
+    print(f'Eexc = {Eexc:.4f} eV → {Eexc_actual:.4f} eV')
 
     spectrum     = np.zeros(Npoints)
     spectra_pol  = np.zeros((3, 3, Npoints))
 
     # --- first-order ---
-    for imode in range(Nmodes):
-        if not is_valid_mode(imode):
-            continue
-        lorentz  = gamma_cm**2 / ((raman_axis - freqs_rec_cm[imode])**2 + gamma_cm**2)
-        alpha_ab = phonon_weight[imode] * alpha_1st[:, :, imode, iE_1st]   # (3,3)
-        spectrum += unpolarized_invariant(alpha_ab) * lorentz
-        for ialpha in range(3):
-            for ibeta in range(3):
-                intensity_pol = np.abs(phonon_weight[imode] * alpha_1st[ialpha, ibeta, imode, iE_1st])**2
-                spectra_pol[ialpha, ibeta] += intensity_pol * lorentz
+    if has_first_order:
+        for imode in range(Nmodes):
+            if not is_valid_mode(imode):
+                continue
+            lorentz  = gamma_cm**2 / ((raman_axis - freqs_rec_cm[imode])**2 + gamma_cm**2)
+            alpha_ab = phonon_weight[imode] * alpha_1st[:, :, imode, iE_1st]   # (3,3)
+            spectrum += unpolarized_invariant(alpha_ab) * lorentz
+            for ialpha in range(3):
+                for ibeta in range(3):
+                    intensity_pol = np.abs(phonon_weight[imode] * alpha_1st[ialpha, ibeta, imode, iE_1st])**2
+                    spectra_pol[ialpha, ibeta] += intensity_pol * lorentz
 
     # --- second-order ---
-    if flavor >= 2:
+    if has_second_order:
         for imode in range(Nmodes):
             for jmode in range(Nmodes):
                 raman_shift = freqs_rec_cm[imode] + freqs_rec_cm[jmode]
@@ -170,7 +185,7 @@ for Eexc in Eexc_targets:
                         intensity_pol = np.abs(w_ij * alpha_2nd[ialpha, ibeta, imode, jmode, iE_2nd])**2
                         spectra_pol[ialpha, ibeta] += intensity_pol * lorentz
 
-    results.append((Eexc_actual_1st, spectrum, spectra_pol))
+    results.append((Eexc_actual, spectrum, spectra_pol))
 
 # ---------------------------------------------------------------------------
 # Capture norm factors before any normalization (always recorded)
@@ -201,7 +216,8 @@ if normalize:
 # ---------------------------------------------------------------------------
 # Helper: produce one stacked figure and save it
 # ---------------------------------------------------------------------------
-colors = plt.cm.coolwarm(np.linspace(0, 1, len(results)))
+# colors = plt.cm.coolwarm(np.linspace(0, 1, len(results)))
+colors = plt.cm.tab20(np.linspace(0, 1, len(results)))  # more discrete colors for many spectra
 
 # Extra x-space (cm^-1) to the left for factor annotations
 _x_range     = raman_axis[-1] - raman_axis[0]
@@ -225,7 +241,7 @@ def _save_stacked(spectra_list, title, fname, factors=None):
                 label=f'{Eexc_actual:.2f} eV')
         if factors is not None:
             ax.text(_annot_x, offset, f'{factors[i]:.1e}',
-                    ha='right', va='bottom', fontsize=6.5, color=color)
+                    ha='right', va='bottom', fontsize=12, color=color)
     ax.set_xlabel(r'Raman shift (cm$^{-1}$)')
     ax.set_ylabel('Raman Intensity (a.u.)')
     ax.legend(title=r'$\Omega_{\rm{exc}}$', bbox_to_anchor=(1.02, 1),

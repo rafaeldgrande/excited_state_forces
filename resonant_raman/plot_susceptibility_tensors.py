@@ -20,10 +20,12 @@ ignore_0_freq_modes = True
 rec_cm_to_eV = 1.239841984e-4
 
 FLAVOR_DESC = {
-    0: 'First-order, diagonal e-ph only (d2)',
-    1: 'First-order, diagonal + off-diagonal e-ph (d3)',
-    2: 'First-order d3 + second-order triple-resonance',
-    3: 'First-order d3 + second-order triple-resonance + double-resonance',
+    0: 'First-order d2 only',
+    1: 'First-order d3 only',
+    2: 'Second-order triple resonance only',
+    3: 'Second-order triple + double resonance',
+    4: 'Second-order triple resonance + first-order d3',
+    5: 'Second-order triple + double resonance + first-order d3',
 }
 
 parser = argparse.ArgumentParser(description='Plot susceptibility tensors α vs excitation energy')
@@ -31,7 +33,7 @@ parser.add_argument('--first-order-file',  type=str,
                     default='susceptibility_tensors_first_order.h5')
 parser.add_argument('--second-order-file', type=str,
                     default='susceptibility_tensors_second_order.h5',
-                    help='Required for flavor >= 2')
+                    help='Required for flavors 2–5')
 parser.add_argument('--freqs-file',        type=str, default='freqs.dat')
 parser.add_argument('--flavor',            type=int, default=0,
                     choices=list(FLAVOR_DESC.keys()))
@@ -44,7 +46,14 @@ flavor_label = FLAVOR_DESC[flavor]
 T            = args.temperature
 cart_dir     = ['x', 'y', 'z']
 
+# Derived flags
+has_first_order  = flavor in {0, 1, 4, 5}
+use_d2           = flavor == 0
+has_second_order = flavor in {2, 3, 4, 5}
+has_double       = flavor in {3, 5}
+
 freqs_rec_cm = np.loadtxt(args.freqs_file)
+Nmodes       = len(freqs_rec_cm)
 
 def is_valid_mode(imode):
     return not (freqs_rec_cm[imode] < 1e-2 and ignore_0_freq_modes)
@@ -52,33 +61,37 @@ def is_valid_mode(imode):
 # ---------------------------------------------------------------------------
 # Load tensors
 # ---------------------------------------------------------------------------
-print(f'Reading first-order susceptibilities from {args.first_order_file}')
-with h5py.File(args.first_order_file, 'r') as f:
-    excitation_energies_1st = f['excitation_energies'][:]
-    alpha_tensor_d2         = f['alpha_tensor_d2'][:]
-    alpha_tensor_d3         = f['alpha_tensor_d3'][:]
-
-alpha_tensor_first_order = alpha_tensor_d2 if flavor == 0 else alpha_tensor_d3
-Nmodes = alpha_tensor_first_order.shape[2]
+alpha_tensor_first_order = None
+excitation_energies_1st  = None
+if has_first_order:
+    print(f'Reading first-order susceptibilities from {args.first_order_file}')
+    with h5py.File(args.first_order_file, 'r') as f:
+        excitation_energies_1st = f['excitation_energies'][:]
+        alpha_tensor_d2         = f['alpha_tensor_d2'][:]
+        alpha_tensor_d3         = f['alpha_tensor_d3'][:]
+    alpha_tensor_first_order = alpha_tensor_d2 if use_d2 else alpha_tensor_d3
 
 excitation_energies_2nd   = None
 alpha_tensor_second_order = None
-if flavor >= 2:
+if has_second_order:
     print(f'Reading second-order susceptibilities from {args.second_order_file}')
     with h5py.File(args.second_order_file, 'r') as f:
         excitation_energies_2nd   = f['excitation_energies'][:]
         alpha_tensor_second_order = f['alpha_tensor_triple_resonance'][:]
-        if flavor == 3:
+        if has_double:
             alpha_tensor_double_res = f['alpha_tensor_double_resonance'][:]
-    if flavor == 3:
+    if has_double:
         for imode in range(Nmodes):
             alpha_tensor_second_order[:, :, imode, imode, :] += alpha_tensor_double_res[:, :, imode, :]
 
 # ---------------------------------------------------------------------------
 # Plot 1: |α¹[ialpha, ibeta, imode, :]| vs excitation energy, one fig per mode
 # ---------------------------------------------------------------------------
-print('Plotting first-order susceptibility tensors...')
-for imode in range(Nmodes):
+if has_first_order:
+    print('Plotting first-order susceptibility tensors...')
+else:
+    print('Skipping first-order plots (not included in this flavor).')
+for imode in range(Nmodes) if has_first_order else []:
     if not is_valid_mode(imode):
         print(f'  Skipping mode {imode+1} (acoustic)')
         continue
@@ -104,7 +117,7 @@ for imode in range(Nmodes):
 # ---------------------------------------------------------------------------
 # Plot 2: |α²[ialpha, ibeta, imode, jmode, :]| vs excitation energy, one fig per pair
 # ---------------------------------------------------------------------------
-if flavor >= 2:
+if has_second_order:
     print('Plotting second-order susceptibility tensors...')
     for imode in range(Nmodes):
         for jmode in range(Nmodes):
