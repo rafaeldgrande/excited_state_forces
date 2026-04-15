@@ -23,21 +23,21 @@ The polarizability derivative $\alpha^{\alpha\beta}_\nu(\Omega)$ has two contrib
 
 **d2 term** (diagonal):
 
-$$\alpha^{\alpha\beta,\text{d2}}_\nu(\Omega) = -\sum_{A} \frac{\langle 0 | r_\alpha | A \rangle \langle A | \partial H / \partial Q_\nu | A \rangle \langle A | r_\beta | 0 \rangle^*}{(\Omega - \Omega_A + i\gamma)(\Omega - \omega_\nu - \Omega_A + i\gamma)}$$
+$$\alpha^{\alpha\beta,\text{d2}}_\nu(\Omega) = -\sum_{A} \frac{\langle 0 | r_\alpha | A \rangle \langle A | \partial H / \partial Q_\nu | A \rangle \langle A | r_\beta | 0 \rangle}{(\Omega - \Omega_A + i\gamma)(\Omega - \omega_\nu - \Omega_A + i\gamma)}$$
 
 **d3 term** (off-diagonal, all $A, B$ pairs):
 
-$$\alpha^{\alpha\beta,\text{d3}}_\nu(\Omega) = -\sum_{A, B} \frac{\langle 0 | r_\alpha | A \rangle \langle A | \partial H / \partial Q_\nu | B \rangle \langle B | r_\beta | 0 \rangle^*}{(\Omega - \Omega_A + i\gamma)(\Omega - \omega_\nu - \Omega_B + i\gamma)}$$
+$$\alpha^{\alpha\beta,\text{d3}}_\nu(\Omega) = -\sum_{A, B} \frac{\langle 0 | r_\alpha | A \rangle \langle A | \partial H / \partial Q_\nu | B \rangle \langle B | r_\beta | 0 \rangle}{(\Omega - \Omega_A + i\gamma)(\Omega - \omega_\nu - \Omega_B + i\gamma)}$$
 
 ### 2nd Order Susceptibility Tensor
 
 **Triple resonance** (two 1st-order el-ph vertices, modes $\nu$ and $\nu'$):
 
-$$M^{\alpha\beta}_{\nu\nu'}(\Omega) = -\sum_{A,B,C} \frac{\langle 0 | r_\alpha | A \rangle \langle A | \partial H / \partial Q_\nu | B \rangle \langle B | \partial H / \partial Q_{\nu'} | C \rangle \langle C | r_\beta | 0 \rangle^*}{(\Omega - \Omega_A + i\gamma)(\Omega - \omega_\nu - \Omega_B + i\gamma)(\Omega - \omega_\nu - \omega_{\nu'} - \Omega_C + i\gamma)}$$
+$$M^{\alpha\beta}_{\nu\nu'}(\Omega) = -\sum_{A,B,C} \frac{\langle 0 | r_\alpha | A \rangle \langle A | \partial H / \partial Q_\nu | B \rangle \langle B | \partial H / \partial Q_{\nu'} | C \rangle \langle C | r_\beta | 0 \rangle}{(\Omega - \Omega_A + i\gamma)(\Omega - \omega_\nu - \Omega_B + i\gamma)(\Omega - \omega_\nu - \omega_{\nu'} - \Omega_C + i\gamma)}$$
 
 **Double resonance** (one 2nd-order el-ph vertex, same mode $\nu$ emitted twice):
 
-$$M^{\alpha\beta,(2)}_{\nu}(\Omega) = -\sum_{A,B} \frac{\langle 0 | r_\alpha | A \rangle \langle A | \partial^2 H / \partial Q_\nu^2 | B \rangle \langle B | r_\beta | 0 \rangle^*}{(\Omega - \Omega_A + i\gamma)(\Omega - 2\omega_\nu - \Omega_B + i\gamma)}$$
+$$M^{\alpha\beta,(2)}_{\nu}(\Omega) = -\sum_{A,B} \frac{\langle 0 | r_\alpha | A \rangle \langle A | \partial^2 H / \partial Q_\nu^2 | B \rangle \langle B | r_\beta | 0 \rangle}{(\Omega - \Omega_A + i\gamma)(\Omega - 2\omega_\nu - \Omega_B + i\gamma)}$$
 
 The double-resonance term contributes to the diagonal $\nu = \nu'$ element of $M^{\alpha\beta}_{\nu\nu'}$.
 
@@ -47,11 +47,11 @@ The intensity map as a function of laser energy $\Omega$ and Raman shift $\omega
 
 **1st order:**
 
-$$I^{(1)}_{\alpha\beta}(\Omega, \omega) = \sum_\nu \left| w_\nu \, \alpha^{\alpha\beta}_\nu(\Omega) \right|^2 L(\omega - \omega_\nu)$$
+$$I^{(1)}_{\alpha\beta}(\Omega, \omega) = \sum_\nu \left| w_\nu \ \alpha^{\alpha\beta}_\nu(\Omega) \right|^2 L(\omega - \omega_\nu)$$
 
 **2nd order:**
 
-$$I^{(2)}_{\alpha\beta}(\Omega, \omega) = \sum_{\nu,\nu'} \left| w_\nu \, w_{\nu'} \, M^{\alpha\beta}_{\nu\nu'}(\Omega) \right|^2 L(\omega - \omega_\nu - \omega_{\nu'})$$
+$$I^{(2)}_{\alpha\beta}(\Omega, \omega) = \sum_{\nu,\nu'} \left| w_\nu \ w_{\nu'} \ M^{\alpha\beta}_{\nu\nu'}(\Omega) \right|^2 L(\omega - \omega_\nu - \omega_{\nu'})$$
 
 The phonon weight factor $w_\nu$ includes Bose-Einstein statistics and zero-point motion:
 
