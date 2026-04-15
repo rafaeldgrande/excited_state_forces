@@ -13,9 +13,9 @@ Codes to calculate resonant Raman spectra based on excited state forces (exciton
 | $\Omega_S$ | Exciton energy |
 | $\omega_\nu$ | Phonon frequency of mode $\nu$ |
 | $\gamma$ | Lorentzian broadening |
-| $\langle 0 \| r_\alpha \| S \rangle$ | Optical transition dipole along direction $\alpha$ |
-| $\langle S \| \partial H / \partial Q_\nu \| S' \rangle$ | Exciton-phonon coupling matrix element |
-| $\langle S \| \partial^2 H / \partial Q_\nu^2 \| S' \rangle$ | 2nd-order exciton-phonon coupling |
+| $\langle 0 \| r_\alpha \| A \rangle$ | Optical transition dipole along direction $\alpha$ for exciton $A$ |
+| $\langle A \| \partial H / \partial Q_\nu \| B \rangle$ | Exciton-phonon coupling matrix element |
+| $\langle A \| \partial^2 H / \partial Q_\nu^2 \| B \rangle$ | 2nd-order exciton-phonon coupling |
 
 ### 1st Order Susceptibility Tensor
 
@@ -63,11 +63,11 @@ The unpolarized Raman invariant used for the powder-averaged intensity is $45\ve
 
 The first derivative is given by
 
-$$\langle A | \frac{\partial H^{\rm{BSE}}}{\partial Q_\nu} | B \rangle = \sum_{vc\mathbf{k}} A^{*}_{vc\mathbf{k}} B_{vc\mathbf{k}} (g^{\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
+$$\left\langle A | \frac{\partial H^{\rm{BSE}}}{\partial Q_\nu} | B \right\rangle = \sum_{vc\mathbf{k}} A^{*}_{vc\mathbf{k}} B_{vc\mathbf{k}} (g^{\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
 
 and the second derivative is given by
 
-$$\langle A | \frac{\partial^2 H^{\rm{BSE}}}{\partial Q_\nu^2} | B \rangle = \sum_{vc\mathbf{k}} A^{*}_{vc\mathbf{k}} B_{vc\mathbf{k}} (g^{(2)\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{(2)\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
+$$\left\langle A | \frac{\partial^2 H^{\rm{BSE}}}{\partial Q_\nu^2} | B \right\rangle = \sum_{vc\mathbf{k}} A^{*}_{vc\mathbf{k}} B_{vc\mathbf{k}} (g^{(2)\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{(2)\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
 
 where $g^{\nu}_{\mathbf{k}ij}$ is the electron-phonon coefficient at GW level:
 
