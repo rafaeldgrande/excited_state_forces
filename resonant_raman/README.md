@@ -69,7 +69,11 @@ and the second derivative is given by
 
 $$\langle A | \frac{\partial^2 H^{\rm{BSE}}}{\partial Q_\nu^2} | B \rangle = \sum_{vc\mathbf{k}} A^{*}_{vc\mathbf{k}} B_{vc\mathbf{k}} (g^{(2)\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{(2)\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
 
-where $g^{\nu}_{\mathbf{k}ij} = \langle \mathbf{k}i \vert \frac{\partial H^{\rm{QP}}}{\partial Q_\nu} \vert \mathbf{k}j \rangle$ is the electron-phonon coefficient at GW level, and $g^{(2)\nu}_{\mathbf{k}ij}$ is the second derivative of the quasiparticle Hamiltonian with respect to phonon mode $\nu$. The second derivative is computed by
+where $g^{\nu}_{\mathbf{k}ij}$ is the electron-phonon coefficient at GW level:
+
+$$g^{\nu}_{\mathbf{k}ij} = \left\langle \mathbf{k}i \left| \frac{\partial H^{\rm{QP}}}{\partial Q_\nu} \right| \mathbf{k}j \right\rangle$$
+
+and $g^{(2)\nu}_{\mathbf{k}ij}$ is the second-order el-ph coefficient. The second derivative is computed by
 
 $$
 g^{(2)\nu}_{\mathbf{k}ij} = 
