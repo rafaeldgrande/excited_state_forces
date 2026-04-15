@@ -57,7 +57,7 @@ The phonon weight factor $w_\nu$ includes Bose-Einstein statistics and zero-poin
 
 $$w_\nu = \sqrt{\frac{(n_\nu + 1)\hbar}{2\omega_\nu}}, \qquad n_\nu = \frac{1}{e^{\hbar\omega_\nu / k_B T} - 1}$$
 
-The unpolarized Raman invariant used for the powder-averaged intensity is $45|\bar{\alpha}|^2 + 7\gamma^2 + 5\delta^2$, where $\bar{\alpha}$ is the isotropic part of the tensor.
+The unpolarized Raman invariant used for the powder-averaged intensity is $45\vert\bar{\alpha}\vert^2 + 7\gamma^2 + 5\delta^2$, where $\bar{\alpha}$ is the isotropic part of the tensor.
 
 ### Exciton-phonon coupling
 
@@ -69,7 +69,7 @@ and the second derivative is given by
 
 $$\langle A | \frac{\partial^2 H^{\rm{BSE}}}{\partial Q_\nu^2} | B \rangle = \sum_{vc\mathbf{k}} A^{*}_{vc\mathbf{k}} B_{vc\mathbf{k}} (g^{(2)\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{(2)\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
 
-where $g^{\nu}_{\mathbf{k}ij} = \langle \mathbf{k}i | \frac{\partial H^{\rm{QP}}}{\partial Q_\nu} | \mathbf{k}j \rangle$ is the electron-phonon coefficient at GW level, and $g^{(2)\nu}_{\mathbf{k}ij}$ is the second derivative of the quasiparticle Hamiltonian with respect to phonon mode $\nu$. The second derivative is computed by
+where $g^{\nu}_{\mathbf{k}ij} = \langle \mathbf{k}i \vert \frac{\partial H^{\rm{QP}}}{\partial Q_\nu} \vert \mathbf{k}j \rangle$ is the electron-phonon coefficient at GW level, and $g^{(2)\nu}_{\mathbf{k}ij}$ is the second derivative of the quasiparticle Hamiltonian with respect to phonon mode $\nu$. The second derivative is computed by
 
 $$
 g^{(2)\nu}_{\mathbf{k}ij} = 
