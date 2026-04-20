@@ -4,12 +4,13 @@ Generate a self-contained interactive HTML viewer for resonant Raman maps.
 Reads  resonant_raman_data_flavor{0..5}.h5  and embeds all data into a
 single HTML file backed by Plotly.js (loaded from CDN).
 
-Left panel  — 2-D Raman map (click anywhere to set Omega_exc)
-Right panel — Raman spectrum at the selected Omega_exc
+Left panel   — 2-D Raman map (click anywhere to set both Omega_exc and Raman shift)
+Middle panel — Raman spectrum at the selected Omega_exc
+Right panel  — Excitation profile (intensity vs Omega_exc) at the selected Raman shift
 
 Controls:
   Flavor dropdown  |  Polarization dropdown
-  Omega_exc input  |  Linear / Log map toggle
+  Omega_exc input  |  Raman shift input  |  Linear / Log toggles for each panel
 
 Usage:
   python interactive_vis_resonant_map.py
@@ -137,6 +138,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     <input id="eexc-input" type="number" step="0.001" style="width:90px">
   </div>
   <div class="ctrl-group">
+    <label>Raman shift (cm&#8315;&#185;) &nbsp;<small style="font-weight:normal">(or click map)</small></label>
+    <input id="rshift-input" type="number" step="1" style="width:100px">
+  </div>
+  <div class="ctrl-group">
     <label>Map scale</label>
     <div class="radio-row">
       <label><input type="radio" name="scale" value="linear" checked> Linear</label>
@@ -150,11 +155,19 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       <label><input type="radio" name="spec-scale" value="log"> Log</label>
     </div>
   </div>
+  <div class="ctrl-group">
+    <label>Excitation profile scale</label>
+    <div class="radio-row">
+      <label><input type="radio" name="exc-scale" value="linear" checked> Linear</label>
+      <label><input type="radio" name="exc-scale" value="log"> Log</label>
+    </div>
+  </div>
 </div>
 
 <div class="plots">
   <div class="plot" id="map-div"></div>
   <div class="plot" id="spec-div"></div>
+  <div class="plot" id="exc-div"></div>
 </div>
 
 <script>
@@ -205,6 +218,9 @@ function isLog()   {
 function isLogSpec() {
   return document.querySelector('input[name="spec-scale"]:checked').value === 'log';
 }
+function isLogExc() {
+  return document.querySelector('input[name="exc-scale"]:checked').value === 'log';
+}
 
 function applyLog(z) {
   return z.map(function(row) {
@@ -224,9 +240,15 @@ function nearestIdx(arr, val) {
 function eexcVal() {
   return parseFloat(document.getElementById('eexc-input').value);
 }
-
 function setEexcInput(val) {
   document.getElementById('eexc-input').value = val.toFixed(4);
+}
+
+function rshiftVal() {
+  return parseFloat(document.getElementById('rshift-input').value);
+}
+function setRshiftInput(val) {
+  document.getElementById('rshift-input').value = val.toFixed(1);
 }
 
 // ── figure builders ───────────────────────────────────────────────────────────
@@ -261,10 +283,12 @@ function buildMapTrace() {
   return [trace];
 }
 
-function buildMapLayout(eexc) {
+function buildMapLayout(eexc, rshift) {
   const d  = curData();
   const x0 = d.freq_axis_cm[0];
   const x1 = d.freq_axis_cm[d.freq_axis_cm.length - 1];
+  const y0 = d.excitation_energies[0];
+  const y1 = d.excitation_energies[d.excitation_energies.length - 1];
   return {
     title: {
       text: 'Raman Map \u2014 ' + curPol()
@@ -274,11 +298,20 @@ function buildMapLayout(eexc) {
     },
     xaxis: { title: '\u03c9<sub>ph</sub> (cm\u207b\u00b9)' },
     yaxis: { title: '\u03a9<sub>exc</sub> (eV)' },
-    shapes: [{
-      type: 'line',
-      x0: x0, x1: x1, y0: eexc, y1: eexc,
-      line: { color: 'red', width: 1.5, dash: 'dash' },
-    }],
+    shapes: [
+      {
+        // horizontal line — fixed excitation energy (red)
+        type: 'line',
+        x0: x0, x1: x1, y0: eexc, y1: eexc,
+        line: { color: 'red', width: 1.5, dash: 'dash' },
+      },
+      {
+        // vertical line — fixed Raman shift (orange)
+        type: 'line',
+        x0: rshift, x1: rshift, y0: y0, y1: y1,
+        line: { color: '#ff7f0e', width: 1.5, dash: 'dash' },
+      },
+    ],
     margin: { l: 60, r: 10, t: 55, b: 55 },
   };
 }
@@ -295,7 +328,7 @@ function buildSpectrumTrace(iE) {
   }];
 }
 
-function buildSpectrumLayout(eexc_actual) {
+function buildSpectrumLayout(eexc_actual, rshift) {
   const logSpec = isLogSpec();
   return {
     title: {
@@ -308,53 +341,123 @@ function buildSpectrumLayout(eexc_actual) {
       title: logSpec ? 'log\u2081\u2080(I)' : 'Raman Intensity (a.u.)',
       type:  logSpec ? 'log' : 'linear',
     },
+    // vertical marker at the pinned Raman shift (orange, matches map crosshair)
+    shapes: [{
+      type: 'line',
+      x0: rshift, x1: rshift, y0: 0, y1: 1, yref: 'paper',
+      line: { color: '#ff7f0e', width: 1.5, dash: 'dash' },
+    }],
+    margin: { l: 65, r: 10, t: 55, b: 55 },
+  };
+}
+
+function buildExcProfileTrace(iPh) {
+  const d   = curData();
+  const map = d.maps[curPol()];
+  // Extract the column at index iPh across all excitation energies
+  const y = map.map(function(row) { return row[iPh]; });
+  return [{
+    type: 'scatter',
+    x:    d.excitation_energies,
+    y:    y,
+    mode: 'lines',
+    line: { color: '#d62728', width: 1.5 },
+    hovertemplate: '\u03a9<sub>exc</sub>: %{x:.4f} eV<br>I: %{y:.3e}<extra></extra>',
+  }];
+}
+
+function buildExcProfileLayout(ph_actual, eexc) {
+  const logExc = isLogExc();
+  return {
+    title: {
+      text: 'Excitation Profile \u2014 ' + curPol()
+          + ' \u2014 \u03c9 = ' + ph_actual.toFixed(1) + ' cm\u207b\u00b9',
+      font: { size: 13 },
+    },
+    xaxis: { title: '\u03a9<sub>exc</sub> (eV)' },
+    yaxis: {
+      title: logExc ? 'log\u2081\u2080(I)' : 'Raman Intensity (a.u.)',
+      type:  logExc ? 'log' : 'linear',
+    },
+    // vertical marker at the current Eexc (red, matches map crosshair)
+    shapes: [{
+      type: 'line',
+      x0: eexc, x1: eexc, y0: 0, y1: 1, yref: 'paper',
+      line: { color: 'red', width: 1.5, dash: 'dash' },
+    }],
     margin: { l: 65, r: 10, t: 55, b: 55 },
   };
 }
 
 // ── update functions ──────────────────────────────────────────────────────────
 function updateMap() {
-  const eexc = isNaN(eexcVal()) ? curData().excitation_energies[0] : eexcVal();
-  return Plotly.react('map-div', buildMapTrace(), buildMapLayout(eexc));
+  const d      = curData();
+  const eexc   = isNaN(eexcVal())   ? d.excitation_energies[0] : eexcVal();
+  const rshift = isNaN(rshiftVal()) ? d.freq_axis_cm[0]        : rshiftVal();
+  return Plotly.react('map-div', buildMapTrace(), buildMapLayout(eexc, rshift));
 }
 
 function updateSpectrum() {
-  const d    = curData();
-  const eexc = isNaN(eexcVal()) ? d.excitation_energies[0] : eexcVal();
-  const iE   = nearestIdx(d.excitation_energies, eexc);
+  const d      = curData();
+  const eexc   = isNaN(eexcVal())   ? d.excitation_energies[0] : eexcVal();
+  const rshift = isNaN(rshiftVal()) ? d.freq_axis_cm[0]        : rshiftVal();
+  const iE     = nearestIdx(d.excitation_energies, eexc);
   return Plotly.react('spec-div',
                       buildSpectrumTrace(iE),
-                      buildSpectrumLayout(d.excitation_energies[iE]));
+                      buildSpectrumLayout(d.excitation_energies[iE], rshift));
 }
 
-function updateAll() { updateMap(); updateSpectrum(); }
+function updateExcProfile() {
+  const d      = curData();
+  const eexc   = isNaN(eexcVal())   ? d.excitation_energies[0] : eexcVal();
+  const rshift = isNaN(rshiftVal()) ? d.freq_axis_cm[0]        : rshiftVal();
+  const iPh    = nearestIdx(d.freq_axis_cm, rshift);
+  return Plotly.react('exc-div',
+                      buildExcProfileTrace(iPh),
+                      buildExcProfileLayout(d.freq_axis_cm[iPh], eexc));
+}
+
+function updateAll() { updateMap(); updateSpectrum(); updateExcProfile(); }
 
 // ── event wiring ──────────────────────────────────────────────────────────────
 flavorSel.addEventListener('change', function() {
-  // reset Eexc to mid-point of new flavor's energy grid
+  // reset both cursors to mid-point of the new flavor's grids
   const d = curData();
   setEexcInput(d.excitation_energies[Math.floor(d.excitation_energies.length / 2)]);
+  setRshiftInput(d.freq_axis_cm[Math.floor(d.freq_axis_cm.length / 2)]);
   updateAll();
 });
 polSel.addEventListener('change', updateAll);
-document.getElementById('eexc-input').addEventListener('change', updateAll);
+
+document.getElementById('eexc-input').addEventListener('change', function() {
+  updateMap(); updateSpectrum(); updateExcProfile();
+});
+document.getElementById('rshift-input').addEventListener('change', function() {
+  updateMap(); updateSpectrum(); updateExcProfile();
+});
+
 document.querySelectorAll('input[name="scale"]')
         .forEach(function(r) { r.addEventListener('change', updateMap); });
 document.querySelectorAll('input[name="spec-scale"]')
         .forEach(function(r) { r.addEventListener('change', updateSpectrum); });
+document.querySelectorAll('input[name="exc-scale"]')
+        .forEach(function(r) { r.addEventListener('change', updateExcProfile); });
 
 // ── initialise ────────────────────────────────────────────────────────────────
 (async function() {
   const d0 = curData();
   setEexcInput(d0.excitation_energies[Math.floor(d0.excitation_energies.length / 2)]);
+  setRshiftInput(d0.freq_axis_cm[Math.floor(d0.freq_axis_cm.length / 2)]);
 
   // First render — must await so Plotly attaches .on() to the element
   await updateMap();
   await updateSpectrum();
+  await updateExcProfile();
 
-  // Map click → set Eexc → refresh both panels
+  // Map click → set BOTH Eexc (y) and Raman shift (x) → refresh all panels
   document.getElementById('map-div').on('plotly_click', function(evtData) {
     setEexcInput(evtData.points[0].y);
+    setRshiftInput(evtData.points[0].x);
     updateAll();
   });
 })();
