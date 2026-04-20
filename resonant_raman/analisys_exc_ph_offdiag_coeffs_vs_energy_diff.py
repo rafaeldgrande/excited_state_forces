@@ -34,23 +34,32 @@ for imode in range(Nmodes):
     print(f'Plotting data for mode {imode+1} of {Nmodes}')
     
     f, axs = plt.subplots(ncols=2, nrows=2, figsize=(12, 10), sharex=False, sharey=False)
-    f.suptitle(f'Phonon mode {imode+1}', fontsize=12)
+    f.suptitle(f'Phonon mode {imode+1}', fontsize=20)
 
-    im00 = axs[0,0].imshow(np.abs(ibl_exc_ph[imode]), origin='lower', aspect='auto')
-    f.colorbar(im00, ax=axs[0,0])
-    axs[0,0].set_title('IBL')
+    im00 = axs[0,0].imshow(np.abs(ibl_exc_ph[imode]), origin='lower', aspect='equal')
+    cbar00 = f.colorbar(im00, ax=axs[0,0])
+    # cbar00.set_label(r'$\langle A | dH/dR_{\nu} | A \rangle (\rm{eV/\AA})$', fontsize=20)
+    axs[0,0].set_title('RPA diag')
+    axs[0,0].set_ylabel('Exciton index')
+    axs[0,0].set_xlabel('Exciton index')
 
-    im01 = axs[0,1].imshow(np.abs(dgs_exc_ph[imode]), origin='lower', aspect='auto')
-    f.colorbar(im01, ax=axs[0,1])
-    axs[0,1].set_title('DGS')
+    im01 = axs[0,1].imshow(np.abs(dgs_exc_ph[imode]), origin='lower', aspect='equal')
+    cbar01 = f.colorbar(im01, ax=axs[0,1])
+    # cbar01.set_label(r'$\langle A | dH/dR_{\nu} | A \rangle (\rm{eV/\AA})$', fontsize=20)
+    axs[0,1].set_title('RPA off-diag')
+    axs[0,1].set_ylabel('Exciton index')
+    axs[0,1].set_xlabel('Exciton index')
+
 
     axs[1,0].scatter(np.abs(exc_energies_diff.flatten()), np.abs(ibl_exc_ph[imode].flatten()), s=10, alpha=0.5)
     axs[1,0].set_xlabel(r'$\Delta \Omega$ (eV)')
-    axs[1,0].set_ylabel(r'IBL (eV/$\rm{\AA}$)')
+    axs[1,0].set_ylabel(r'$\langle A | dH/dR_{\nu} | A \rangle \ (\rm{eV/\AA})$', fontsize=22)
+    # axs[1,0].set_box_aspect(1)
 
     axs[1,1].scatter(np.abs(exc_energies_diff.flatten()), np.abs(dgs_exc_ph[imode].flatten()), s=10, alpha=0.5)
     axs[1,1].set_xlabel(r'$\Delta \Omega$ (eV)')
-    axs[1,1].set_ylabel(r'DGS (eV/$\rm{\AA}$)')
+    axs[1,1].set_ylabel(r'$\langle A | dH/dR_{\nu} | A \rangle \ (\rm{eV/\AA})$', fontsize=22)
+    # axs[1,1].set_box_aspect(1)
 
     # f.tight_layout()
     # pdf.savefig(f)
