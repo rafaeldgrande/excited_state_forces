@@ -140,6 +140,9 @@ parser.add_argument('--vectorized_flavor', type=int, default=2, choices=[0, 1, 2
 parser.add_argument('--test_functions', action='store_true', help='Run all three implementations on Nexc=10 and check they agree')
 parser.add_argument('--freqs_file', default='freqs.dat', help='File containing phonon frequencies in cm^-1')
 parser.add_argument('--limit_Nexc', type=int, default=None, help='Limit number of excitons to load (for testing)')
+parser.add_argument('--write_dummy', action='store_true',
+                    help='Also compute and save dummy tensors (all numerators = 1, joint DOS of transitions) '
+                         'to susceptibility_tensors_first_order_dummy.h5')
 args = parser.parse_args()
 
 exc_ph_file = args.exc_ph_file
@@ -168,6 +171,7 @@ print(f'  gamma             : {gamma} eV')
 print(f'  vectorized_flavor : {vectorized_flavor} ({flavor_desc[vectorized_flavor]})')
 print(f'  test_functions    : {test_functions}')
 print(f'  limit_Nexc        : {args.limit_Nexc} (None means no limit)')
+print(f'  write_dummy       : {args.write_dummy}')
 print('---------------\n')
 
 rec_cm_to_eV = 1.239841984e-4  # Conversion factor from cm^-1 to eV
@@ -282,3 +286,37 @@ with h5py.File(output_h5_file, 'w') as hf:
     hf.create_dataset('excitation_energies', data=Ex)
     hf.create_dataset('alpha_tensor_d2', data=alpha_tensor_d2) # shape (3, 3, Nmodes, Ndata)
     hf.create_dataset('alpha_tensor_d3', data=alpha_tensor_d3) # shape (3, 3, Nmodes, Ndata)
+
+# --- Dummy susceptibility tensors (numerator = 1, joint DOS of transitions) ---
+if args.write_dummy:
+    print('\nComputing dummy susceptibility tensors (numerator = 1)...')
+    t_dummy = time.perf_counter()
+
+    # D1[s, f] = Ex[f] - E_s + iγ  — same denominators as the main computation
+    D1_mat = Ex[np.newaxis, :] - exc_energies[:, np.newaxis] + 1j * gamma  # (Nexc, Nfreq)
+    inv_D1 = 1.0 / D1_mat                                                   # (Nexc, Nfreq)
+    G0     = inv_D1.sum(axis=0)                                             # (Nfreq,)
+
+    # inv_D2_all[m, s, f] = 1 / (D1[s,f] - ω_m)          (Nmodes, Nexc, Nfreq)
+    inv_D2_all = 1.0 / (D1_mat[np.newaxis] - freqs_eV[:, np.newaxis, np.newaxis])
+
+    # d2 dummy: -Σ_s  1/D1[s,f] · 1/D2_m[s,f]            (Nmodes, Nfreq)
+    #   Both propagators share the same exciton index — does NOT factorise.
+    d2_dummy = -(inv_D1[np.newaxis] * inv_D2_all).sum(axis=1)
+
+    # d3 dummy: -G(E) · G(E - ω_m)                        (Nmodes, Nfreq)
+    #   Independent sums over A and B — fully factorises into Green's functions.
+    G_nu     = inv_D2_all.sum(axis=1)          # (Nmodes, Nfreq)
+    d3_dummy = -G0[np.newaxis] * G_nu          # (Nmodes, Nfreq)
+
+    # Broadcast to (3, 3, Nmodes, Nfreq) — polarisation-independent by construction
+    alpha_dummy_d2 = np.tile(d2_dummy[np.newaxis, np.newaxis], (3, 3, 1, 1))
+    alpha_dummy_d3 = np.tile(d3_dummy[np.newaxis, np.newaxis], (3, 3, 1, 1))
+
+    dummy_h5_file = 'susceptibility_tensors_first_order_dummy.h5'
+    with h5py.File(dummy_h5_file, 'w') as hf:
+        hf.create_dataset('excitation_energies', data=Ex)
+        hf.create_dataset('alpha_tensor_d2',     data=alpha_dummy_d2)  # (3, 3, Nmodes, Nfreq)
+        hf.create_dataset('alpha_tensor_d3',     data=alpha_dummy_d3)  # (3, 3, Nmodes, Nfreq)
+    print(f'Saved dummy susceptibility tensors to {dummy_h5_file}  '
+          f'({time.perf_counter() - t_dummy:.3f} s)')

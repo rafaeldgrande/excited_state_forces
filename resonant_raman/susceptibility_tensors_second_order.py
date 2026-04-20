@@ -330,6 +330,9 @@ parser.add_argument('--nworkers', type=int, default=None,
 parser.add_argument('--test_functions', action='store_true', help='Run all three implementations on Nexc=10 and check they agree')
 parser.add_argument('--freqs_file', default='freqs.dat', help='File containing phonon frequencies in cm^-1')
 parser.add_argument('--limit_Nexc', type=int, default=None, help='Limit number of excitons to load (for testing)')
+parser.add_argument('--write_dummy', action='store_true',
+                    help='Also compute and save dummy tensors (all numerators = 1, joint DOS of transitions) '
+                         'to susceptibility_tensors_second_order_dummy.h5')
 args = parser.parse_args()
 
 first_order_exc_ph_file = args.first_order_exc_ph_file
@@ -362,6 +365,7 @@ print(f'  vectorized_flavor : {vectorized_flavor} ({flavor_desc[vectorized_flavo
 print(f'  nworkers          : {args.nworkers} (double-resonance parallel processes; None=serial, -1=all CPUs)')
 print(f'  test_functions    : {test_functions}')
 print(f'  limit_Nexc        : {args.limit_Nexc} (None means no limit)')
+print(f'  write_dummy       : {args.write_dummy}')
 print('---------------\n')
 
 rec_cm_to_eV = 1.239841984e-4  # Conversion factor from cm^-1 to eV
@@ -369,8 +373,8 @@ freqs_rec_cm = np.loadtxt(freqs_file)  # Load phonon frequencies in cm^-1
 freqs_eV = freqs_rec_cm * rec_cm_to_eV  # Convert frequencies. shape (Nmodes,)
 
 # reading file produced by assemble_exciton_phonon_coeffs.py
-print(f'Reading data from {exc_ph_file}')
-with h5py.File(exc_ph_file, 'r') as hf:
+print(f'Reading data from {first_order_exc_ph_file}')
+with h5py.File(first_order_exc_ph_file, 'r') as hf:
     # rpa_diag_data = hf['rpa_diag'][:]  # shape: (Nmodes, Nexciton, Nexciton)
     exc_ph = hf['rpa_offdiag'][:]  # shape: (Nmodes, Nexciton, Nexciton)
 print('Data read successfully.')
@@ -502,3 +506,48 @@ with h5py.File(output_h5_file, 'w') as hf:
     hf.create_dataset('alpha_tensor_triple_resonance', data=alpha_tensor_triple_res)  # (3, 3, Nmodes, Nmodes, Nfreq)
     hf.create_dataset('alpha_tensor_double_resonance', data=alpha_tensor_double_res)  # (3, 3, Nmodes, Nfreq)
 print(f'Saved susceptibility tensors to {output_h5_file}')
+
+# --- Dummy susceptibility tensors (numerator = 1, joint DOS of transitions) ---
+if args.write_dummy:
+    print('\nComputing dummy susceptibility tensors (numerator = 1)...')
+    t_dummy = time.perf_counter()
+
+    # D1[s, f] = Ex[f] - E_s + iγ  — same denominators as the main computation
+    D1_mat = Ex[np.newaxis, :] - exc_energies[:, np.newaxis] + 1j * gamma  # (Nexc, Nfreq)
+    inv_D1 = 1.0 / D1_mat                                                   # (Nexc, Nfreq)
+    G0     = inv_D1.sum(axis=0)                                             # (Nfreq,)
+
+    # G_nu[m, f] = Σ_s 1/(D1[s,f] - ω_m)                 (Nmodes, Nfreq)
+    G_nu = (1.0 / (D1_mat[np.newaxis]
+                   - freqs_eV[:, np.newaxis, np.newaxis])).sum(axis=1)
+
+    # --- Triple resonance dummy: -G(E) · G(E-ω_i) · G(E-ω_i-ω_j) ---
+    #   All three sums over excitons A, B, C are independent → fully factorises.
+    #   Loop over imode to keep peak allocation at (Nmodes, Nexc, Nfreq) per step.
+    print('  Triple resonance dummy...')
+    M_triple_dummy = np.zeros((Nmodes, Nmodes, Nfreq), dtype=complex)
+    for imode in range(Nmodes):
+        # G_ij[j, f] = Σ_s 1/(D1[s,f] - ω_i - ω_j)      (Nmodes, Nfreq)
+        G_ij = (1.0 / (D1_mat[np.newaxis]
+                        - (freqs_eV[imode] + freqs_eV[:, np.newaxis, np.newaxis])
+                       )).sum(axis=1)
+        M_triple_dummy[imode] = -G0[np.newaxis] * G_nu[imode][np.newaxis] * G_ij
+
+    # --- Double resonance dummy: -G(E) · G(E - 2ω_m) ---
+    #   Independent sums over A and B → fully factorises.
+    print('  Double resonance dummy...')
+    G_2nu = (1.0 / (D1_mat[np.newaxis]
+                    - 2.0 * freqs_eV[:, np.newaxis, np.newaxis])).sum(axis=1)  # (Nmodes, Nfreq)
+    M_double_dummy = -G0[np.newaxis] * G_2nu                                    # (Nmodes, Nfreq)
+
+    # Broadcast to (3, 3, ...) — polarisation-independent by construction
+    alpha_triple_dummy = np.tile(M_triple_dummy[np.newaxis, np.newaxis], (3, 3, 1, 1, 1))
+    alpha_double_dummy = np.tile(M_double_dummy[np.newaxis, np.newaxis], (3, 3, 1, 1))
+
+    dummy_h5_file = 'susceptibility_tensors_second_order_dummy.h5'
+    with h5py.File(dummy_h5_file, 'w') as hf:
+        hf.create_dataset('excitation_energies',           data=Ex)
+        hf.create_dataset('alpha_tensor_triple_resonance', data=alpha_triple_dummy)  # (3, 3, Nmodes, Nmodes, Nfreq)
+        hf.create_dataset('alpha_tensor_double_resonance', data=alpha_double_dummy)  # (3, 3, Nmodes, Nfreq)
+    print(f'Saved dummy susceptibility tensors to {dummy_h5_file}  '
+          f'({time.perf_counter() - t_dummy:.3f} s)')
