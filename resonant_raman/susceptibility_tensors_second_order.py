@@ -6,6 +6,8 @@ import numpy as np
 import h5py
 import multiprocessing as mp
 
+from common import _gb, rec_cm_to_eV
+
 # ---------------------------------------------------------------------------
 # Module-level state shared with fork-based worker processes (COW, no copy)
 # ---------------------------------------------------------------------------
@@ -21,13 +23,6 @@ def _dbl_worker(imode):
     pb_inv_D2 = _mp_pb_conj[:, np.newaxis] * inv_D2           # (Nexc, Nfreq)
     T         = _mp_so_exc_ph[imode] @ pb_inv_D2              # (Nexc, Nfreq)
     return imode, -(_mp_pa_inv_D1 * T).sum(axis=0)            # (Nfreq,)
-
-def _gb(*shapes_and_dtypes):
-    """Sum of array sizes in GB. Args: alternating (shape_tuple, dtype) pairs."""
-    total = 0
-    for shape, dtype in zip(shapes_and_dtypes[::2], shapes_and_dtypes[1::2]):
-        total += np.prod(shape) * np.dtype(dtype).itemsize
-    return total / 1024**3
 
 def calculate_tensor_not_vectorized_triple_resonance(ialpha, ibeta):
     pa = pos_operator_list[ialpha]
@@ -368,7 +363,6 @@ print(f'  limit_Nexc        : {args.limit_Nexc} (None means no limit)')
 print(f'  write_dummy       : {args.write_dummy}')
 print('---------------\n')
 
-rec_cm_to_eV = 1.239841984e-4  # Conversion factor from cm^-1 to eV
 freqs_rec_cm = np.loadtxt(freqs_file)  # Load phonon frequencies in cm^-1
 freqs_eV = freqs_rec_cm * rec_cm_to_eV  # Convert frequencies. shape (Nmodes,)
 

@@ -5,24 +5,11 @@ import h5py
 import argparse
 import matplotlib.pyplot as plt
 
+from common import (k_B, rec_cm_to_eV, hbar, FLAVOR_DESC,
+                    ignore_0_freq_modes, _downsample_idx, unpolarized_invariant)
+
 config_dir = Path(__file__).parent.parent / 'presentation.mplstyle'
 plt.style.use(config_dir)
-
-ignore_0_freq_modes = True
-
-# constants
-k_B          = 8.617333262145e-5   # Boltzmann constant in eV/K
-rec_cm_to_eV = 1.239841984e-4      # cm^-1 to eV
-hbar         = 6.582119569e-16     # reduced Planck constant in eV*s
-
-FLAVOR_DESC = {
-    0: 'First-order d2 only',
-    1: 'First-order d3 only',
-    2: 'Second-order triple resonance only',
-    3: 'Second-order triple + double resonance',
-    4: 'Second-order triple resonance + first-order d3',
-    5: 'Second-order triple + double resonance + first-order d3',
-}
 
 parser = argparse.ArgumentParser(description='Compute resonant Raman intensity maps')
 parser.add_argument('--temperature',       type=float, default=300,
@@ -110,10 +97,6 @@ if has_second_order:
 # ---------------------------------------------------------------------------
 # Optional down-sampling of the excitation energy axis
 # ---------------------------------------------------------------------------
-def _downsample_idx(n_full, n_target):
-    """Return indices for uniform down-sampling from n_full to n_target points."""
-    return np.round(np.linspace(0, n_full - 1, n_target)).astype(int)
-
 if nfreq_exc_target is not None:
     if has_second_order:
         n2 = len(excitation_energies_2nd)
@@ -145,27 +128,6 @@ phonon_weight = np.sqrt((bose_occ + 1) * hbar / (2 * safe_freqs_eV))    # (Nmode
 
 def is_valid_mode(imode):
     return not (freqs_rec_cm[imode] < 1e-2 and ignore_0_freq_modes)
-
-def unpolarized_invariant(alpha_ab):
-    """
-    Compute the unpolarized Raman invariant 45|ᾱ|² + 7γ² + 5δ² for a single
-    excitation-energy slice of the susceptibility tensor.
-
-    alpha_ab : (3, 3, Nfreq) complex array  — the weighted tensor for one mode/pair
-    Returns  : (Nfreq,) real array
-    """
-    a = alpha_ab  # shorthand
-    alpha_bar = (a[0,0] + a[1,1] + a[2,2]) / 3.0
-    gamma2 = (0.5 * (np.abs(a[0,0] - a[1,1])**2 +
-                     np.abs(a[1,1] - a[2,2])**2 +
-                     np.abs(a[2,2] - a[0,0])**2) +
-              3/4 * (np.abs(a[0,1] + a[1,0])**2 +
-                     np.abs(a[0,2] + a[2,0])**2 +
-                     np.abs(a[1,2] + a[2,1])**2))
-    delta2 = 3/4 * (np.abs(a[0,1] - a[1,0])**2 +
-                    np.abs(a[0,2] - a[2,0])**2 +
-                    np.abs(a[1,2] - a[2,1])**2)
-    return 45 * np.abs(alpha_bar)**2 + 7 * gamma2 + 5 * delta2
 
 # ---------------------------------------------------------------------------
 # Build phonon frequency axis
@@ -281,37 +243,19 @@ for ialpha in range(3):
 # ---------------------------------------------------------------------------
 print('  unpolarized')
 
-def unpolarized_invariant_batch(a):
-    """
-    Vectorised unpolarized Raman invariant 45|ᾱ|² + 7γ² + 5δ².
-    a : (3, 3, N, Nfreq) complex  — N = Nmodes or Npairs, Nfreq = excitation pts
-    Returns : (N, Nfreq) real
-    """
-    alpha_bar = (a[0,0] + a[1,1] + a[2,2]) / 3.0
-    gamma2 = (0.5 * (np.abs(a[0,0]-a[1,1])**2 +
-                     np.abs(a[1,1]-a[2,2])**2 +
-                     np.abs(a[2,2]-a[0,0])**2) +
-              3/4 * (np.abs(a[0,1]+a[1,0])**2 +
-                     np.abs(a[0,2]+a[2,0])**2 +
-                     np.abs(a[1,2]+a[2,1])**2))
-    delta2 = 3/4 * (np.abs(a[0,1]-a[1,0])**2 +
-                    np.abs(a[0,2]-a[2,0])**2 +
-                    np.abs(a[1,2]-a[2,1])**2)
-    return 45*np.abs(alpha_bar)**2 + 7*gamma2 + 5*delta2
-
 if has_first_order:
     # alpha_w: (3, 3, Nvalid, Nfreq) with zero-padding
     alpha_w = np.zeros((3, 3, valid_modes.sum(), Nfreq), dtype=complex)
     alpha_w[:, :, :, :Nfreq_1st] = (phonon_weight[np.newaxis, np.newaxis, valid_modes, np.newaxis]
                                      * alpha_tensor_first_order[:, :, valid_modes, :])
-    int_1st_u = unpolarized_invariant_batch(alpha_w)           # (Nvalid, Nfreq)
+    int_1st_u = unpolarized_invariant(alpha_w)           # (Nvalid, Nfreq)
     raman_map_unpol += int_1st_u.T @ lor_1st                   # (Nfreq, Nfreq_ph)
 
 if has_second_order:
     # alpha_w: (3, 3, Npairs_v, Nfreq)
     alpha_w = (w_pairs_v[np.newaxis, np.newaxis, :, np.newaxis]
                * alpha_tensor_second_order.reshape(3, 3, Nmodes**2, Nfreq)[:, :, valid_pairs, :])
-    int_2nd_u = unpolarized_invariant_batch(alpha_w)           # (Npairs_v, Nfreq)
+    int_2nd_u = unpolarized_invariant(alpha_w)           # (Npairs_v, Nfreq)
     raman_map_unpol += int_2nd_u.T @ lor_2nd                   # (Nfreq, Nfreq_ph)
 
 plot_data  = np.log(np.maximum(raman_map_unpol, 1e-4)) if plot_map_log_scale else raman_map_unpol

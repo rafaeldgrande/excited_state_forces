@@ -1,10 +1,7 @@
 
-
 import numpy as np
 
-TOL_ZERO = 1e-6  # threshold below which states are considered degenerate
-ry2eV = 13.605693122994  # conversion factor from Rydberg to eV
-eV2ry = 1.0 / ry2eV
+from common import TOL_ZERO, ry2eV, eV2ry
 
 def compute_second_order_elph(elph, E, Displacements):
     """

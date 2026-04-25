@@ -24,15 +24,7 @@ from pathlib import Path
 import numpy as np
 import h5py
 
-# ── constants (must match resonant_raman.py) ──────────────────────────────────
-FLAVOR_DESC = {
-    0: 'First-order d2 only',
-    1: 'First-order d3 only',
-    2: 'Second-order triple resonance only',
-    3: 'Second-order triple + double resonance',
-    4: 'Second-order triple resonance + first-order d3',
-    5: 'Second-order triple + double resonance + first-order d3',
-}
+from common import FLAVOR_DESC
 CART       = ['x', 'y', 'z']
 POL_LABELS = ['unpolarized'] + [a + b for a in CART for b in CART]
 

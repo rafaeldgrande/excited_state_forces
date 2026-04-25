@@ -14,24 +14,11 @@ import h5py
 import argparse
 import matplotlib.pyplot as plt
 
+from common import (k_B, rec_cm_to_eV, hbar, FLAVOR_DESC,
+                    ignore_0_freq_modes, unpolarized_invariant)
+
 config_dir = Path(__file__).parent.parent / 'presentation.mplstyle'
 plt.style.use(config_dir)
-
-ignore_0_freq_modes = True
-
-# constants
-k_B          = 8.617333262145e-5   # eV/K
-rec_cm_to_eV = 1.239841984e-4      # cm^-1 to eV
-hbar         = 6.582119569e-16     # eV*s
-
-FLAVOR_DESC = {
-    0: 'First-order d2 only',
-    1: 'First-order d3 only',
-    2: 'Second-order triple resonance only',
-    3: 'Second-order triple + double resonance',
-    4: 'Second-order triple resonance + first-order d3',
-    5: 'Second-order triple + double resonance + first-order d3',
-}
 
 parser = argparse.ArgumentParser(
     description='Plot Raman spectra vs Raman shift at fixed excitation energies')
@@ -115,18 +102,6 @@ phonon_weight = np.sqrt((bose_occ + 1) * hbar / (2 * safe_freqs_eV))   # (Nmodes
 
 def is_valid_mode(im):
     return not (freqs_rec_cm[im] < 1e-2 and ignore_0_freq_modes)
-
-def unpolarized_invariant(alpha_ab):
-    """
-    alpha_ab : (3, 3) complex — weighted susceptibility tensor at a single Eexc
-    Returns  : real scalar — 45|ᾱ|² + 7γ² + 5δ²
-    """
-    a = alpha_ab
-    abar  = (a[0,0] + a[1,1] + a[2,2]) / 3.0
-    gamma2 = (0.5 * (np.abs(a[0,0]-a[1,1])**2 + np.abs(a[1,1]-a[2,2])**2 + np.abs(a[2,2]-a[0,0])**2) +
-              3/4 * (np.abs(a[0,1]+a[1,0])**2 + np.abs(a[0,2]+a[2,0])**2 + np.abs(a[1,2]+a[2,1])**2))
-    delta2 = 3/4 * (np.abs(a[0,1]-a[1,0])**2 + np.abs(a[0,2]-a[2,0])**2 + np.abs(a[1,2]-a[2,1])**2)
-    return float(45*np.abs(abar)**2 + 7*gamma2 + 5*delta2)
 
 # ---------------------------------------------------------------------------
 # Raman shift axis

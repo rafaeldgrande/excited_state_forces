@@ -13,20 +13,10 @@ import h5py
 import argparse
 import matplotlib.pyplot as plt
 
+from common import rec_cm_to_eV, FLAVOR_DESC, ignore_0_freq_modes
+
 config_dir = Path(__file__).parent.parent / 'presentation.mplstyle'
 plt.style.use(config_dir)
-
-ignore_0_freq_modes = True
-rec_cm_to_eV = 1.239841984e-4
-
-FLAVOR_DESC = {
-    0: 'First-order d2 only',
-    1: 'First-order d3 only',
-    2: 'Second-order triple resonance only',
-    3: 'Second-order triple + double resonance',
-    4: 'Second-order triple resonance + first-order d3',
-    5: 'Second-order triple + double resonance + first-order d3',
-}
 
 parser = argparse.ArgumentParser(description='Plot susceptibility tensors α vs excitation energy')
 parser.add_argument('--first-order-file',  type=str,
