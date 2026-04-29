@@ -1,7 +1,7 @@
 """
 Generate a self-contained interactive HTML viewer for resonant Raman maps.
 
-Reads  resonant_raman_data_flavor{0..5}.h5  and embeds all data into a
+Reads  resonant_raman_data_flavor{0..8}.h5  and embeds all data into a
 single HTML file backed by Plotly.js (loaded from CDN).
 
 Left panel   — 2-D Raman map (click anywhere to set both Omega_exc and Raman shift)
@@ -43,7 +43,7 @@ args = parser.parse_args()
 
 # ── load all available flavor files ──────────────────────────────────────────
 all_data = {}
-for flavor in range(6):
+for flavor in range(9):
     path = Path(args.data_dir) / f'resonant_raman_data_flavor{flavor}.h5'
     if not path.exists():
         print(f'  Flavor {flavor}: not found, skipping')

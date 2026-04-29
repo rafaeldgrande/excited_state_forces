@@ -21,6 +21,14 @@ parser.add_argument('--second-order-file', type=str,
                     default='susceptibility_tensors_second_order.h5',
                     help='HDF5 file from susceptibility_tensors_second_order.py '
                          '(required for flavors 2 and 3)')
+parser.add_argument('--ipa-first-order-file', type=str,
+                    default='susceptibility_tensors_first_order_IPA.h5',
+                    help='HDF5 file from susceptibility_tensors_IPA.py '
+                         '(required for flavors 6 and 8)')
+parser.add_argument('--ipa-second-order-file', type=str,
+                    default='susceptibility_tensors_second_order_IPA.h5',
+                    help='HDF5 file from susceptibility_tensors_IPA.py '
+                         '(required for flavors 7 and 8)')
 parser.add_argument('--freqs-file',        type=str, default='freqs.dat',
                     help='File with phonon frequencies in cm^-1 (default: freqs.dat)')
 parser.add_argument('--flavor',            type=int, default=0,
@@ -43,23 +51,26 @@ parser.add_argument('--plot-map-log-scale', action='store_true',
                     help='Plot log(max(I, 1e-4)) instead of I in the 2-D maps')
 args = parser.parse_args()
 
-T                  = args.temperature
-first_order_file   = args.first_order_file
-second_order_file  = args.second_order_file
-freqs_file         = args.freqs_file
-flavor             = args.flavor
-output_file        = args.output
-gamma_lor          = args.gamma_lor          # cm^-1
-nfreq_exc_target   = args.nfreq_exc          # None → keep all
-plot_map_log_scale = args.plot_map_log_scale
+T                    = args.temperature
+first_order_file     = args.first_order_file
+second_order_file    = args.second_order_file
+ipa_first_order_file = args.ipa_first_order_file
+ipa_second_order_file= args.ipa_second_order_file
+freqs_file           = args.freqs_file
+flavor               = args.flavor
+output_file          = args.output
+gamma_lor            = args.gamma_lor          # cm^-1
+nfreq_exc_target     = args.nfreq_exc          # None → keep all
+plot_map_log_scale   = args.plot_map_log_scale
 
 flavor_label = FLAVOR_DESC[flavor]
 print(f'Flavor {flavor}: {flavor_label}')
 
 # Derived flags
-has_first_order  = flavor in {0, 1, 4, 5}
+is_ipa           = flavor in {6, 7, 8}
+has_first_order  = flavor in {0, 1, 4, 5, 6, 8}
 use_d2           = flavor == 0
-has_second_order = flavor in {2, 3, 4, 5}
+has_second_order = flavor in {2, 3, 4, 5, 7, 8}
 has_double       = flavor in {3, 5}
 
 cart_dir = ['x', 'y', 'z']
@@ -73,26 +84,38 @@ Nmodes       = len(freqs_rec_cm)
 # ---------------------------------------------------------------------------
 alpha_tensor_first_order = None
 excitation_energies_1st  = None
-if has_first_order:
+if has_first_order and not is_ipa:
     print(f'Reading first-order susceptibilities from {first_order_file}')
     with h5py.File(first_order_file, 'r') as f:
-        excitation_energies_1st = f['excitation_energies'][:]   # (Nfreq_1st,)
+        excitation_energies_1st = f['excitation_energies'][:]
         alpha_tensor_d2         = f['alpha_tensor_d2'][:]
         alpha_tensor_d3         = f['alpha_tensor_d3'][:]
     alpha_tensor_first_order = alpha_tensor_d2 if use_d2 else alpha_tensor_d3
 
 alpha_tensor_second_order = None
 excitation_energies_2nd   = None
-if has_second_order:
+if has_second_order and not is_ipa:
     print(f'Reading second-order susceptibilities from {second_order_file}')
     with h5py.File(second_order_file, 'r') as f:
-        excitation_energies_2nd   = f['excitation_energies'][:]           # (Nfreq_2nd,)
-        alpha_tensor_second_order = f['alpha_tensor_triple_resonance'][:] # (3,3,Nmodes,Nmodes,Nfreq_2nd)
+        excitation_energies_2nd   = f['excitation_energies'][:]
+        alpha_tensor_second_order = f['alpha_tensor_triple_resonance'][:]
         if has_double:
             alpha_tensor_double_res = f['alpha_tensor_double_resonance'][:]
     if has_double:
         for imode in range(Nmodes):
             alpha_tensor_second_order[:, :, imode, imode, :] += alpha_tensor_double_res[:, :, imode, :]
+
+if flavor in {6, 8}:
+    print(f'Reading IPA first-order susceptibilities from {ipa_first_order_file}')
+    with h5py.File(ipa_first_order_file, 'r') as f:
+        excitation_energies_1st  = f['excitation_energies'][:]
+        alpha_tensor_first_order = f['susceptibility_tensor_first_order'][:]
+
+if flavor in {7, 8}:
+    print(f'Reading IPA second-order susceptibilities from {ipa_second_order_file}')
+    with h5py.File(ipa_second_order_file, 'r') as f:
+        excitation_energies_2nd   = f['excitation_energies'][:]
+        alpha_tensor_second_order = f['susceptibility_tensor_second_order'][:]
 
 # ---------------------------------------------------------------------------
 # Optional down-sampling of the excitation energy axis

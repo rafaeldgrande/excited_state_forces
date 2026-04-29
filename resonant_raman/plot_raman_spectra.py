@@ -29,6 +29,12 @@ parser.add_argument('--first-order-file',  type=str,
 parser.add_argument('--second-order-file', type=str,
                     default='susceptibility_tensors_second_order.h5',
                     help='Required for flavors 2–5')
+parser.add_argument('--ipa-first-order-file', type=str,
+                    default='susceptibility_tensors_first_order_IPA.h5',
+                    help='Required for flavors 6 and 8')
+parser.add_argument('--ipa-second-order-file', type=str,
+                    default='susceptibility_tensors_second_order_IPA.h5',
+                    help='Required for flavors 7 and 8')
 parser.add_argument('--Eexc',              type=float, nargs='+', required=True,
                     help='One or more excitation energies in eV')
 parser.add_argument('--broadening',        type=float, default=10.0,
@@ -65,14 +71,15 @@ Nmodes       = len(freqs_rec_cm)
 # Load raw susceptibility tensors
 # ---------------------------------------------------------------------------
 # Derived flags
-has_first_order  = flavor in {0, 1, 4, 5}
+is_ipa           = flavor in {6, 7, 8}
+has_first_order  = flavor in {0, 1, 4, 5, 6, 8}
 use_d2           = flavor == 0
-has_second_order = flavor in {2, 3, 4, 5}
+has_second_order = flavor in {2, 3, 4, 5, 7, 8}
 has_double       = flavor in {3, 5}
 
 alpha_1st               = None
 excitation_energies_1st = None
-if has_first_order:
+if has_first_order and not is_ipa:
     print(f'Reading first-order susceptibilities from {args.first_order_file}')
     with h5py.File(args.first_order_file, 'r') as f:
         excitation_energies_1st = f['excitation_energies'][:]
@@ -82,7 +89,7 @@ if has_first_order:
 
 alpha_2nd               = None
 excitation_energies_2nd = None
-if has_second_order:
+if has_second_order and not is_ipa:
     print(f'Reading second-order susceptibilities from {args.second_order_file}')
     with h5py.File(args.second_order_file, 'r') as f:
         excitation_energies_2nd = f['excitation_energies'][:]
@@ -92,6 +99,18 @@ if has_second_order:
     if has_double:
         for imode in range(Nmodes):
             alpha_2nd[:, :, imode, imode, :] += alpha_double[:, :, imode, :]
+
+if flavor in {6, 8}:
+    print(f'Reading IPA first-order susceptibilities from {args.ipa_first_order_file}')
+    with h5py.File(args.ipa_first_order_file, 'r') as f:
+        excitation_energies_1st = f['excitation_energies'][:]
+        alpha_1st               = f['susceptibility_tensor_first_order'][:]   # (3,3,Nmodes,Nfreq)
+
+if flavor in {7, 8}:
+    print(f'Reading IPA second-order susceptibilities from {args.ipa_second_order_file}')
+    with h5py.File(args.ipa_second_order_file, 'r') as f:
+        excitation_energies_2nd = f['excitation_energies'][:]
+        alpha_2nd               = f['susceptibility_tensor_second_order'][:]  # (3,3,Nmodes,Nmodes,Nfreq)
 
 # ---------------------------------------------------------------------------
 # Phonon weights  w_i = sqrt((n_i + 1) * hbar / (2*omega_i))
