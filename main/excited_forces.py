@@ -461,7 +461,13 @@ Please cite:
     Nmodes = elph_cond.shape[0]
     MF_params.Nmodes = Nmodes
 
+    # ensure shape (Nk_fi, 3) — guard against transposed save
+    if Kpoints_in_elph_file.shape[-1] != 3:
+        Kpoints_in_elph_file = Kpoints_in_elph_file.T
     Nkpoints_DFPT = len(Kpoints_in_elph_file)
+
+    if verbosity == 'high':
+        print(f'\nFine-grid ELPH k-points: {Nkpoints_DFPT} k-points (crystal coords)')
 
     # k-points are already in crystal (fractional) coords — just wrap to [0, 1)
     time0 = time.clock_gettime(0)
@@ -470,7 +476,13 @@ Please cite:
         for k in Kpoints_in_elph_file
     ])
 
+    if verbosity == 'high':
+        print(f'Matching BSE k-points ({Nkpoints_BSE}) to fine ELPH k-points ({Nkpoints_DFPT}) ...')
     ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
+    if verbosity == 'high':
+        n_missing = ikBSE_to_ikDFPT.count(-1)
+        print(f'  Matched {Nkpoints_BSE - n_missing}/{Nkpoints_BSE} BSE k-points'
+              + (f' ({n_missing} missing)' if n_missing else ' — all matched'))
     
     # renormalize ELPH coefficients
     time0 = time.clock_gettime(0)

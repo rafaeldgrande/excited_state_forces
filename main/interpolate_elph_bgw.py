@@ -503,10 +503,9 @@ if __name__ == '__main__':
     if wfn_fi_path:
         print(f"Reading fine k-points from {wfn_fi_path} ...")
         with h5py.File(wfn_fi_path, 'r') as fh:
-            # BGW HDF5 WFN: mf_header/kpoints/rk  has shape (3, nrk)
-            rk = fh['mf_header/kpoints/rk'][:]
-            kpts_fi = rk.T   # → (nrk, 3)
-        print(f"  {len(kpts_fi)} fine k-points loaded.")
+            rk = fh['mf_header/kpoints/rk'][:]  # h5py reads Fortran rk(3,nrk) as (nrk, 3)
+            kpts_fi = rk if rk.shape[-1] == 3 else rk.T   # ensure (nrk, 3)
+        print(f"  {len(kpts_fi)} fine k-points loaded, shape {kpts_fi.shape}")
 
     elph_cond, elph_val = interpolate_elph(
         elph_h5_file  = args.elph_coarse,
