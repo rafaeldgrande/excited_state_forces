@@ -460,9 +460,7 @@ Please cite:
     
     Nmodes = elph_cond.shape[0]
     MF_params.Nmodes = Nmodes
-    
-    ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()    
-    
+
     Nkpoints_DFPT = len(Kpoints_in_elph_file)
 
     # k-points are already in crystal (fractional) coords — just wrap to [0, 1)
@@ -471,6 +469,8 @@ Please cite:
         [correct_comp_vector(c) for c in k]
         for k in Kpoints_in_elph_file
     ])
+
+    ikBSE_to_ikDFPT = translate_bse_to_dfpt_k_points()
     
     # renormalize ELPH coefficients
     time0 = time.clock_gettime(0)
