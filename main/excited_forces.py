@@ -447,6 +447,11 @@ Please cite:
     with h5py.File(elph_fine_h5_file, 'r') as fh:
         elph_cond            = fh['elph_fine_cond'][0].astype(np.complex64)  # (Nmodes, Nk_fi, Nc_fi, Nc_fi)
         elph_val             = fh['elph_fine_val'][0].astype(np.complex64)   # (Nmodes, Nk_fi, Nv_fi, Nv_fi)
+        if 'Kpoints_in_elph_file' not in fh:
+            raise KeyError(
+                f"'Kpoints_in_elph_file' not found in {elph_fine_h5_file}. "
+                f"Re-run interpolate_elph_bgw.py with --wfn-fi WFN_fi.h5, "
+                f"or place WFN_fi.h5 next to the dtmat file for auto-discovery.")
         Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                 # (Nk_fi, 3) crystal coords
     print(f'  elph_cond shape: {elph_cond.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
     print(f'  elph_val  shape: {elph_val.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')

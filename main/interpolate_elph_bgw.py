@@ -489,9 +489,20 @@ if __name__ == '__main__':
     args = cli.parse_args()
 
     kpts_fi = None
-    if args.wfn_fi:
-        print(f"Reading fine k-points from {args.wfn_fi} ...")
-        with h5py.File(args.wfn_fi, 'r') as fh:
+    wfn_fi_path = args.wfn_fi
+    if wfn_fi_path is None:
+        # auto-discover WFN_fi.h5 next to the dtmat file
+        _dtmat_dir = os.path.dirname(os.path.abspath(args.dtmat))
+        _candidate = os.path.join(_dtmat_dir, 'WFN_fi.h5')
+        if os.path.isfile(_candidate):
+            wfn_fi_path = _candidate
+            print(f"Auto-discovered WFN_fi.h5: {wfn_fi_path}")
+        else:
+            print(f"WARNING: --wfn-fi not given and WFN_fi.h5 not found next to dtmat. "
+                  f"'Kpoints_in_elph_file' will NOT be saved in the output.")
+    if wfn_fi_path:
+        print(f"Reading fine k-points from {wfn_fi_path} ...")
+        with h5py.File(wfn_fi_path, 'r') as fh:
             # BGW HDF5 WFN: mf_header/kpoints/rk  has shape (3, nrk)
             rk = fh['mf_header/kpoints/rk'][:]
             kpts_fi = rk.T   # → (nrk, 3)
