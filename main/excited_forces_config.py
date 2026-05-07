@@ -138,7 +138,10 @@ config = {
     'load_elph_coeffs': False, # if true, load elph coefficients from hdf5 file
     'just_save_elph_coeffs': False, # If true code stops after saving elph coeffs and does not calculate excitd state forces
     'elph_coeffs_file_to_be_loaded': "elph_coeffs.h5", # file from where elph coefficients will be loaded
-    'use_second_derivatives_elph_coeffs': False # if true, use the second derivatives of elph coefficients 
+    'elph_h5_file': 'elph.h5',  # HDF5 file produced by assemble_elph_h5.py (Cartesian basis)
+    'dtmat_file': 'dtmat',      # BerkeleyGW dtmat binary (coarse→fine wavefunction overlaps)
+    'elph_fine_h5_file': 'elph_fine.h5',  # pre-interpolated fine-grid el-ph (from interpolate_elph_bgw.py)
+    'use_second_derivatives_elph_coeffs': False # if true, use the second derivatives of elph coefficients
                                                 # (g2_cond and g2_val) instead of the first derivatives to calculate the forces. 
                                                 # The unit here in this case is ry / bohr**2 
 }
@@ -182,7 +185,9 @@ def read_input(input_file):
                 # String keys
                 elif key in [
                     'eqp_file', 'exciton_file', 'el_ph_dir', 'dyn_file',
-                    'kernel_file', 'Acvk_directory', 'hbse_file', 'elph_coeffs_file_to_be_loaded'
+                    'kernel_file', 'Acvk_directory', 'hbse_file',
+                    'elph_coeffs_file_to_be_loaded', 'elph_h5_file', 'dtmat_file',
+                    'elph_fine_h5_file'
                 ]:
                     config[key] = value[0]
                 # Boolean keys
