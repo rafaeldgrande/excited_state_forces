@@ -959,6 +959,24 @@ if __name__ == '__main__':
             'Acoustic sum rule: sum_atoms g[iq, 3*atom + d, ik, n, m] = 0 for d in {x,y,z}. '
             'When applied, the per-direction mean over atoms is subtracted from each atom.')
 
+    # ── 8. Write q-point report files ─────────────────────────────────────────
+    QPTS_CART_DAT    = os.path.join(HERE, 'qpoints_cart.dat')
+    QPTS_CRYSTAL_DAT = os.path.join(HERE, 'qpoints_crystal.dat')
+
+    with open(QPTS_CART_DAT, 'w') as f:
+        f.write('# q-points in Cartesian basis, units: 2*pi/a\n')
+        f.write(f'# {"iq":>4}   {"qx":>14}   {"qy":>14}   {"qz":>14}\n')
+        for iq, q in enumerate(qpts_cart):
+            f.write(f'  {iq+1:4d}   {q[0]:14.9f}   {q[1]:14.9f}   {q[2]:14.9f}\n')
+    print(f"Written: {QPTS_CART_DAT}")
+
+    with open(QPTS_CRYSTAL_DAT, 'w') as f:
+        f.write('# q-points in crystal (fractional) coordinates, units: (b1, b2, b3)\n')
+        f.write(f'# {"iq":>4}   {"q1":>14}   {"q2":>14}   {"q3":>14}\n')
+        for iq, q in enumerate(qpts_crystal):
+            f.write(f'  {iq+1:4d}   {q[0]:14.9f}   {q[1]:14.9f}   {q[2]:14.9f}\n')
+    print(f"Written: {QPTS_CRYSTAL_DAT}")
+
     total_time = (datetime.now() - t0).total_seconds()
     print(f"Done in {total_time:.1f} s.")
     print(f"\nOutput: {OUT_H5}")
