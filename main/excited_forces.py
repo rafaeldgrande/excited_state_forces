@@ -528,19 +528,19 @@ Please cite:
 
         # phonon_modes/* is indexed by matdyn.modes q-points, which may differ
         # in count and ordering from the elph q-points.  Match by coordinate.
-        if iq_phonon == 0:
+        _ph_qpts_cart = fh['phonon_modes/qpoints'][:]             # (Nq_modes, 3) Cartesian 2pi/a
+        _q_cart = q_phonon @ rec_cell_vecs                         # crystal → Cartesian 2pi/a
+        _iq_modes = next(
+            (i for i, qm in enumerate(_ph_qpts_cart)
+             if np.linalg.norm(qm - _q_cart) < 1e-5), -1)
+        if _iq_modes == -1:
+            print(f'  WARNING: phonon q = {q_phonon} (Cartesian: {_q_cart}) not found in '
+                  f'phonon_modes/qpoints of {elph_fine_h5_file}.')
+            print(f'  Falling back to Gamma (index 0) for phonon eigenvectors/frequencies.')
+            print(f'  NOTE: if matdyn.x was not run at this q, g_mode at iq={iq_phonon} '
+                  f'is zero in elph.h5 and ph-mode forces will be zero.')
             _iq_modes = 0
         else:
-            _ph_qpts_cart = fh['phonon_modes/qpoints'][:]         # (Nq_modes, 3) Cartesian 2pi/a
-            _q_cart = q_phonon @ rec_cell_vecs                     # crystal → Cartesian 2pi/a
-            _iq_modes = next(
-                (i for i, qm in enumerate(_ph_qpts_cart)
-                 if np.linalg.norm(qm - _q_cart) < 1e-5), -1)
-            if _iq_modes == -1:
-                raise KeyError(
-                    f"phonon q = {q_phonon} (Cartesian: {_q_cart}) not found in "
-                    f"phonon_modes/qpoints of {elph_fine_h5_file}.\n"
-                    f"Re-run matdyn.x for all elph q-points and regenerate elph.h5.")
             print(f'  phonon eigenvectors: using phonon_modes index {_iq_modes} '
                   f'(q = {_ph_qpts_cart[_iq_modes]})')
 
