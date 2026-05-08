@@ -148,6 +148,13 @@ config = {
     # Save all forces and metadata to an HDF5 file
     'save_forces_h5': False,
     'forces_h5_file': 'exc_forces.h5',
+
+    # Finite-momentum exciton-phonon matrix element <A(Q)|dV(q)|B(Q+q)>
+    # When True, exciton A is loaded from eigenvectors_A_file and B from eigenvectors_B_file.
+    # The phonon momentum q is determined as Q_B - Q_A from the respective eigenvectors files.
+    'finite_q_phonon': False,
+    'eigenvectors_A_file': 'eigenvectors_A.h5',
+    'eigenvectors_B_file': 'eigenvectors_B.h5',
 }
 
 def true_or_false(text, default_value):
@@ -191,7 +198,8 @@ def read_input(input_file):
                     'eqp_file', 'exciton_file', 'el_ph_dir', 'dyn_file',
                     'kernel_file', 'Acvk_directory', 'hbse_file',
                     'elph_coeffs_file_to_be_loaded', 'elph_h5_file', 'dtmat_file',
-                    'elph_fine_h5_file', 'forces_h5_file'
+                    'elph_fine_h5_file', 'forces_h5_file',
+                    'eigenvectors_A_file', 'eigenvectors_B_file'
                 ]:
                     config[key] = value[0]
                 # Boolean keys
@@ -205,7 +213,7 @@ def read_input(input_file):
                     'limit_BSE_sum', 'do_vectorized_sums', 'read_exciton_pairs_file',
                     'save_elph_coeffs', 'just_save_elph_coeffs',
                     'load_elph_coeffs', 'use_second_derivatives_elph_coeffs',
-                    'save_forces_h5'
+                    'save_forces_h5', 'finite_q_phonon'
                 ]:
                     config[key] = true_or_false(value[0], config.get(key, False))
                 # List of integers

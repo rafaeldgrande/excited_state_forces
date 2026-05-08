@@ -357,6 +357,9 @@ if __name__ == "__main__":
     use_second_derivatives_elph_coeffs = config['use_second_derivatives_elph_coeffs']
     save_forces_h5    = config['save_forces_h5']
     forces_h5_file    = config['forces_h5_file']
+    finite_q_phonon   = config['finite_q_phonon']
+    eigenvectors_A_file = config['eigenvectors_A_file']
+    eigenvectors_B_file = config['eigenvectors_B_file']
     
     if run_parallel == True:
         from multiprocessing import Pool
@@ -417,6 +420,10 @@ Please cite:
 
     ######################### RUNNING CODE ##############################
 
+    if finite_q_phonon:
+        print(f'\nFinite-q phonon mode: using {eigenvectors_A_file} for BSE parameters')
+        config['exciton_file'] = eigenvectors_A_file
+
     start_time = time.clock_gettime(0)
     # Getting BSE and MF parameters
     # Reading eigenvecs.h5 file
@@ -427,6 +434,18 @@ Please cite:
 
     if NQ == 1:
         Qshift = Qshift[0] # orignal shape is (1,3), now it is (3,)
+
+    q_phonon = np.zeros(3)   # phonon momentum; set below when finite_q_phonon=True
+
+    if finite_q_phonon:
+        Q_A = Qshift   # momentum of exciton A (shape (3,))
+        with h5py.File(eigenvectors_B_file, 'r') as _fh_b:
+            _Qshift_B = _fh_b['/exciton_header/kpoints/exciton_Q_shifts'][()]
+        Q_B = _Qshift_B[0] if _Qshift_B.ndim == 2 else _Qshift_B
+        q_phonon = np.array([correct_comp_vector(c) for c in (Q_B - Q_A)])
+        print(f'  Q_A (exciton A momentum) = {Q_A}')
+        print(f'  Q_B (exciton B momentum) = {Q_B}')
+        print(f'  phonon q = Q_B - Q_A     = {q_phonon} (BZ-wrapped)')
         
     if use_second_derivatives_elph_coeffs == True:
         print('Using second derivatives of elph coefficients to calculate forces. The units of exc-ph matrix elements in this case will be eV/angstrom**2.')
@@ -438,28 +457,30 @@ Please cite:
     for exc_pair in exciton_pairs:
         print(f" <{exc_pair[0]} | dH | {exc_pair[1]}>")
         
-    # definning excitons to be loaded
-    excitons_to_be_loaded = {num for pair in exciton_pairs for num in pair}
-    excitons_to_be_loaded = sorted(excitons_to_be_loaded)
-    # print(f"Excitons to be loaded: {excitons_to_be_loaded}")
-    
-    # loading excitons coefficients
+    # loading exciton coefficients
     time0 = time.clock_gettime(0)
-    print(f"Loading exciton coefficients from file {exciton_file}")
-    Exciton_coeffs, exciton_eigenvalues = load_excitons_coefficients(exciton_file, excitons_to_be_loaded)
-    # Exciton_coeffs shape: (Loaded Nexc, Nkpoints_BSE, Ncbnds, Nvbnds)
-    # exciton_eigenvalues shape: (Loaded Nexc,) in eV
+    if finite_q_phonon:
+        # A and B come from separate eigenvectors files
+        excitons_A_to_load = sorted({pair[0] for pair in exciton_pairs})
+        excitons_B_to_load = sorted({pair[1] for pair in exciton_pairs})
+        print(f"Loading exciton A coefficients from {eigenvectors_A_file}")
+        Exciton_coeffs_A, exciton_eigenvalues_A = load_excitons_coefficients(
+            eigenvectors_A_file, excitons_A_to_load)
+        print(f"Loading exciton B coefficients from {eigenvectors_B_file}")
+        Exciton_coeffs_B, exciton_eigenvalues_B = load_excitons_coefficients(
+            eigenvectors_B_file, excitons_B_to_load)
+        exciton_eigenvalues = np.concatenate([exciton_eigenvalues_A, exciton_eigenvalues_B])
+        # keep a reference list consistent with the non-finite_q path for the h5 save
+        excitons_to_be_loaded = excitons_A_to_load  # used only in save_exc_forces_h5 label
+    else:
+        excitons_to_be_loaded = sorted({num for pair in exciton_pairs for num in pair})
+        print(f"Loading exciton coefficients from file {exciton_file}")
+        Exciton_coeffs, exciton_eigenvalues = load_excitons_coefficients(
+            exciton_file, excitons_to_be_loaded)
+        # Exciton_coeffs shape: (Loaded Nexc, Nkpoints_BSE, Ncbnds, Nvbnds)
     time1 = time.clock_gettime(0)
     print(f"Finished loading exciton coefficients")
     TASKS.append(['Loading exciton coefficients', time1 - time0])
-    
-    # defining exciton pairs indexes to be consistent with exciton coefficients array
-    exciton_pairs_indexes = []
-    for pair in exciton_pairs:
-        iexc, jexc = pair
-        id_i, id_j = excitons_to_be_loaded.index(iexc), excitons_to_be_loaded.index(jexc)
-        exciton_pairs_indexes.append((id_i, id_j))
-    # print('exciton_pairs_indexes:', exciton_pairs_indexes)
 
     # getting info from eqp.dat in the fine grid (from absorption calculation)
     time0 = time.clock_gettime(0)
@@ -475,21 +496,37 @@ Please cite:
     time0 = time.clock_gettime(0)
     print(f'\nLoading fine-grid el-ph from {elph_fine_h5_file}')
     with h5py.File(elph_fine_h5_file, 'r') as fh:
-        for _key in ('elph_fine_cond_mode', 'elph_fine_val_mode',
+        _required = ('elph_fine_cond_mode', 'elph_fine_val_mode',
                      'elph_fine_cond_cart', 'elph_fine_val_cart',
                      'Kpoints_in_elph_file', 'phonon_modes/eigenvectors',
-                     'phonon_modes/frequencies'):
+                     'phonon_modes/frequencies')
+        if finite_q_phonon:
+            _required = _required + ('qpoints_crystal',)
+        for _key in _required:
             if _key not in fh:
                 raise KeyError(
                     f"'{_key}' not found in {elph_fine_h5_file}. "
                     f"Re-run interpolate_elph_bgw.py to regenerate the file.")
-        elph_cond_mode   = fh['elph_fine_cond_mode'][0].astype(np.complex64)  # (Nmodes, Nk_fi, Nc_fi, Nc_fi)
-        elph_val_mode    = fh['elph_fine_val_mode'][0].astype(np.complex64)   # (Nmodes, Nk_fi, Nv_fi, Nv_fi)
-        elph_cond_cart   = fh['elph_fine_cond_cart'][0].astype(np.complex64)  # (Npert,  Nk_fi, Nc_fi, Nc_fi)
-        elph_val_cart    = fh['elph_fine_val_cart'][0].astype(np.complex64)   # (Npert,  Nk_fi, Nv_fi, Nv_fi)
-        Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                  # (Nk_fi, 3) crystal coords
-        Displacements        = fh['phonon_modes/eigenvectors'][0]               # (Nmodes, Nat, 3), iq=0
-        phonon_frequencies   = fh['phonon_modes/frequencies'][0]               # (Nmodes,) in cm^-1
+
+        if finite_q_phonon:
+            qpoints_crystal = fh['qpoints_crystal'][:]   # (Nq, 3) fractional coords
+            iq_phonon = find_kpoint(q_phonon, qpoints_crystal)
+            if iq_phonon == -1:
+                print(f'\nERROR: phonon q = {q_phonon} (= Q_B - Q_A) was NOT found in '
+                      f'{elph_fine_h5_file} (Nq = {len(qpoints_crystal)} q-points).')
+                print('Please re-run interpolate_elph_bgw.py including this q-point.')
+                import sys; sys.exit(1)
+            print(f'  Found phonon q at index iq = {iq_phonon} in elph_fine.h5')
+        else:
+            iq_phonon = 0
+
+        elph_cond_mode   = fh['elph_fine_cond_mode'][iq_phonon].astype(np.complex64)  # (Nmodes, Nk_fi, Nc_fi, Nc_fi)
+        elph_val_mode    = fh['elph_fine_val_mode'][iq_phonon].astype(np.complex64)   # (Nmodes, Nk_fi, Nv_fi, Nv_fi)
+        elph_cond_cart   = fh['elph_fine_cond_cart'][iq_phonon].astype(np.complex64)  # (Npert,  Nk_fi, Nc_fi, Nc_fi)
+        elph_val_cart    = fh['elph_fine_val_cart'][iq_phonon].astype(np.complex64)   # (Npert,  Nk_fi, Nv_fi, Nv_fi)
+        Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                          # (Nk_fi, 3) crystal coords
+        Displacements        = fh['phonon_modes/eigenvectors'][iq_phonon]              # (Nmodes, Nat, 3)
+        phonon_frequencies   = fh['phonon_modes/frequencies'][iq_phonon]              # (Nmodes,) in cm^-1
     print(f'  elph_cond_mode shape: {elph_cond_mode.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
     print(f'  elph_val_mode  shape: {elph_val_mode.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')
     print(f'  elph_cond_cart shape: {elph_cond_cart.shape}  (Npert,  Nk_fi, Nc_fi, Nc_fi)')
@@ -704,7 +741,11 @@ Please cite:
     _unit = -Ry2eV / bohr2A   # Ry/bohr → eV/ang, with sign from F = -dE/dR
 
     def process_exciton_pair(exc_pair):
-        Akcv, Bkcv = Exciton_coeffs[exc_pair[0]-1], Exciton_coeffs[exc_pair[1]-1]
+        if finite_q_phonon:
+            Akcv = Exciton_coeffs_A[excitons_A_to_load.index(exc_pair[0])]
+            Bkcv = Exciton_coeffs_B[excitons_B_to_load.index(exc_pair[1])]
+        else:
+            Akcv, Bkcv = Exciton_coeffs[exc_pair[0]-1], Exciton_coeffs[exc_pair[1]-1]
 
         # ── phonon-mode basis: keep raw mode forces (Nmodes,) in eV/ang ──
         time0 = time.clock_gettime(0)
