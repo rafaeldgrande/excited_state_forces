@@ -1,5 +1,8 @@
 
 # Ignore macOS system files
+
+.gitignore
+
 *.DS_Store
 
 __pycache__/
@@ -7,3 +10,5 @@ __pycache__/
 *.pyc
 
 .DS_Store/
+
+.claude
