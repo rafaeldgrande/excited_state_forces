@@ -172,7 +172,7 @@ def f_disp_to_cart_basis(f_dis_basis, Displacements):
     else:
         return -f_cart * Ry2eV / bohr2A**2
 
-def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, verbose=False):
+def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, suffix='ph', verbose=False):
     # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 
     # F_RPA_diag    = F_RPA_diag 
@@ -196,7 +196,7 @@ def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, verbose=False):
 
     iexc_name = excitons_to_be_loaded[iexc]
     jexc_name = excitons_to_be_loaded[jexc]
-    arq_out_name = f'forces_cart.out_{iexc_name}_{jexc_name}'
+    arq_out_name = f'exc_forces_{iexc_name}_{jexc_name}_{suffix}.dat'
     arq_out = open(arq_out_name, 'w')
         
     text = '''# RPA_diag is equation (1) of arxiv:2502.05144, with d/dr <kcv|K^eh|k'c'v'> = 0
@@ -445,20 +445,29 @@ Please cite:
     time0 = time.clock_gettime(0)
     print(f'\nLoading fine-grid el-ph from {elph_fine_h5_file}')
     with h5py.File(elph_fine_h5_file, 'r') as fh:
-        elph_cond            = fh['elph_fine_cond'][0].astype(np.complex64)  # (Nmodes, Nk_fi, Nc_fi, Nc_fi)
-        elph_val             = fh['elph_fine_val'][0].astype(np.complex64)   # (Nmodes, Nk_fi, Nv_fi, Nv_fi)
-        if 'Kpoints_in_elph_file' not in fh:
-            raise KeyError(
-                f"'Kpoints_in_elph_file' not found in {elph_fine_h5_file}. "
-                f"Re-run interpolate_elph_bgw.py with --wfn-fi WFN_fi.h5, "
-                f"or place WFN_fi.h5 next to the dtmat file for auto-discovery.")
-        Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                 # (Nk_fi, 3) crystal coords
-    print(f'  elph_cond shape: {elph_cond.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
-    print(f'  elph_val  shape: {elph_val.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')
+        for _key in ('elph_fine_cond_mode', 'elph_fine_val_mode',
+                     'elph_fine_cond_cart', 'elph_fine_val_cart',
+                     'Kpoints_in_elph_file', 'phonon_modes/eigenvectors'):
+            if _key not in fh:
+                raise KeyError(
+                    f"'{_key}' not found in {elph_fine_h5_file}. "
+                    f"Re-run interpolate_elph_bgw.py to regenerate the file.")
+        elph_cond_mode   = fh['elph_fine_cond_mode'][0].astype(np.complex64)  # (Nmodes, Nk_fi, Nc_fi, Nc_fi)
+        elph_val_mode    = fh['elph_fine_val_mode'][0].astype(np.complex64)   # (Nmodes, Nk_fi, Nv_fi, Nv_fi)
+        elph_cond_cart   = fh['elph_fine_cond_cart'][0].astype(np.complex64)  # (Npert,  Nk_fi, Nc_fi, Nc_fi)
+        elph_val_cart    = fh['elph_fine_val_cart'][0].astype(np.complex64)   # (Npert,  Nk_fi, Nv_fi, Nv_fi)
+        Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                  # (Nk_fi, 3) crystal coords
+        Displacements    = fh['phonon_modes/eigenvectors'][0]                  # (Nmodes, Nat, 3), iq=0
+    print(f'  elph_cond_mode shape: {elph_cond_mode.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
+    print(f'  elph_val_mode  shape: {elph_val_mode.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')
+    print(f'  elph_cond_cart shape: {elph_cond_cart.shape}  (Npert,  Nk_fi, Nc_fi, Nc_fi)')
+    print(f'  elph_val_cart  shape: {elph_val_cart.shape}  (Npert,  Nk_fi, Nv_fi, Nv_fi)')
+    print(f'  Displacements:        {Displacements.shape}  (Nmodes, Nat, 3)')
     time1 = time.clock_gettime(0)
     TASKS.append(['Loading fine-grid ELPH from h5 (interpolate_elph_bgw output)', time1 - time0])
     
-    Nmodes = elph_cond.shape[0]
+    Nmodes = elph_cond_mode.shape[0]   # number of phonon modes
+    Npert  = elph_cond_cart.shape[0]   # = 3*Nat Cartesian perturbations
     MF_params.Nmodes = Nmodes
 
     # ensure shape (Nk_fi, 3) — guard against transposed save
@@ -483,70 +492,61 @@ Please cite:
         n_missing = ikBSE_to_ikDFPT.count(-1)
         print(f'  Matched {Nkpoints_BSE - n_missing}/{Nkpoints_BSE} BSE k-points'
               + (f' ({n_missing} missing)' if n_missing else ' — all matched'))
-    
-    # renormalize ELPH coefficients
+
+    # renormalize ELPH coefficients (both bases)
     time0 = time.clock_gettime(0)
     def renormalize_elph_coeffs(elph, Eqp, Edft):
-        # elph: (Nmodes, nk, nb, nb),  Eqp/Edft: (nk, nb)
+        # elph: (Npert, nk, nb, nb),  Eqp/Edft: (nk, nb)
         dEqp  = Eqp[:, :, None] - Eqp[:, None, :]    # (nk, nb, nb)
         dEdft = Edft[:, :, None] - Edft[:, None, :]   # (nk, nb, nb)
         mask  = np.abs(dEdft) > TOL_DEG
         ratio = np.where(mask, dEqp / np.where(mask, dEdft, 1.0), 1.0)
         elph *= ratio[None, ...]
         return elph
-    
+
     if renormalize_elph_coeffs == True:
         print('Renormalizing ELPH coefficients using QP and DFT energy levels')
-        elph_cond = renormalize_elph_coeffs(elph_cond, Eqp_cond, Edft_cond)
-        elph_val = renormalize_elph_coeffs(elph_val, Eqp_val, Edft_val)
+        elph_cond_mode = renormalize_elph_coeffs(elph_cond_mode, Eqp_cond, Edft_cond)
+        elph_val_mode  = renormalize_elph_coeffs(elph_val_mode,  Eqp_val,  Edft_val)
+        elph_cond_cart = renormalize_elph_coeffs(elph_cond_cart, Eqp_cond, Edft_cond)
+        elph_val_cart  = renormalize_elph_coeffs(elph_val_cart,  Eqp_val,  Edft_val)
     else:
         print('Not renormalizing ELPH coefficients using QP and DFT energy levels')
     TASKS.append(['Renormalizing ELPH coefficients using QP and DFT energy levels', time.clock_gettime(0) - time0])
-        
+
+    def _expand_elph(elph_cond, elph_val, Npert_dim, label):
+        """Expand elph to augmented (Npert, Nk, Nc, Nv, Nc, Nv) matrices."""
+        Gc      = np.zeros((Npert_dim, Nkpoints_BSE, Ncbnds, Nvbnds, Ncbnds, Nvbnds), dtype=np.complex64)
+        Gv      = np.zeros_like(Gc)
+        Gc_diag = np.zeros((Npert_dim, Nkpoints_BSE, Ncbnds, Nvbnds), dtype=np.complex64)
+        Gv_diag = np.zeros_like(Gc_diag)
+        if verbosity == 'high':
+            print(f'  {label}: cond {elph_cond.shape} → {Gc.shape}, val {elph_val.shape} → {Gv.shape}')
+        for iv in range(Nvbnds):
+            Gc[:, :, :, iv, :, iv] = elph_cond
+        for ic in range(Ncbnds):
+            Gv[:, :, ic, :, ic, :] = elph_val
+        Gc_diag[:] = np.diagonal(elph_cond, axis1=2, axis2=3)[:, :, :, np.newaxis]
+        Gv_diag[:] = np.diagonal(elph_val,  axis1=2, axis2=3)[:, :, np.newaxis, :]
+        return Gc, Gv, Gc_diag, Gv_diag
+
     time0 = time.clock_gettime(0)
     print("\nExpanding ELPH matrices for vectorized multiplication")
 
-    Shape_augmented = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds, Ncbnds, Nvbnds)
-    Gc = np.zeros(Shape_augmented, dtype=np.complex64)
-    Gv = np.zeros(Shape_augmented, dtype=np.complex64)
+    Gc_mode, Gv_mode, Gc_mode_diag, Gv_mode_diag = _expand_elph(elph_cond_mode, elph_val_mode, Nmodes, 'phonon-mode')
+    Gc_cart, Gv_cart, Gc_cart_diag, Gv_cart_diag = _expand_elph(elph_cond_cart, elph_val_cart, Npert,  'Cartesian')
 
-    Shape_augmented_diag = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
-    Gc_diag = np.zeros(Shape_augmented_diag, dtype=np.complex64)
-    Gv_diag = np.zeros(Shape_augmented_diag, dtype=np.complex64)
-
-    print(f"Old shape for cond elph is {elph_cond.shape}. New shape is {Gc.shape} including off-diagonal elements and {Gc_diag.shape} for diagonal elements")
-    print(f"Old shape for val elph is {elph_val.shape}. New shape is {Gv.shape} including off-diagonal elements and {Gv_diag.shape} for diagonal elements")
-
-    # For Gc: Gc[imode, ik, ic1, iv, ic2, iv] = elph_cond[imode, ik, ic1, ic2]
-    # Only nonzero when iv == iv, so fill all iv
-    for iv in range(Nvbnds):
-        Gc[:, :, :, iv, :, iv] = elph_cond
-
-    # For Gv: Gv[imode, ik, ic, iv1, ic, iv2] = elph_val[imode, ik, iv1, iv2]
-    # Only nonzero when ic == ic, so fill all ic
-    for ic in range(Ncbnds):
-        Gv[:, :, ic, :, ic, :] = elph_val
-        
-    # apply Q shift on valence states. Used when having finite momentum excitons.
-    Gv = apply_Qshift_on_valence_states(Qshift, Gv, Kpoints_in_elph_file_frac)
-
-    # Vectorized assignment for Gc_diag and Gv_diag
-    # Gc_diag[imode, ik, ic, iv] = elph_cond[imode, ik, ic, ic] for all imode, ik, ic, iv
-    # Gv_diag[imode, ik, ic, iv] = elph_val[imode, ik, iv, iv] for all imode, ik, ic, iv
-
-    # For Gc_diag: broadcast elph_cond diagonal over iv
-    diag_elph_cond = np.diagonal(elph_cond, axis1=2, axis2=3)  # shape: (Nmodes, Nkpoints_BSE, Ncbnds)
-    Gc_diag[:] = diag_elph_cond[:, :, :, np.newaxis]  # broadcast over iv. shape = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
-
-    # For Gv_diag: broadcast elph_val diagonal over ic
-    diag_elph_val = np.diagonal(elph_val, axis1=2, axis2=3)  # shape: (Nmodes, Nkpoints_BSE, Nvbnds)
-    Gv_diag[:] = diag_elph_val[:, :, np.newaxis, :]  # broadcast over ic. shape = (Nmodes, Nkpoints_BSE, Ncbnds, Nvbnds)
+    # apply Q shift on valence states (finite-momentum BSE)
+    Gv_mode = apply_Qshift_on_valence_states(Qshift, Gv_mode, Kpoints_in_elph_file_frac)
+    Gv_cart = apply_Qshift_on_valence_states(Qshift, Gv_cart, Kpoints_in_elph_file_frac)
 
     time1 = time.clock_gettime(0)
     TASKS.append(['ELPH matrices expansion (for vectorized multiplication)', time1 - time0])
-    
-    dRPA_dr_imode_mat = Gc - Gv
-    dRPA_dr_imode_diag_mat = Gc_diag - Gv_diag
+
+    dRPA_dr_mode_mat      = Gc_mode - Gv_mode
+    dRPA_dr_mode_diag_mat = Gc_mode_diag - Gv_mode_diag
+    dRPA_dr_cart_mat      = Gc_cart - Gv_cart
+    dRPA_dr_cart_diag_mat = Gc_cart_diag - Gv_cart_diag
     
     
     # Loading Kernel matrix elements
@@ -563,66 +563,83 @@ Please cite:
         
         time0 = time.clock_gettime(0)
         print("Calculating d/dr_imode <kcv|K|kc'v'> matrix elements. Equation (29) of arxiv:2502.05144")
-        DKernel_dr_imode_mat = calc_Dkernel_new(kernel_matrix, elph_cond, elph_val, Eqp_cond, Eqp_val, vectorized=do_vectorized_sums) # units ry/bohr
+        DKernel_dr_imode_mat = calc_Dkernel_new(kernel_matrix, elph_cond_mode, elph_val_mode, Eqp_cond, Eqp_val, vectorized=do_vectorized_sums) # units ry/bohr
         time1 = time.clock_gettime(0)
         TASKS.append(['Calculating d/dr_imode <kcv|K|kc\'v\'> matrix elements', time1 - time0])
 
-    ####### Computing forces for each exciton pair and each mode ##########
-    
-    forces_A_B_RPA = []
-    forces_A_B_RPA_diag = []
-    forces_A_B_Kernel = []
-    
+    def f_cart_to_atomic_forces(f_cart_pert):
+        """Convert Cartesian-basis forces (3*Nat,) [Ry/bohr] to atomic (Nat,3) [eV/ang]."""
+        return -np.array(f_cart_pert).reshape(Nat, 3) * Ry2eV / bohr2A
+
+    ####### Computing forces for each exciton pair — both bases ##########
+
+    forces_ph_RPA      = []
+    forces_ph_RPA_diag = []
+    forces_ph_Kernel   = []
+    forces_ca_RPA      = []
+    forces_ca_RPA_diag = []
+    forces_ca_Kernel   = []
+
     time_calc_RPA_diag, time_calc_RPA, time_calc_Kernel = 0.0, 0.0, 0.0
 
-    # Function to process a single exciton pair
     def process_exciton_pair(exc_pair):
         Akcv, Bkcv = Exciton_coeffs[exc_pair[0]-1], Exciton_coeffs[exc_pair[1]-1]
-        
+
+        # ── phonon-mode basis ──
         time0 = time.clock_gettime(0)
-        forces_A_B = compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_imode_mat, elph_cond, elph_val, vectorized=do_vectorized_sums)
-        rpa = f_disp_to_cart_basis(forces_A_B, Displacements)
+        f = compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_mode_mat, elph_cond_mode, elph_val_mode, vectorized=do_vectorized_sums)
+        rpa_ph = f_disp_to_cart_basis(f, Displacements)
+        f = compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_mode_diag_mat, elph_cond_mode, elph_val_mode, vectorized=do_vectorized_sums)
+        rpa_diag_ph = f_disp_to_cart_basis(f, Displacements)
         time_rpa = time.clock_gettime(0) - time0
-        
+
+        # ── Cartesian basis ──
         time0 = time.clock_gettime(0)
-        forces_A_B = compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_imode_diag_mat, elph_cond, elph_val, vectorized=do_vectorized_sums)
-        rpa_diag = f_disp_to_cart_basis(forces_A_B, Displacements)
+        f = compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_cart_mat, elph_cond_cart, elph_val_cart, vectorized=do_vectorized_sums)
+        rpa_ca = f_cart_to_atomic_forces(f)
+        f = compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_cart_diag_mat, elph_cond_cart, elph_val_cart, vectorized=do_vectorized_sums)
+        rpa_diag_ca = f_cart_to_atomic_forces(f)
         time_rpa_diag = time.clock_gettime(0) - time0
-        
-        kernel = None
+
+        kernel_ph = kernel_ca = None
         time_kernel = 0.0
         if Calculate_Kernel == True:
             time0 = time.clock_gettime(0)
-            forces_A_B = compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=do_vectorized_sums)
-            kernel = f_disp_to_cart_basis(forces_A_B, Displacements)
+            f = compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=do_vectorized_sums)
+            kernel_ph = f_disp_to_cart_basis(f, Displacements)
+            kernel_ca = None  # kernel derivative not implemented in Cartesian basis
             time_kernel = time.clock_gettime(0) - time0
-        
-        return exc_pair, rpa, rpa_diag, kernel, time_rpa, time_rpa_diag, time_kernel
-    
+
+        return (exc_pair,
+                rpa_ph, rpa_diag_ph, kernel_ph,
+                rpa_ca, rpa_diag_ca, kernel_ca,
+                time_rpa, time_rpa_diag, time_kernel)
+
+    def _collect(result):
+        (exc_pair,
+         rpa_ph, rpa_diag_ph, kernel_ph,
+         rpa_ca, rpa_diag_ca, kernel_ca,
+         time_rpa, time_rpa_diag, time_kernel) = result
+        forces_ph_RPA.append(rpa_ph);        forces_ph_RPA_diag.append(rpa_diag_ph)
+        forces_ca_RPA.append(rpa_ca);        forces_ca_RPA_diag.append(rpa_diag_ca)
+        if kernel_ph is not None: forces_ph_Kernel.append(kernel_ph)
+        if kernel_ca is not None: forces_ca_Kernel.append(kernel_ca)
+        return time_rpa, time_rpa_diag, time_kernel
+
     total_pairs = len(exciton_pairs)
-    # running in parallel or serial
     if run_parallel == False:
         print("\n\n################################# Running in serial ################################")
         print("Total exciton-phonon matrix elements to be calculated: ", total_pairs)
         for i_pair, exc_pair in enumerate(exciton_pairs):
             if i_pair > 0 and (i_pair == 1 or i_pair == 5 or i_pair % 10 == 0 or i_pair == total_pairs - 1):
-                progress = i_pair / total_pairs * 100
-                print(f"Progress excited-state forces calculation: {progress:.2f}% ({i_pair}/{total_pairs})")
-            exc_pair, rpa, rpa_diag, kernel, time_rpa, time_rpa_diag, time_kernel = process_exciton_pair(exc_pair)
-            forces_A_B_RPA.append(rpa)
-            forces_A_B_RPA_diag.append(rpa_diag)
-            if kernel is not None:
-                forces_A_B_Kernel.append(kernel)
-            time_calc_RPA += time_rpa
-            time_calc_RPA_diag += time_rpa_diag
-            time_calc_Kernel += time_kernel
-                
+                print(f"Progress: {i_pair/total_pairs*100:.1f}% ({i_pair}/{total_pairs})")
+            tr, trd, tk = _collect(process_exciton_pair(exc_pair))
+            time_calc_RPA += tr;  time_calc_RPA_diag += trd;  time_calc_Kernel += tk
     else:
         print(f"\n\n################################# Running in parallel with {num_processes} processes #################################")
         if num_processes == 1:
             print("Warning: Running in parallel with just one process. No speedup will be achieved! Change num_processes in forces.inp file.")
         print("Total exciton-phonon matrix elements to be calculated: ", total_pairs)
-        
         import multiprocessing
         ctx = multiprocessing.get_context('fork')
         with ctx.Pool(processes=num_processes) as pool:
@@ -630,30 +647,30 @@ Please cite:
             for i_pair, result in enumerate(pool.imap(process_exciton_pair, exciton_pairs)):
                 results.append(result)
                 if i_pair > 0 and (i_pair == 1 or i_pair == 5 or i_pair % 10 == 0 or i_pair == total_pairs - 1):
-                    progress = i_pair / total_pairs * 100
-                    print(f"Progress excited-state forces calculation: {progress:.2f}% ({i_pair}/{total_pairs})")
-        
-        for exc_pair, rpa, rpa_diag, kernel, time_rpa, time_rpa_diag, time_kernel in results:
-            forces_A_B_RPA.append(rpa)
-            forces_A_B_RPA_diag.append(rpa_diag)
-            if kernel is not None:
-                forces_A_B_Kernel.append(kernel)
-            time_calc_RPA += time_rpa
-            time_calc_RPA_diag += time_rpa_diag
-            time_calc_Kernel += time_kernel
-            
+                    print(f"Progress: {i_pair/total_pairs*100:.1f}% ({i_pair}/{total_pairs})")
+        for result in results:
+            tr, trd, tk = _collect(result)
+            time_calc_RPA += tr;  time_calc_RPA_diag += trd;  time_calc_Kernel += tk
+
     TASKS.append(['Calculating forces with RPA_diag', time_calc_RPA_diag])
     TASKS.append(['Calculating forces with RPA', time_calc_RPA])
     TASKS.append(['Calculating forces with Kernel part', time_calc_Kernel])
-            
-    forces_A_B_RPA_diag = np.array(forces_A_B_RPA_diag)
-    forces_A_B_RPA = np.array(forces_A_B_RPA)
-    if Calculate_Kernel == True:
-        forces_A_B_Kernel = np.array(forces_A_B_Kernel)
-        
+
+    forces_ph_RPA      = np.array(forces_ph_RPA)
+    forces_ph_RPA_diag = np.array(forces_ph_RPA_diag)
+    forces_ca_RPA      = np.array(forces_ca_RPA)
+    forces_ca_RPA_diag = np.array(forces_ca_RPA_diag)
+    if Calculate_Kernel:
+        forces_ph_Kernel = np.array(forces_ph_Kernel)
+
     for i, exc_pair in enumerate(exciton_pairs):
         iexc, jexc = exc_pair
-        report_forces(iexc-1, jexc-1, forces_A_B_RPA_diag[i], forces_A_B_RPA[i], forces_A_B_Kernel[i] if Calculate_Kernel else None, verbose=len(exciton_pairs)==1)
+        verbose = len(exciton_pairs) == 1
+        report_forces(iexc-1, jexc-1, forces_ph_RPA_diag[i], forces_ph_RPA[i],
+                      forces_ph_Kernel[i] if Calculate_Kernel else None,
+                      suffix='ph', verbose=verbose)
+        report_forces(iexc-1, jexc-1, forces_ca_RPA_diag[i], forces_ca_RPA[i],
+                      None, suffix='cart', verbose=verbose)
         
     
     print_final_msg(TASKS)

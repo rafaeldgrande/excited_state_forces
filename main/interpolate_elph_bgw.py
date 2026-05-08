@@ -414,48 +414,72 @@ def interpolate_elph(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def save_elph_fine(
-    elph_fine_cond: np.ndarray,
-    elph_fine_val:  np.ndarray,
-    out_path:       str,
-    kpts_fi_crys:   np.ndarray | None = None,
-    compress:       bool = True,
-    extra_attrs:    dict | None = None,
+    elph_fine_cond_mode:  np.ndarray,
+    elph_fine_val_mode:   np.ndarray,
+    elph_fine_cond_cart:  np.ndarray,
+    elph_fine_val_cart:   np.ndarray,
+    out_path:             str,
+    kpts_fi_crys:         np.ndarray | None = None,
+    elph_coarse_path:     str | None = None,
+    compress:             bool = True,
+    extra_attrs:          dict | None = None,
 ) -> None:
     """
     Save interpolated fine-grid el-ph arrays to an HDF5 file.
 
     Parameters
     ----------
-    elph_fine_cond : (Nq, Nmodes, Nk_fi, Nc_fi, Nc_fi)
-    elph_fine_val  : (Nq, Nmodes, Nk_fi, Nv_fi, Nv_fi)
-    out_path       : output .h5 filename
-    kpts_fi_crys   : (Nk_fi, 3) fine k-points in crystal (fractional) coords
-    compress       : whether to apply gzip compression
-    extra_attrs    : optional dict of additional root-level attributes
+    elph_fine_cond_mode  : (Nq, Nmodes, Nk_fi, Nc_fi, Nc_fi)  phonon-mode basis
+    elph_fine_val_mode   : (Nq, Nmodes, Nk_fi, Nv_fi, Nv_fi)  phonon-mode basis
+    elph_fine_cond_cart  : (Nq, Npert,  Nk_fi, Nc_fi, Nc_fi)  Cartesian basis
+    elph_fine_val_cart   : (Nq, Npert,  Nk_fi, Nv_fi, Nv_fi)  Cartesian basis
+    out_path             : output .h5 filename
+    kpts_fi_crys         : (Nk_fi, 3) fine k-points in crystal (fractional) coords
+    elph_coarse_path     : path to elph_coarse.h5 — used to copy phonon_modes/ and qpoints_crystal
+    compress             : whether to apply gzip compression
+    extra_attrs          : optional dict of additional root-level attributes
     """
     kw = dict(compression='gzip', compression_opts=4) if compress else {}
 
-    with h5py.File(out_path, 'w') as fh:
-        ds = fh.create_dataset('elph_fine_cond', data=elph_fine_cond, **kw)
-        ds.attrs['axes']  = 'elph_fine_cond[iq, nu, ik_fi, ic_fi, ic_fi_prime]'
-        ds.attrs['note']  = ('<c_fi, k_fi+q | dV(q) | c_fi_prime, k_fi>, '
-                             'ic=0 -> LUMO (BGW convention)')
+    _coarse_copy = ['phonon_modes', 'qpoints_crystal']
 
-        ds = fh.create_dataset('elph_fine_val', data=elph_fine_val, **kw)
-        ds.attrs['axes']  = 'elph_fine_val[iq, nu, ik_fi, iv_fi, iv_fi_prime]'
-        ds.attrs['note']  = ('<v_fi, k_fi+q | dV(q) | v_fi_prime, k_fi>, '
-                             'iv=0 -> HOMO (BGW convention, counting from Fermi level down)')
+    with h5py.File(out_path, 'w') as fh:
+        ds = fh.create_dataset('elph_fine_cond_mode', data=elph_fine_cond_mode, **kw)
+        ds.attrs['axes'] = 'elph_fine_cond_mode[iq, nu, ik_fi, ic_fi, ic_fi_prime]'
+        ds.attrs['note'] = '<c_fi, k_fi+q | dV(q) | c_fi_prime, k_fi>, phonon-mode basis, ic=0 -> LUMO'
+
+        ds = fh.create_dataset('elph_fine_val_mode', data=elph_fine_val_mode, **kw)
+        ds.attrs['axes'] = 'elph_fine_val_mode[iq, nu, ik_fi, iv_fi, iv_fi_prime]'
+        ds.attrs['note'] = '<v_fi, k_fi+q | dV(q) | v_fi_prime, k_fi>, phonon-mode basis, iv=0 -> HOMO'
+
+        ds = fh.create_dataset('elph_fine_cond_cart', data=elph_fine_cond_cart, **kw)
+        ds.attrs['axes'] = 'elph_fine_cond_cart[iq, alpha, ik_fi, ic_fi, ic_fi_prime]'
+        ds.attrs['note'] = '<c_fi, k_fi+q | dV(q) | c_fi_prime, k_fi>, Cartesian basis, alpha=3*iatom+idir'
+
+        ds = fh.create_dataset('elph_fine_val_cart', data=elph_fine_val_cart, **kw)
+        ds.attrs['axes'] = 'elph_fine_val_cart[iq, alpha, ik_fi, iv_fi, iv_fi_prime]'
+        ds.attrs['note'] = '<v_fi, k_fi+q | dV(q) | v_fi_prime, k_fi>, Cartesian basis, alpha=3*iatom+idir'
 
         if kpts_fi_crys is not None:
             ds = fh.create_dataset('Kpoints_in_elph_file', data=kpts_fi_crys, **kw)
             ds.attrs['axes'] = 'Kpoints_in_elph_file[ik_fi, xyz]'
             ds.attrs['units'] = 'crystal (fractional) coordinates'
 
-        fh.attrs['Nq']     = elph_fine_cond.shape[0]
-        fh.attrs['Nmodes'] = elph_fine_cond.shape[1]
-        fh.attrs['Nk_fi']  = elph_fine_cond.shape[2]
-        fh.attrs['Nc_fi']  = elph_fine_cond.shape[3]
-        fh.attrs['Nv_fi']  = elph_fine_val.shape[3]
+        if elph_coarse_path is not None:
+            with h5py.File(elph_coarse_path, 'r') as src:
+                for name in _coarse_copy:
+                    if name in src:
+                        src.copy(name, fh, name=name)
+                        print(f"  Copied '{name}' from coarse elph.")
+                    else:
+                        print(f"  WARNING: '{name}' not found in {elph_coarse_path}, skipping.")
+
+        fh.attrs['Nq']     = elph_fine_cond_mode.shape[0]
+        fh.attrs['Nmodes'] = elph_fine_cond_mode.shape[1]
+        fh.attrs['Npert']  = elph_fine_cond_cart.shape[1]
+        fh.attrs['Nk_fi']  = elph_fine_cond_mode.shape[2]
+        fh.attrs['Nc_fi']  = elph_fine_cond_mode.shape[3]
+        fh.attrs['Nv_fi']  = elph_fine_val_mode.shape[3]
         fh.attrs['interpolation'] = 'BerkeleyGW dtmat coarse-to-fine'
         if extra_attrs:
             for k, v in extra_attrs.items():
@@ -479,9 +503,6 @@ if __name__ == '__main__':
                      help='Number of valence bands in DFPT (QE nbnd convention)')
     cli.add_argument('--out',    default='elph_fine.h5',
                      help='Output HDF5 filename (default: elph_fine.h5)')
-    cli.add_argument('--dataset', default='g_mode',
-                     choices=['g_mode', 'g'],
-                     help='Which el-ph dataset to interpolate (default: g_mode)')
     cli.add_argument('--wfn-fi', default=None,
                      help='Path to WFN_fi.h5 (needed for finite-q interpolation)')
     cli.add_argument('--real',   action='store_true',
@@ -507,19 +528,30 @@ if __name__ == '__main__':
             kpts_fi = rk if rk.shape[-1] == 3 else rk.T   # ensure (nrk, 3)
         print(f"  {len(kpts_fi)} fine k-points loaded, shape {kpts_fi.shape}")
 
-    elph_cond, elph_val = interpolate_elph(
-        elph_h5_file  = args.elph_coarse,
-        dtmat_file    = args.dtmat,
-        Nval          = args.Nval,
-        kpts_fi_crys  = kpts_fi,
-        dataset       = args.dataset,
-        complex_flavor= not args.real,
+    _common = dict(
+        elph_h5_file   = args.elph_coarse,
+        dtmat_file     = args.dtmat,
+        Nval           = args.Nval,
+        kpts_fi_crys   = kpts_fi,
+        complex_flavor = not args.real,
     )
 
+    print("\n" + "="*64)
+    print("Interpolating phonon-mode basis (g_mode) ...")
+    elph_cond_mode, elph_val_mode = interpolate_elph(dataset='g_mode', **_common)
+
+    print("\n" + "="*64)
+    print("Interpolating Cartesian basis (g) ...")
+    elph_cond_cart, elph_val_cart = interpolate_elph(dataset='g', **_common)
+
     save_elph_fine(
-        elph_cond, elph_val,
-        out_path      = args.out,
-        kpts_fi_crys  = kpts_fi,
-        extra_attrs   = {'Nval': args.Nval, 'source_elph': args.elph_coarse,
-                         'source_dtmat': args.dtmat},
+        elph_fine_cond_mode = elph_cond_mode,
+        elph_fine_val_mode  = elph_val_mode,
+        elph_fine_cond_cart = elph_cond_cart,
+        elph_fine_val_cart  = elph_val_cart,
+        out_path            = args.out,
+        kpts_fi_crys        = kpts_fi,
+        elph_coarse_path    = args.elph_coarse,
+        extra_attrs         = {'Nval': args.Nval, 'source_elph': args.elph_coarse,
+                               'source_dtmat': args.dtmat},
     )
