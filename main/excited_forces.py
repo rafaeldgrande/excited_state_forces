@@ -525,8 +525,27 @@ Please cite:
         elph_cond_cart   = fh['elph_fine_cond_cart'][iq_phonon].astype(np.complex64)  # (Npert,  Nk_fi, Nc_fi, Nc_fi)
         elph_val_cart    = fh['elph_fine_val_cart'][iq_phonon].astype(np.complex64)   # (Npert,  Nk_fi, Nv_fi, Nv_fi)
         Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                          # (Nk_fi, 3) crystal coords
-        Displacements        = fh['phonon_modes/eigenvectors'][iq_phonon]              # (Nmodes, Nat, 3)
-        phonon_frequencies   = fh['phonon_modes/frequencies'][iq_phonon]              # (Nmodes,) in cm^-1
+
+        # phonon_modes/* is indexed by matdyn.modes q-points, which may differ
+        # in count and ordering from the elph q-points.  Match by coordinate.
+        if iq_phonon == 0:
+            _iq_modes = 0
+        else:
+            _ph_qpts_cart = fh['phonon_modes/qpoints'][:]         # (Nq_modes, 3) Cartesian 2pi/a
+            _q_cart = q_phonon @ rec_cell_vecs                     # crystal → Cartesian 2pi/a
+            _iq_modes = next(
+                (i for i, qm in enumerate(_ph_qpts_cart)
+                 if np.linalg.norm(qm - _q_cart) < 1e-5), -1)
+            if _iq_modes == -1:
+                raise KeyError(
+                    f"phonon q = {q_phonon} (Cartesian: {_q_cart}) not found in "
+                    f"phonon_modes/qpoints of {elph_fine_h5_file}.\n"
+                    f"Re-run matdyn.x for all elph q-points and regenerate elph.h5.")
+            print(f'  phonon eigenvectors: using phonon_modes index {_iq_modes} '
+                  f'(q = {_ph_qpts_cart[_iq_modes]})')
+
+        Displacements        = fh['phonon_modes/eigenvectors'][_iq_modes]              # (Nmodes, Nat, 3)
+        phonon_frequencies   = fh['phonon_modes/frequencies'][_iq_modes]              # (Nmodes,) in cm^-1
     print(f'  elph_cond_mode shape: {elph_cond_mode.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
     print(f'  elph_val_mode  shape: {elph_val_mode.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')
     print(f'  elph_cond_cart shape: {elph_cond_cart.shape}  (Npert,  Nk_fi, Nc_fi, Nc_fi)')
