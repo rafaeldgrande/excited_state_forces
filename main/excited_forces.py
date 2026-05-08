@@ -172,6 +172,33 @@ def f_disp_to_cart_basis(f_dis_basis, Displacements):
     else:
         return -f_cart * Ry2eV / bohr2A**2
 
+def report_forces_ph(iexc, jexc, f_rpa_diag, f_rpa, f_kernel, frequencies, verbose=False):
+    """Write phonon-mode basis forces: one row per mode with frequency and force values."""
+    F_kernel = f_kernel if f_kernel is not None else np.zeros_like(f_rpa_diag)
+    iexc_name = excitons_to_be_loaded[iexc]
+    jexc_name = excitons_to_be_loaded[jexc]
+    fname = f'exc_forces_{iexc_name}_{jexc_name}_ph.dat'
+    unit_label = '(eV/ang^2)' if use_second_derivatives_elph_coeffs else '(eV/ang)'
+    header = (
+        f'# Phonon-mode basis excited-state forces {unit_label}\n'
+        f'# RPA_diag: eq.(1) arxiv:2502.05144, d/dr <kcv|K^eh|k\'c\'v\'> = 0\n'
+        f'# RPA:      eq.(3) arxiv:2502.05144, <kcv|d K^eh/dr|k\'c\'v\'> = 0\n'
+        f'# RPA_diag_plus_Kernel: eq.(1) with kernel correction\n'
+        f'# {"mode":<6} {"freq(cm-1)":<14} {"RPA_diag":<28} {"RPA":<28} {"RPA_diag_plus_Kernel"}\n'
+    )
+    with open(fname, 'w') as fout:
+        fout.write(header)
+        if verbose:
+            print(header, end='')
+        for inu in range(len(frequencies)):
+            line = (f'{inu+1:<6} {frequencies[inu]:<14.4f} '
+                    f'{f_rpa_diag[inu]:<28.8f} '
+                    f'{f_rpa[inu]:<28.8f} '
+                    f'{(F_kernel + f_rpa_diag)[inu]:<28.8f}')
+            fout.write(line + '\n')
+            if verbose:
+                print(line)
+
 def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, suffix='ph', verbose=False):
     # Convert from Ry/bohr to eV/A. Minus sign comes from F=-dV/du
 
@@ -447,7 +474,8 @@ Please cite:
     with h5py.File(elph_fine_h5_file, 'r') as fh:
         for _key in ('elph_fine_cond_mode', 'elph_fine_val_mode',
                      'elph_fine_cond_cart', 'elph_fine_val_cart',
-                     'Kpoints_in_elph_file', 'phonon_modes/eigenvectors'):
+                     'Kpoints_in_elph_file', 'phonon_modes/eigenvectors',
+                     'phonon_modes/frequencies'):
             if _key not in fh:
                 raise KeyError(
                     f"'{_key}' not found in {elph_fine_h5_file}. "
@@ -457,7 +485,8 @@ Please cite:
         elph_cond_cart   = fh['elph_fine_cond_cart'][0].astype(np.complex64)  # (Npert,  Nk_fi, Nc_fi, Nc_fi)
         elph_val_cart    = fh['elph_fine_val_cart'][0].astype(np.complex64)   # (Npert,  Nk_fi, Nv_fi, Nv_fi)
         Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                  # (Nk_fi, 3) crystal coords
-        Displacements    = fh['phonon_modes/eigenvectors'][0]                  # (Nmodes, Nat, 3), iq=0
+        Displacements        = fh['phonon_modes/eigenvectors'][0]               # (Nmodes, Nat, 3), iq=0
+        phonon_frequencies   = fh['phonon_modes/frequencies'][0]               # (Nmodes,) in cm^-1
     print(f'  elph_cond_mode shape: {elph_cond_mode.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
     print(f'  elph_val_mode  shape: {elph_val_mode.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')
     print(f'  elph_cond_cart shape: {elph_cond_cart.shape}  (Npert,  Nk_fi, Nc_fi, Nc_fi)')
@@ -536,9 +565,9 @@ Please cite:
     Gc_mode, Gv_mode, Gc_mode_diag, Gv_mode_diag = _expand_elph(elph_cond_mode, elph_val_mode, Nmodes, 'phonon-mode')
     Gc_cart, Gv_cart, Gc_cart_diag, Gv_cart_diag = _expand_elph(elph_cond_cart, elph_val_cart, Npert,  'Cartesian')
 
-    # apply Q shift on valence states (finite-momentum BSE)
-    Gv_mode = apply_Qshift_on_valence_states(Qshift, Gv_mode, Kpoints_in_elph_file_frac)
-    Gv_cart = apply_Qshift_on_valence_states(Qshift, Gv_cart, Kpoints_in_elph_file_frac)
+    # apply Q shift on valence states (finite-momentum BSE) — print once
+    Gv_mode = apply_Qshift_on_valence_states(Qshift, Gv_mode, Kpoints_in_elph_file_frac, verbose=True)
+    Gv_cart = apply_Qshift_on_valence_states(Qshift, Gv_cart, Kpoints_in_elph_file_frac, verbose=False)
 
     time1 = time.clock_gettime(0)
     TASKS.append(['ELPH matrices expansion (for vectorized multiplication)', time1 - time0])
@@ -582,37 +611,33 @@ Please cite:
 
     time_calc_RPA_diag, time_calc_RPA, time_calc_Kernel = 0.0, 0.0, 0.0
 
+    _unit = -Ry2eV / bohr2A   # Ry/bohr → eV/ang, with sign from F = -dH/dR
+
     def process_exciton_pair(exc_pair):
         Akcv, Bkcv = Exciton_coeffs[exc_pair[0]-1], Exciton_coeffs[exc_pair[1]-1]
 
-        # ── phonon-mode basis ──
+        # ── phonon-mode basis: keep raw mode forces (Nmodes,) in eV/ang ──
         time0 = time.clock_gettime(0)
-        f = compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_mode_mat, elph_cond_mode, elph_val_mode, vectorized=do_vectorized_sums)
-        rpa_ph = f_disp_to_cart_basis(f, Displacements)
-        f = compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_mode_diag_mat, elph_cond_mode, elph_val_mode, vectorized=do_vectorized_sums)
-        rpa_diag_ph = f_disp_to_cart_basis(f, Displacements)
+        f_ph_rpa      = compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_mode_mat, elph_cond_mode, elph_val_mode, vectorized=do_vectorized_sums) * _unit
+        f_ph_rpa_diag = compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_mode_diag_mat, elph_cond_mode, elph_val_mode, vectorized=do_vectorized_sums) * _unit
         time_rpa = time.clock_gettime(0) - time0
 
-        # ── Cartesian basis ──
+        # ── Cartesian basis: reshape (3*Nat,) → (Nat, 3) ──
         time0 = time.clock_gettime(0)
-        f = compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_cart_mat, elph_cond_cart, elph_val_cart, vectorized=do_vectorized_sums)
-        rpa_ca = f_cart_to_atomic_forces(f)
-        f = compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_cart_diag_mat, elph_cond_cart, elph_val_cart, vectorized=do_vectorized_sums)
-        rpa_diag_ca = f_cart_to_atomic_forces(f)
+        f_ca_rpa      = f_cart_to_atomic_forces(compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_cart_mat, elph_cond_cart, elph_val_cart, vectorized=do_vectorized_sums))
+        f_ca_rpa_diag = f_cart_to_atomic_forces(compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_cart_diag_mat, elph_cond_cart, elph_val_cart, vectorized=do_vectorized_sums))
         time_rpa_diag = time.clock_gettime(0) - time0
 
-        kernel_ph = kernel_ca = None
+        f_ph_kernel = f_ca_kernel = None
         time_kernel = 0.0
         if Calculate_Kernel == True:
             time0 = time.clock_gettime(0)
-            f = compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=do_vectorized_sums)
-            kernel_ph = f_disp_to_cart_basis(f, Displacements)
-            kernel_ca = None  # kernel derivative not implemented in Cartesian basis
+            f_ph_kernel = compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=do_vectorized_sums) * _unit
             time_kernel = time.clock_gettime(0) - time0
 
         return (exc_pair,
-                rpa_ph, rpa_diag_ph, kernel_ph,
-                rpa_ca, rpa_diag_ca, kernel_ca,
+                f_ph_rpa, f_ph_rpa_diag, f_ph_kernel,
+                f_ca_rpa, f_ca_rpa_diag, f_ca_kernel,
                 time_rpa, time_rpa_diag, time_kernel)
 
     def _collect(result):
@@ -666,9 +691,10 @@ Please cite:
     for i, exc_pair in enumerate(exciton_pairs):
         iexc, jexc = exc_pair
         verbose = len(exciton_pairs) == 1
-        report_forces(iexc-1, jexc-1, forces_ph_RPA_diag[i], forces_ph_RPA[i],
-                      forces_ph_Kernel[i] if Calculate_Kernel else None,
-                      suffix='ph', verbose=verbose)
+        report_forces_ph(iexc-1, jexc-1,
+                         forces_ph_RPA_diag[i], forces_ph_RPA[i],
+                         forces_ph_Kernel[i] if Calculate_Kernel else None,
+                         phonon_frequencies, verbose=verbose)
         report_forces(iexc-1, jexc-1, forces_ca_RPA_diag[i], forces_ca_RPA[i],
                       None, suffix='cart', verbose=verbose)
         

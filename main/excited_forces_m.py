@@ -1063,32 +1063,30 @@ def report_iterations(counter_now, total_iterations, step_report, when_function_
               f'elapsed {round(delta_T, 1):10.1f} s, remaining {round(delta_T_remain, 1):10.1f} s')
         
         
-def apply_Qshift_on_valence_states(Qshift, Gv, Kpoints_in_elph_file_frac):
-    print('\n')
+def apply_Qshift_on_valence_states(Qshift, Gv, Kpoints_in_elph_file_frac, verbose=True):
     if np.linalg.norm(Qshift) > 0.0:
-        print(f"Applying Q shift to valence states (from finite momentum BSE calculation)")
-
+        if verbose:
+            print(f"\nApplying Q shift to valence states (from finite momentum BSE calculation)")
         # shape Qshift is (3,)
         # shape Kpoints_in_elph_file_frac is (Nkpoints_DFPT, 3)
         Kpoints_shifted = Kpoints_in_elph_file_frac + Qshift
         Kpoints_shifted = np.round(Kpoints_shifted, decimals=6)  # round to 6 decimal places
         Kpoints_shifted = Kpoints_shifted % 1.0  # %1.0 is to put in the first BZ
-        
+
         mapping = []
         for kshifted in Kpoints_shifted:
             distances = np.linalg.norm(Kpoints_in_elph_file_frac - kshifted, axis = 1)
             min_index = np.argmin(distances)
-            if distances[min_index] >  1e-4:
+            if distances[min_index] > 1e-4:
                 print(f"WARNING! The Q-shifted k point {kshifted} is not close to any k point in the DFPT calculation. The closest one is {Kpoints_in_elph_file_frac[min_index]} with distance {distances[min_index]}")
             mapping.append(min_index)
-        
-        Gv_new = Gv[:, mapping, :, :, :, :]
-        Gv = Gv_new
-        print(f"Done applying Q shift to valence states")
+
+        Gv = Gv[:, mapping, :, :, :, :]
+        if verbose:
+            print(f"Done applying Q shift to valence states")
     else:
-        print(f"NOT applying Q shift to valence states (from finite momentum BSE calculation).")
-    print('\n')
-    
+        if verbose:
+            print(f"\nNOT applying Q shift to valence states (from finite momentum BSE calculation).")
     return Gv
 
 def compute_A_dRPA_dr_imode_B_not_vectorized(Akcv, Bkcv, elph_cond, elph_val):
