@@ -800,6 +800,13 @@ if __name__ == '__main__':
                     break
 
         n_matched_q = np.sum(elph_to_matdyn >= 0)
+        n_unmatched_q = NQ_LOAD - n_matched_q
+
+        # ── Check for extra q-points in matdyn.modes not present in elph ────
+        matdyn_matched = set(elph_to_matdyn[elph_to_matdyn >= 0])
+        matdyn_extra   = [iq_md for iq_md in range(nq_modes)
+                          if iq_md not in matdyn_matched]
+
         print(f"  q-point matching (elph ↔ matdyn.modes): "
               f"{n_matched_q}/{NQ_LOAD} matched")
         for iq_elph in range(NQ_LOAD):
@@ -810,10 +817,34 @@ if __name__ == '__main__':
                       f"q=[{q[0]:9.6f} {q[1]:9.6f} {q[2]:9.6f}]")
             else:
                 print(f"    elph iq={iq_elph+1} → NOT MATCHED  "
-                      f"q=[{q[0]:9.6f} {q[1]:9.6f} {q[2]:9.6f}]")
+                      f"q=[{q[0]:9.6f} {q[1]:9.6f} {q[2]:9.6f}]  *** WARNING ***")
+
+        # ── Discrepancy warnings ──────────────────────────────────────────────
+        if nq_modes != NQ_LOAD:
+            print(f"\n  WARNING: matdyn.modes has {nq_modes} q-points but elph has "
+                  f"{NQ_LOAD}. The two grids do not match.")
+
+        if n_unmatched_q > 0:
+            unmatched_qs = [qpts_cart[iq] for iq in range(NQ_LOAD)
+                            if elph_to_matdyn[iq] < 0]
+            print(f"\n  WARNING: {n_unmatched_q}/{NQ_LOAD} elph q-point(s) have no "
+                  f"matching entry in matdyn.modes:")
+            for q in unmatched_qs:
+                print(f"    [{q[0]:9.6f} {q[1]:9.6f} {q[2]:9.6f}]")
+            print(f"  g_mode will be ZERO for these q-points.")
+            print(f"  Fix: re-run matdyn.x with the same q-point grid as ph.x and "
+                  f"regenerate matdyn.modes.")
+
+        if matdyn_extra:
+            print(f"\n  WARNING: {len(matdyn_extra)} matdyn.modes q-point(s) not used "
+                  f"(not present in elph grid):")
+            for iq_md in matdyn_extra:
+                q = modes_qpts[iq_md]
+                print(f"    matdyn iq={iq_md+1}  [{q[0]:9.6f} {q[1]:9.6f} {q[2]:9.6f}]")
 
         if n_matched_q == 0:
-            print("  WARNING: no q-points matched — skipping mode-basis rotation.")
+            print("\n  WARNING: no q-points matched — g_mode will be all zeros. "
+                  "Skipping mode-basis rotation.")
         else:
             # ── Reshape eigenvectors: (Nq, nmodes, nat, 3) → (Nq, nmodes, 3*nat)
             # The flat alpha index must be atom-major: alpha = 3*iat + xyz,
