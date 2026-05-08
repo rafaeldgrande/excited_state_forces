@@ -276,7 +276,8 @@ def load_excitons_coefficients(exciton_file, excitons_to_be_loaded):
     for iexc in excitons_to_be_loaded_ini_0:
         print(f'Exciton {iexc+1} energy (eV) = {eigenvalues[iexc]:.6f}')
 
-    return Akcv
+    eigenvalues_loaded = eigenvalues[excitons_to_be_loaded_ini_0]
+    return Akcv, eigenvalues_loaded
 
 
 def get_params_from_eigenvecs_file(exciton_file):

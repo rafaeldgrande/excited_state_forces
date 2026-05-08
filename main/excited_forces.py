@@ -355,6 +355,8 @@ if __name__ == "__main__":
     dtmat_file        = config['dtmat_file']
     elph_fine_h5_file = config['elph_fine_h5_file']
     use_second_derivatives_elph_coeffs = config['use_second_derivatives_elph_coeffs']
+    save_forces_h5    = config['save_forces_h5']
+    forces_h5_file    = config['forces_h5_file']
     
     if run_parallel == True:
         from multiprocessing import Pool
@@ -444,8 +446,9 @@ Please cite:
     # loading excitons coefficients
     time0 = time.clock_gettime(0)
     print(f"Loading exciton coefficients from file {exciton_file}")
-    Exciton_coeffs = load_excitons_coefficients(exciton_file, excitons_to_be_loaded)
-    # shape (Exciton_coeffs) is (Loaded Nexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+    Exciton_coeffs, exciton_eigenvalues = load_excitons_coefficients(exciton_file, excitons_to_be_loaded)
+    # Exciton_coeffs shape: (Loaded Nexc, Nkpoints_BSE, Ncbnds, Nvbnds)
+    # exciton_eigenvalues shape: (Loaded Nexc,) in eV
     time1 = time.clock_gettime(0)
     print(f"Finished loading exciton coefficients")
     TASKS.append(['Loading exciton coefficients', time1 - time0])
@@ -600,6 +603,93 @@ Please cite:
         """Convert Cartesian-basis forces (3*Nat,) [Ry/bohr] to atomic (Nat,3) [eV/ang]."""
         return -np.array(f_cart_pert).reshape(Nat, 3) * Ry2eV / bohr2A
 
+    def save_exc_forces_h5(out_path):
+        """Write all forces + run metadata to an HDF5 file."""
+        f_ph_kernel_arr = np.array(forces_ph_Kernel) if Calculate_Kernel else np.zeros_like(forces_ph_RPA_diag)
+        f_ca_kernel_arr = np.zeros_like(forces_ca_RPA_diag)  # kernel in Cartesian not computed separately
+
+        pairs_arr = np.array(exciton_pairs, dtype=np.int32)
+
+        with h5py.File(out_path, 'w') as h5:
+            # ── forces ──────────────────────────────────────────────────
+            grp_ph = h5.require_group('forces/ph')
+            grp_ph.create_dataset('RPA_diag', data=np.real(forces_ph_RPA_diag))
+            grp_ph['RPA_diag'].attrs['axes'] = '(Npairs, Nmodes)'
+            grp_ph['RPA_diag'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
+            grp_ph.create_dataset('RPA', data=np.real(forces_ph_RPA))
+            grp_ph['RPA'].attrs['axes'] = '(Npairs, Nmodes)'
+            grp_ph['RPA'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
+            grp_ph.create_dataset('RPA_diag_plus_Kernel', data=np.real(f_ph_kernel_arr + forces_ph_RPA_diag))
+            grp_ph['RPA_diag_plus_Kernel'].attrs['axes'] = '(Npairs, Nmodes)'
+            grp_ph['RPA_diag_plus_Kernel'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
+
+            grp_ca = h5.require_group('forces/cart')
+            grp_ca.create_dataset('RPA_diag', data=np.real(forces_ca_RPA_diag))
+            grp_ca['RPA_diag'].attrs['axes'] = '(Npairs, Nat, 3)'
+            grp_ca['RPA_diag'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
+            grp_ca.create_dataset('RPA', data=np.real(forces_ca_RPA))
+            grp_ca['RPA'].attrs['axes'] = '(Npairs, Nat, 3)'
+            grp_ca['RPA'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
+            grp_ca.create_dataset('RPA_diag_plus_Kernel', data=np.real(f_ca_kernel_arr + forces_ca_RPA_diag))
+            grp_ca['RPA_diag_plus_Kernel'].attrs['axes'] = '(Npairs, Nat, 3)'
+            grp_ca['RPA_diag_plus_Kernel'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
+
+            # ── exciton pair labels ──────────────────────────────────────
+            h5.create_dataset('exciton_pairs', data=pairs_arr)
+            h5['exciton_pairs'].attrs['description'] = 'Exciton pair (iexc, jexc) for each row in forces arrays (1-based)'
+
+            # ── system parameters ────────────────────────────────────────
+            grp_sys = h5.require_group('system')
+            grp_sys.attrs['Nkpoints'] = Nkpoints_BSE
+            grp_sys.attrs['Ncbnds']   = Ncbnds
+            grp_sys.attrs['Nvbnds']   = Nvbnds
+            grp_sys.attrs['Nval']     = Nval
+            grp_sys.attrs['Nmodes']   = Nmodes
+            grp_sys.attrs['Nat']      = Nat
+            grp_sys.create_dataset('kpoints_bse', data=Kpoints_BSE)
+            grp_sys['kpoints_bse'].attrs['axes']  = '(Nkpoints, 3)'
+            grp_sys['kpoints_bse'].attrs['units'] = 'crystal (fractional) coordinates'
+            grp_sys.create_dataset('phonon_frequencies', data=phonon_frequencies)
+            grp_sys['phonon_frequencies'].attrs['units'] = 'cm^-1'
+            # exciton energies for the unique excitons loaded
+            grp_sys.create_dataset('exciton_energies', data=exciton_eigenvalues)
+            grp_sys['exciton_energies'].attrs['description'] = (
+                'Eigenvalues for excitons listed in excitons_to_be_loaded (1-based indices: '
+                + str(list(excitons_to_be_loaded)) + ')')
+            grp_sys['exciton_energies'].attrs['units'] = 'eV'
+            grp_sys.create_dataset('excitons_loaded', data=np.array(list(excitons_to_be_loaded), dtype=np.int32))
+            grp_sys['excitons_loaded'].attrs['description'] = '1-based exciton indices loaded'
+
+            # ── QP and DFT energy levels ─────────────────────────────────
+            grp_en = h5.require_group('energies')
+            grp_en.create_dataset('Eqp_cond',  data=Eqp_cond)
+            grp_en['Eqp_cond'].attrs['axes']  = '(Nkpoints, Ncbnds)'
+            grp_en['Eqp_cond'].attrs['units'] = 'eV'
+            grp_en.create_dataset('Eqp_val',   data=Eqp_val)
+            grp_en['Eqp_val'].attrs['axes']   = '(Nkpoints, Nvbnds)'
+            grp_en['Eqp_val'].attrs['units']  = 'eV'
+            grp_en.create_dataset('Edft_cond', data=Edft_cond)
+            grp_en['Edft_cond'].attrs['axes'] = '(Nkpoints, Ncbnds)'
+            grp_en['Edft_cond'].attrs['units']= 'eV'
+            grp_en.create_dataset('Edft_val',  data=Edft_val)
+            grp_en['Edft_val'].attrs['axes']  = '(Nkpoints, Nvbnds)'
+            grp_en['Edft_val'].attrs['units'] = 'eV'
+
+            # ── run configuration ────────────────────────────────────────
+            grp_cfg = h5.require_group('config')
+            _skip = {'exciton_pairs', 'dfpt_irreps_list'}  # non-scalar; skip or handle below
+            for k, v in config.items():
+                if k in _skip:
+                    continue
+                if isinstance(v, (bool, int, float, str)):
+                    grp_cfg.attrs[k] = v
+                elif isinstance(v, list):
+                    if len(v) > 0:
+                        grp_cfg.create_dataset(k, data=np.array(v))
+            grp_cfg.attrs['code_version'] = CODE_VERSION
+
+        print(f'Saved forces and metadata to {out_path}')
+
     ####### Computing forces for each exciton pair — both bases ##########
 
     forces_ph_RPA      = []
@@ -611,7 +701,7 @@ Please cite:
 
     time_calc_RPA_diag, time_calc_RPA, time_calc_Kernel = 0.0, 0.0, 0.0
 
-    _unit = -Ry2eV / bohr2A   # Ry/bohr → eV/ang, with sign from F = -dH/dR
+    _unit = -Ry2eV / bohr2A   # Ry/bohr → eV/ang, with sign from F = -dE/dR
 
     def process_exciton_pair(exc_pair):
         Akcv, Bkcv = Exciton_coeffs[exc_pair[0]-1], Exciton_coeffs[exc_pair[1]-1]
@@ -697,7 +787,11 @@ Please cite:
                          phonon_frequencies, verbose=verbose)
         report_forces(iexc-1, jexc-1, forces_ca_RPA_diag[i], forces_ca_RPA[i],
                       None, suffix='cart', verbose=verbose)
-        
-    
+
+    if save_forces_h5:
+        time0 = time.clock_gettime(0)
+        save_exc_forces_h5(forces_h5_file)
+        TASKS.append(['Saving forces to HDF5', time.clock_gettime(0) - time0])
+
     print_final_msg(TASKS)
 
