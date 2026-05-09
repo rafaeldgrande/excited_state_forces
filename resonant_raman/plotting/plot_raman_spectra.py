@@ -8,12 +8,14 @@ independent of the broadening used when building the 2D maps in resonant_raman.p
 Multiple --Eexc values are stacked in a single figure with a vertical offset.
 """
 
+import sys
 from pathlib import Path
 import numpy as np
 import h5py
 import argparse
 import matplotlib.pyplot as plt
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from common import (k_B, rec_cm_to_eV, hbar, FLAVOR_DESC,
                     ignore_0_freq_modes, unpolarized_invariant)
 

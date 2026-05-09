@@ -18,12 +18,14 @@ Usage:
   python interactive_vis_resonant_map.py --max-eexc-points 100 --max-ph-points 200
 """
 
+import sys
 import argparse
 import json
 from pathlib import Path
 import numpy as np
 import h5py
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from common import FLAVOR_DESC
 CART       = ['x', 'y', 'z']
 POL_LABELS = ['unpolarized'] + [a + b for a in CART for b in CART]

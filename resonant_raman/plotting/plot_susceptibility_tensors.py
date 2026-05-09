@@ -7,12 +7,14 @@ Plot 2 — second-order: one figure per (imode, jmode) pair, 3×3 subplots.
                        Title shows the sum of the two phonon frequencies.
 """
 
+import sys
 from pathlib import Path
 import numpy as np
 import h5py
 import argparse
 import matplotlib.pyplot as plt
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from common import rec_cm_to_eV, FLAVOR_DESC, ignore_0_freq_modes
 
 config_dir = Path(__file__).parent.parent / 'presentation.mplstyle'

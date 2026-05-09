@@ -2,80 +2,44 @@
 IGNORE_ERRORS = False
 
 
-from scipy.constants import physical_constants
-
-# File with variables used in excited_forces.py code
-# It reads input forces.inp file
-# If file not found or some parameter not find in file
-# then the code uses (dumb) default values
-
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common.constants import Ry2eV, bohr2A
 
 # Conventions
-TOL_DEG = 1e-5  # tolerance to see if two energy values are degenerate  ----------
-
-# Conversion factors
-Ry2eV = physical_constants["Rydberg constant times hc in eV"][0]
-bohr2A = physical_constants["Bohr radius"][0]*1e10
-
-# Ry2eV = 13.6056980659
-# bohr2A = 0.529177249
+TOL_DEG = 1e-5  # tolerance to see if two energy values are degenerate
 
 # Dumb default parameters as a dictionary
 config = {
     "iexc": 1,
     "jexc": -1,  # if it keeps to be jexc, then make jexc to iexc
-    "factor_head": 1,  # factor that multiplies the head of the matrix elements of bsemat.h5 
-    # you can find this value at 
+    "factor_head": 1,  # factor that multiplies the head of the matrix elements of bsemat.h5
     "ncbnds_sum": -1,  # how many c/v bnds to be included in forces calculation?
     "nvbnds_sum": -1,  # if == -1, then uses all used bnds in the BSE hamiltonian
     # files and paths to be opened
     "eqp_file": 'eqp1.dat',
     "exciton_file": 'eigenvectors.h5',
-    "el_ph_dir": './',
-    "kernel_file": 'bsemat.h5',
     "hbse_file": 'hbse.h5',
 
     # conditionals
-    "calc_modes_basis": False,    # not being used yet
-    "write_DKernel": False,    # not being used  yet
-    "Calculate_Kernel": False,    # Dont change. We dont know how to work with kernel yet
+    "Calculate_Kernel": False,
     "just_RPA_diag": False,    # If true doesn't calculate forces a la David
-    "report_RPA_data": False,    # report Fcvkc'v'k' matrix elements.
 
-    # Show imaginary part of excited state force . It should be very close to 0 when iexc = jexc
-    "show_imag_part": False,
-
-    # Makes the excited state forces to sum to zero (obey Newton's third law), by making sum of elph matrix elems to 0. May want to set this variable to true
+    # Makes the excited state forces to sum to zero (obey Newton's third law), by making sum of elph matrix elems to 0.
     "acoutic_sum_rule": True,
     "use_hermicity_F": True,     # Use the fact that F_cvc'v' = conj(F_c'v'cv)
     # Reduces the number of computed terms by about half
 
     "log_k_points": False,     # Write k points used in BSE and DFPT calculations
 
-    # reads Acvk coeffs from files produced by my modified version of 
+    # reads Acvk coeffs from files produced by my modified version of
     # summarize_eigenvectors.x
     "read_Acvk_pos": False,
     "Acvk_directory": './', # directory where the Acvk files are
 
     # do not renormalize elph coefficients (make <n|dHqp|m> = <n|dHdft|m> for all n and m)
     "no_renorm_elph": False,
-    # print('!!!!!!!!!!', no_renorm_elph)
-
-    # make elph interpolation "a la BerkeleyGW code" using 
-    # the "dtmat_non_bin_val" and "dtmat_non_bin_conds" files
-    # those are output from the modified version of the absorption code
-    "elph_fine_a_la_bgw": False,
-
-    # parameters for interpolation 
-    # in the absorption.inp file, are the following
-    #  number_val_bands_coarse 10
-    #  number_val_bands_fine 5
-    #  number_cond_bands_coarse 8
-    #  number_cond_bands_fine 5
-
-    "ncbands_co": 0,
-    "nvbands_co": 0,
-    "nkpnts_co": 0,
 
     # write dK (derivative of kernel) matrix elements
     "write_dK_mat": False,
@@ -86,60 +50,26 @@ config = {
     "trust_kpoints_order": False,
 
     # run in parallel flag
-    "run_parallel": False   ,
-    
+    "run_parallel": False,
+
     # number of processes to be used in parallel
     'num_processes': 1,
-
-    # modify Acvk to be Acvk = delta_(cvk,cvk)
-    # where cvk is the transition for which Acvk is originally maximum
-    "use_Acvk_single_transition": False,
 
     # List of ELPH to be read. If list is empty, then all are read
     "dfpt_irreps_list": [],
 
-    # If true limit sum of excited state forces to be done only on coefficients ik, ic, iv
-    # listed in file "indexes_limited_sum_BSE.dat". The file has the following format
-    # 1 1 1
-    # 1 1 2
-    # 1 1 3
-    # 1 2 1
-    # 1 2 2
-    # 1 2 3
-    # where the first collumn is the ik, the second is the ic, and the third is the iv
-    # this is useful when one know a priori which transitions are the most relevant
-    "limit_BSE_sum": False,
-
-    # Number between 0.0 and 1.0
-    # set the coefficients ic, iv and ik for which sum |A_cvk|^2 <= limit_BSE_sum_up_to_value
-    # if it is equal to 0, then all coefficients are used
-    # if it is different than 0, than make limit_BSE_sum = False, and ignore indexes_limited_sum_BSE.dat file
-    "limit_BSE_sum_up_to_value": 1.0,
-
     # use vectorized sums
-    # F_{mu,k,c1,v1,c2,v2} = A_{kcv1}^* A_{kc2v2} (g_{mu,k,c1,c2}*delta(v1,v2) - g_{mu,k,v1,v2}*delta(c1,c2))
-    # F_{mu} = sum_{k,c1,v1,c2,v2} F_{mu,k,c1,v1,c2,v2}
-    # Create the matrices A_{kcv1}^* A_{kc2v2} with shape nk, nc, nc, nv, nv
-    # g_{mu,k,c1,c2}*delta(v1,v2) with shape nk, nc, nc, nv, nv
-    # and g_{mu,k,v1,v2}*delta(c1,c2) with shape nk, nc, nc, nv, nv
     "do_vectorized_sums": True,
 
     # If true read exciton pairs from file exciton_pairs.dat
     # The file needs to be something like
-    # 1 1 
+    # 1 1
     # 1 2
     # 1 3
-    # ... 
-    # The code will calculate the exciton_phoonon coefficients <iexc|dH|jexc> for all pairs
+    # The code will calculate the exciton-phonon coefficients <iexc|dH|jexc> for all pairs
     "read_exciton_pairs_file": False,
     "exciton_pairs": [],
-    
-    'save_elph_coeffs': False, # if true, save elph coefficients in hdf5 file
-    'load_elph_coeffs': False, # if true, load elph coefficients from hdf5 file
-    'just_save_elph_coeffs': False, # If true code stops after saving elph coeffs and does not calculate excitd state forces
-    'elph_coeffs_file_to_be_loaded': "elph_coeffs.h5", # file from where elph coefficients will be loaded
-    'elph_h5_file': 'elph.h5',  # HDF5 file produced by assemble_elph_h5.py (Cartesian basis)
-    'dtmat_file': 'dtmat',      # BerkeleyGW dtmat binary (coarse→fine wavefunction overlaps)
+
     'elph_fine_h5_file': 'elph_fine.h5',  # pre-interpolated fine-grid el-ph (from interpolate_elph_bgw.py)
     'use_second_derivatives_elph_coeffs': False, # if true, use the second derivatives of elph coefficients
                                                 # (g2_cond and g2_val) instead of the first derivatives to calculate the forces.
@@ -186,33 +116,27 @@ def read_input(input_file):
                 value = linha[1:]
                 # Integer keys
                 if key in [
-                    'iexc', 'jexc', 'ncbnds_sum', 'nvbnds_sum',
-                    'ncbands_co', 'nvbands_co', 'nkpnts_co', 'num_processes'
+                    'iexc', 'jexc', 'ncbnds_sum', 'nvbnds_sum', 'num_processes'
                 ]:
                     config[key] = int(value[0])
                 # Float keys
-                elif key in ['factor_head', 'limit_BSE_sum_up_to_value']:
+                elif key in ['factor_head']:
                     config[key] = float(value[0])
                 # String keys
                 elif key in [
-                    'eqp_file', 'exciton_file', 'el_ph_dir', 'dyn_file',
-                    'kernel_file', 'Acvk_directory', 'hbse_file',
-                    'elph_coeffs_file_to_be_loaded', 'elph_h5_file', 'dtmat_file',
+                    'eqp_file', 'exciton_file', 'Acvk_directory', 'hbse_file',
                     'elph_fine_h5_file', 'forces_h5_file',
                     'eigenvectors_A_file', 'eigenvectors_B_file'
                 ]:
                     config[key] = value[0]
                 # Boolean keys
                 elif key in [
-                    'calc_modes_basis', 'Calculate_Kernel', 'write_DKernel',
-                    'just_RPA_diag', 'report_RPA_data', 'show_imag_part',
-                    'acoutic_sum_rule', 'use_hermicity_F', 'log_k_points',
-                    'read_Acvk_pos', 'no_renorm_elph', 'elph_fine_a_la_bgw',
-                    'write_dK_mat', 'trust_kpoints_order', 'run_parallel', 
-                    'use_Acvk_single_transition',
-                    'limit_BSE_sum', 'do_vectorized_sums', 'read_exciton_pairs_file',
-                    'save_elph_coeffs', 'just_save_elph_coeffs',
-                    'load_elph_coeffs', 'use_second_derivatives_elph_coeffs',
+                    'Calculate_Kernel',
+                    'just_RPA_diag', 'acoutic_sum_rule', 'use_hermicity_F', 'log_k_points',
+                    'read_Acvk_pos', 'no_renorm_elph',
+                    'write_dK_mat', 'trust_kpoints_order', 'run_parallel',
+                    'do_vectorized_sums', 'read_exciton_pairs_file',
+                    'use_second_derivatives_elph_coeffs',
                     'save_forces_h5', 'finite_q_phonon'
                 ]:
                     config[key] = true_or_false(value[0], config.get(key, False))
@@ -226,4 +150,3 @@ def read_input(input_file):
         # Special handling for jexc default
         if config['jexc'] == -1:
             config['jexc'] = config['iexc']
-

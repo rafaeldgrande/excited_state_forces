@@ -1,6 +1,9 @@
 
+import sys
 import numpy as np
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import TOL_ZERO, ry2eV, eV2ry
 
 def compute_second_order_elph(elph, E, Displacements):

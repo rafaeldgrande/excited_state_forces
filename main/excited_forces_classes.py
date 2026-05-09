@@ -2,7 +2,7 @@
 # Classes
 class Parameters_BSE:
 
-    def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, Ncbnds_coarse, Nvbnds_coarse, Nkpoints_coarse, rec_cell_vecs):
+    def __init__(self, Nkpoints_BSE, Kpoints_BSE, Ncbnds, Nvbnds, Nval, Ncbnds_sum, Nvbnds_sum, rec_cell_vecs):
         self.Nkpoints_BSE = Nkpoints_BSE
         self.Kpoints_BSE = Kpoints_BSE
         self.Ncbnds = Ncbnds
@@ -10,9 +10,6 @@ class Parameters_BSE:
         self.Nval = Nval
         self.Ncbnds_sum = Ncbnds_sum
         self.Nvbnds_sum = Nvbnds_sum
-        self.Ncbnds_coarse = Ncbnds_coarse
-        self.Nvbnds_coarse = Nvbnds_coarse
-        self.Nkpoints_coarse = Nkpoints_coarse
         self.rec_cell_vecs = rec_cell_vecs
 
 class Parameters_MF:

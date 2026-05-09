@@ -1,11 +1,14 @@
 
+import sys
 import argparse
 import os
 import time
 import numpy as np
 import h5py
 import multiprocessing as mp
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import _gb, rec_cm_to_eV
 
 # ---------------------------------------------------------------------------

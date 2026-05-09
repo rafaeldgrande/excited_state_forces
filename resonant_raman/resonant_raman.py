@@ -1,10 +1,12 @@
 
+import sys
 from pathlib import Path
 import numpy as np
 import h5py
 import argparse
 import matplotlib.pyplot as plt
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import (k_B, rec_cm_to_eV, hbar, FLAVOR_DESC,
                     ignore_0_freq_modes, _downsample_idx, unpolarized_invariant)
 

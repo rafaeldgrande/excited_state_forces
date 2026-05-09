@@ -5,7 +5,6 @@ verbosity = 'high'
 from modules_to_import import *
 from excited_forces_config import *
 from bgw_interface_m import *
-from qe_interface_m import *
 from excited_forces_m import *
 from excited_forces_classes import *
 
@@ -101,57 +100,6 @@ def check_k_points_BSE_DFPT():
             quit()
         else:
             print('Continuing calculation regardless of that!')
-
-
-def load_exciton_coeffs(iexc, jexc, verbose=False):
-    time0 = time.clock_gettime(0)
-    Akcv, Bkcv = get_exciton_coeffs(iexc, jexc)
-    # report_expected_energies_master(iexc, jexc, Eqp_cond, Eqp_val, Akcv, OmegaA, Bkcv, OmegaB)
-
-    # FIXME: implement this later. This limits the sums.
-    # if limit_BSE_sum_up_to_value < 1.0:
-    #     top_indexes_Akcv = summarize_Acvk(Akcv, BSE_params, limit_BSE_sum_up_to_value)
-    #     if iexc != jexc:
-    #         top_indexes_Bkcv = summarize_Acvk(Bkcv, BSE_params, limit_BSE_sum_up_to_value)
-
-    #         # Convert lists of lists to sets of tuples
-    #         set_A = set(tuple(item) for item in top_indexes_Akcv)
-    #         set_B = set(tuple(item) for item in top_indexes_Bkcv)
-
-    #         # Merge the sets to eliminate duplicates
-    #         merged_set = set_A | set_B  # or set_A.union(set_B)
-
-    #         # Convert the set back to a list of lists
-    #         indexes_limited_BSE_sum = [list(item) for item in merged_set]
-            
-    #     else:
-    #         indexes_limited_BSE_sum = top_indexes_Akcv
-
-    # summarizing Akcv information  
-    # summarize_Acvk(Akcv, BSE_params.Kpoints_BSE)
-
-    delta_time = time.clock_gettime(0) - time0
-    return Akcv, Bkcv, delta_time
-
-def load_elph_cartesian_h5(h5_path, iq=0):
-    """
-    Load electron-phonon matrix elements in Cartesian displacement basis from
-    the HDF5 file produced by assemble_elph_h5.py.
-
-    Parameters
-    ----------
-    h5_path : str
-    iq      : int  q-point index (0-based); default 0 = Gamma
-
-    Returns
-    -------
-    g_cart          : (Npert, Nk, Nbnds, Nbnds) complex128   [Ry/bohr]
-    kpoints_crystal : (Nk, 3) float64   DFT k-points in crystal (fractional) coords
-    """
-    with h5py.File(h5_path, 'r') as fh:
-        g_cart          = fh['g'][iq]                    # (Npert, Nk, Nbnds, Nbnds)
-        kpoints_crystal = fh['kpoints_dft_crystal'][:]   # (Nk, 3)
-    return g_cart, kpoints_crystal
 
 
 def f_disp_to_cart_basis(f_dis_basis, Displacements):
@@ -318,41 +266,22 @@ if __name__ == "__main__":
     nvbnds_sum = config['nvbnds_sum']
     eqp_file = config['eqp_file']
     exciton_file = config['exciton_file']
-    el_ph_dir = config['el_ph_dir']
-    kernel_file = config['kernel_file']
-    calc_modes_basis = config['calc_modes_basis']
-    write_DKernel = config['write_DKernel']
     Calculate_Kernel = config['Calculate_Kernel']
     just_RPA_diag = config['just_RPA_diag']
-    report_RPA_data = config['report_RPA_data']
-    show_imag_part = config['show_imag_part']
     acoutic_sum_rule = config['acoutic_sum_rule']
     use_hermicity_F = config['use_hermicity_F']
     log_k_points = config['log_k_points']
     read_Acvk_pos = config['read_Acvk_pos']
     Acvk_directory = config['Acvk_directory']
     no_renorm_elph = config['no_renorm_elph']
-    elph_fine_a_la_bgw = config['elph_fine_a_la_bgw']
-    ncbands_co = config['ncbands_co']
-    nvbands_co = config['nvbands_co']
-    nkpnts_co = config['nkpnts_co']
     write_dK_mat = config['write_dK_mat']
     trust_kpoints_order = config['trust_kpoints_order']
     run_parallel = config['run_parallel']
     num_processes = config['num_processes']
-    use_Acvk_single_transition = config['use_Acvk_single_transition']
     dfpt_irreps_list = config['dfpt_irreps_list']
-    limit_BSE_sum = config['limit_BSE_sum']
-    limit_BSE_sum_up_to_value = config['limit_BSE_sum_up_to_value']
     do_vectorized_sums = config['do_vectorized_sums']
     read_exciton_pairs_file = config['read_exciton_pairs_file']
     hbse_file = config['hbse_file']
-    save_elph_coeffs = config['save_elph_coeffs']
-    load_elph_coeffs = config['load_elph_coeffs']
-    just_save_elph_coeffs = config['just_save_elph_coeffs']
-    elph_coeffs_file_to_be_loaded = config["elph_coeffs_file_to_be_loaded"]
-    elph_h5_file      = config['elph_h5_file']
-    dtmat_file        = config['dtmat_file']
     elph_fine_h5_file = config['elph_fine_h5_file']
     use_second_derivatives_elph_coeffs = config['use_second_derivatives_elph_coeffs']
     save_forces_h5    = config['save_forces_h5']
@@ -592,7 +521,7 @@ Please cite:
         elph *= ratio[None, ...]
         return elph
 
-    if renormalize_elph_coeffs == True:
+    if not no_renorm_elph:
         print('Renormalizing ELPH coefficients using QP and DFT energy levels')
         elph_cond_mode = renormalize_elph_coeffs(elph_cond_mode, Eqp_cond, Edft_cond)
         elph_val_mode  = renormalize_elph_coeffs(elph_val_mode,  Eqp_val,  Edft_val)

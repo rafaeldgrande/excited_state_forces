@@ -64,6 +64,11 @@ python excited_forces.py
 | `eqp_file` | Quasiparticle energies file | eqp.dat |
 | `exciton_file` | BSE eigenvectors file | eigenvectors.h5 |
 | `el_ph_dir` | Electron-phonon coupling directory | *.phsave/ |
+| `save_elph_coeffs` | Save el-ph coefficients to HDF5 (needed for 2nd order Raman) | False |
+| `load_elph_coeffs` | Load el-ph coefficients from HDF5 instead of recomputing | False |
+| `just_save_elph_coeffs` | Stop after saving el-ph coefficients (skip force calculation) | False |
+| `elph_coeffs_file_to_be_loaded` | HDF5 file to load el-ph coefficients from | elph_coeffs.h5 |
+| `use_second_derivatives_elph_coeffs` | Use 2nd-order el-ph coefficients (from `elph_coeffs_second_derivative.py`) | False |
 
 ## Examples
 
@@ -95,7 +100,43 @@ python ../../../excited_forces.py
 ```
 
 
+## Resonant Raman
+
+The `resonant_raman/` directory contains a complete pipeline for computing 1st and 2nd order resonant Raman spectra from the exciton-phonon coupling coefficients.
+
+Set `ESF_DIR=/path/to/excited_state_forces` to use the commands below.
+
+### 1st Order Workflow
+
+```
+1st_der_exc_ph/
+├── $ESF_DIR/main/excited_forces.py                              → exciton-phonon matrix elements (Cartesian)
+├── $ESF_DIR/post_processing/cart2ph_eigvec.py                   → convert to phonon basis
+├── $ESF_DIR/resonant_raman/assemble_exciton_phonon_coeffs.py    → build exciton_phonon_couplings.h5
+├── $ESF_DIR/resonant_raman/susceptibility_tensors_first_order.py → build susceptibility_tensors_first_order.h5
+└── $ESF_DIR/resonant_raman/resonant_raman.py --flavor 0         → Raman maps and intensities
+```
+
+### 2nd Order Workflow
+
+```
+1st_der_exc_ph/ (with save_elph_coeffs True in forces.inp)
+└── $ESF_DIR/main/excited_forces.py  → also saves elph_coeffs.h5
+
+2nd_der_exc_ph/
+├── $ESF_DIR/resonant_raman/elph_coeffs_second_derivative.py     → build 2nd_derivative_elph_coeffs.h5
+├── $ESF_DIR/main/excited_forces.py  (use_second_derivatives_elph_coeffs True in forces.inp)
+├── $ESF_DIR/post_processing/cart2ph_eigvec.py
+├── $ESF_DIR/resonant_raman/assemble_exciton_phonon_coeffs.py
+├── $ESF_DIR/resonant_raman/susceptibility_tensors_second_order.py → build susceptibility_tensors_second_order.h5
+└── $ESF_DIR/resonant_raman/resonant_raman.py --flavor 3          → 2nd order Raman maps
+```
+
+For full details on arguments and outputs, see [`resonant_raman/README.md`](resonant_raman/README.md).
+
 ## Module Structure
+
+### `main/`
 
 - `excited_forces.py`: Main execution script
 - `excited_forces_m.py`: Core force calculation functions
@@ -103,7 +144,24 @@ python ../../../excited_forces.py
 - `excited_forces_config.py`: Configuration file parser
 - `bgw_interface_m.py`: BerkeleyGW file interface
 - `qe_interface_m.py`: Quantum ESPRESSO interface
+
+### `post_processing/`
+
+- `cart2ph_eigvec.py`: Converts excited state forces from Cartesian to phonon displacement basis
 - `visualize_forces.py`: Force visualization utilities
+- `first_order_pert_on_eigvals_dip_moments.py`: Applies first-order perturbation theory on exciton eigenvalues and dipole moments
+
+### `resonant_raman/`
+
+- `elph_coeffs_second_derivative.py`: Computes 2nd-order el-ph coefficients via perturbation theory
+- `assemble_exciton_phonon_coeffs.py`: Assembles per-pair exciton-phonon couplings into a single HDF5 file
+- `susceptibility_tensors_first_order.py`: Calculates 1st-order susceptibility tensors vs. excitation energy
+- `susceptibility_tensors_second_order.py`: Calculates 2nd-order susceptibility tensors (triple + double resonance)
+- `resonant_raman.py`: Computes Raman intensity maps from susceptibility tensors; supports 6 flavors of 1st/2nd order contributions
+- `plot_raman_spectra.py`: Plots Raman spectra at fixed excitation energies
+- `plot_susceptibility_tensors.py`: Plots raw susceptibility tensor components vs. excitation energy
+- `interactive_vis_resonant_map.py`: Generates self-contained interactive HTML viewer for Raman maps
+- `analisys_exc_ph_offdiag_coeffs_vs_energy_diff.py`: Diagnostic plot for off-diagonal coupling convergence
 
 ## Citation
 

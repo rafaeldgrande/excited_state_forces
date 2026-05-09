@@ -1,9 +1,12 @@
 
+import sys
 import argparse
 import time
 import numpy as np
 import h5py
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import _gb, rec_cm_to_eV
 
 def calculate_tensor_not_vectorized(ialpha, ibeta):
