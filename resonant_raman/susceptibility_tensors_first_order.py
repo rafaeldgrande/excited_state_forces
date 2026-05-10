@@ -136,7 +136,7 @@ parser.add_argument('--dE', type=float, default=0.001, help='Energy step in eV f
 parser.add_argument('--gamma', type=float, default=0.01, help='Broadening parameter in eV')
 parser.add_argument('--vectorized_flavor', type=int, default=2, choices=[0, 1, 2], help='0: no vectorization (triple loop), 1: vectorize over excitons only, 2: vectorize over both excitons and modes (more memory usage but faster)')
 parser.add_argument('--test_functions', action='store_true', help='Run all three implementations on Nexc=10 and check they agree')
-parser.add_argument('--freqs_file', default='freqs.dat', help='File containing phonon frequencies in cm^-1')
+parser.add_argument('--freqs_file', default=None, help='File containing phonon frequencies in cm^-1 (optional if stored in --exc_ph_file)')
 parser.add_argument('--limit_Nexc', type=int, default=None, help='Limit number of excitons to load (for testing)')
 parser.add_argument('--write_dummy', action='store_true',
                     help='Also compute and save dummy tensors (all numerators = 1, joint DOS of transitions) '
@@ -160,7 +160,7 @@ flavor_desc = {0: 'no vectorization (triple loop)',
                2: 'vectorized over excitons and modes'}
 print('--- Options ---')
 print(f'  exc_ph_file       : {exc_ph_file}')
-print(f'  freqs_file        : {freqs_file}')
+print(f'  freqs_file        : {freqs_file if freqs_file else "(read from h5)"}')
 print(f'  dip_mom_file_b1   : {dip_mom_file_b1}')
 print(f'  dip_mom_file_b2   : {dip_mom_file_b2}')
 print(f'  dip_mom_file_b3   : {dip_mom_file_b3}')
@@ -172,15 +172,44 @@ print(f'  limit_Nexc        : {args.limit_Nexc} (None means no limit)')
 print(f'  write_dummy       : {args.write_dummy}')
 print('---------------\n')
 
-freqs_rec_cm = np.loadtxt(freqs_file)  # Load phonon frequencies in cm^-1
-freqs_eV = freqs_rec_cm * rec_cm_to_eV  # Convert frequencies. shape (Nmodes,)
+freqs_eV = None  # loaded below from h5 or --freqs_file
 
-
-print(f'Reading data from {exc_ph_file}')
+print(f'Reading exciton-phonon data from {exc_ph_file}')
 with h5py.File(exc_ph_file, 'r') as hf:
-    # rpa_diag_data = hf['rpa_diag'][:]  # shape: (Nmodes, Nexciton, Nexciton)
-    exc_ph = hf['rpa_offdiag'][:]  # shape: (Nmodes, Nexciton, Nexciton)
+    if 'forces/ph/RPA' in hf:
+        # New format (from assemble_exciton_phonon_coeffs.py or excited_forces.py):
+        # per-pair forces F = -<A|dH|B>; build full (Nmodes, Nexc, Nexc) matrix.
+        pairs  = hf['exciton_pairs'][:]     # (Npairs, 2) 1-based
+        forces = hf['forces/ph/RPA'][:]     # (Npairs, Nmodes)
+        max_exc = int(pairs.max())
+        _Nm = forces.shape[1]
+        exc_ph = np.zeros((_Nm, max_exc, max_exc), dtype=complex)
+        for k, (i, j) in enumerate(pairs):
+            val = -forces[k]                # negate: F = -<A|dH|B> → <A|dH|B>
+            exc_ph[:, i-1, j-1] = val
+            if i != j:
+                exc_ph[:, j-1, i-1] = val.conj()
+        print(f'  Built {_Nm}×{max_exc}×{max_exc} matrix from {len(pairs)} pairs '
+              f'(missing pairs assumed zero; Hermitian symmetry applied)')
+    else:
+        # Old format: direct (Nmodes, Nexc, Nexc) matrix stored as rpa_offdiag
+        exc_ph = hf['rpa_offdiag'][:]
+        print(f'  Loaded old-format matrix: shape {exc_ph.shape}')
+    if 'system/phonon_frequencies' in hf:
+        freqs_eV = hf['system/phonon_frequencies'][:] * rec_cm_to_eV
+        print(f'  Loaded {len(freqs_eV)} phonon frequencies from h5')
 print('Data read successfully.')
+
+if freqs_eV is None:
+    if freqs_file is not None:
+        freqs_eV = np.loadtxt(freqs_file) * rec_cm_to_eV
+        print(f'Loaded {len(freqs_eV)} phonon frequencies from {freqs_file}')
+    else:
+        sys.exit(
+            'ERROR: phonon frequencies not found in h5 file and --freqs_file not given.\n'
+            'Use assemble_exciton_phonon_coeffs.py with exc_forces.h5 input (which stores '
+            'system/phonon_frequencies), or pass --freqs_file.'
+        )
 
 
 print(f'Reading exciton energies from {dip_mom_file_b1}')

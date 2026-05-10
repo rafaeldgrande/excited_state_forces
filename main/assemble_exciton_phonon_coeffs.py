@@ -3,75 +3,107 @@ import argparse
 import numpy as np
 import h5py
 
-exciton_pairs_file = 'exciton_pairs.dat'
-pair_indexes_to_load = []
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--exc_ph_file', default='exciton_phonon_couplings.h5')
-
+parser = argparse.ArgumentParser(
+    description=(
+        'Merge one or more exc_forces.h5 files (produced by excited_forces.py with '
+        'save_forces_h5 True) into a single exciton-phonon coupling file. '
+        'The output has the same schema as exc_forces.h5 and can be passed directly '
+        'to susceptibility_tensors_first/second_order.py.'
+    )
+)
+parser.add_argument('--input', '-i', nargs='+', required=True,
+                    help='exc_forces.h5 file(s) to merge (one or more)')
+parser.add_argument('--output', '-o', default='exciton_phonon_couplings.h5',
+                    help='Output HDF5 file (default: exciton_phonon_couplings.h5)')
 args = parser.parse_args()
-assembled_exc_ph_file = args.exc_ph_file
 
-def read_excited_state_forces_file_ph(filename):
-    # read excited state forces in ph basis
-    data = -np.loadtxt(filename, dtype=complex) # minus sign comes from the fact that excited_forces.py computes F = - <A|dH/dR|A> and here we want to save the exciton-phonon matrix elements <A|dH/dR|A> without the minus sign.
-    rpa_diag = data[:, 1]
-    rpa_offdiag = data[:, 2]
-    rpa_diag_plus_kernel = data[:, 3]
-    
-    return rpa_diag, rpa_offdiag, rpa_diag_plus_kernel
+all_pairs    = []
+all_rpa_diag = []
+all_rpa      = []
+all_rpa_k    = []
+phonon_frequencies = None
 
+for fname in args.input:
+    print(f'Reading {fname}')
+    with h5py.File(fname, 'r') as hf:
+        pairs    = hf['exciton_pairs'][:]                   # (Npairs, 2)
+        rpa_diag = hf['forces/ph/RPA_diag'][:]              # (Npairs, Nmodes)
+        rpa      = hf['forces/ph/RPA'][:]                   # (Npairs, Nmodes)
+        rpa_k    = hf['forces/ph/RPA_diag_plus_Kernel'][:]  # (Npairs, Nmodes)
 
-print('Reading exciton pairs to load from file:', exciton_pairs_file)
-arq = open(exciton_pairs_file)
-for line in arq:
-    pair_indexes_to_load.append(tuple(map(int, line.split())))
-arq.close()
-print('Total of exciton pairs to be loaded:', len(pair_indexes_to_load))
+        all_pairs.append(pairs)
+        all_rpa_diag.append(rpa_diag)
+        all_rpa.append(rpa)
+        all_rpa_k.append(rpa_k)
 
-# maximum indexes to load
-max_index = max(max([pair[0] for pair in pair_indexes_to_load]), max([pair[1] for pair in pair_indexes_to_load]))
+        if phonon_frequencies is None and 'system/phonon_frequencies' in hf:
+            phonon_frequencies = hf['system/phonon_frequencies'][:]
+            print(f'  Loaded phonon frequencies ({len(phonon_frequencies)} modes) from {fname}')
 
-pair = pair_indexes_to_load[0]
-i_exciton_1 = pair[0]
-i_exciton_2 = pair[1]
-filename = f'forces_ph.out_{i_exciton_1}_{i_exciton_2}'
-rpa_diag, rpa_offdiag, rpa_diag_plus_kernel = read_excited_state_forces_file_ph(filename)
-Nmodes = rpa_diag.shape[0]
-print(f'Number of phonon modes detected: {Nmodes}')
+all_pairs_arr    = np.concatenate(all_pairs,    axis=0)  # (Npairs_total, 2)
+all_rpa_diag_arr = np.concatenate(all_rpa_diag, axis=0)  # (Npairs_total, Nmodes)
+all_rpa_arr      = np.concatenate(all_rpa,      axis=0)
+all_rpa_k_arr    = np.concatenate(all_rpa_k,    axis=0)
 
-data = np.zeros((3, Nmodes, max_index, max_index), dtype=complex)
+# Deduplicate: keep first occurrence of each (i, j) pair
+seen  = set()
+keep  = []
+dupes = 0
+for k, (i, j) in enumerate(all_pairs_arr.tolist()):
+    key = (int(i), int(j))
+    if key not in seen:
+        seen.add(key)
+        keep.append(k)
+    else:
+        dupes += 1
 
-print('Loading exciton-phonon coupling data from files forces_ph.out_i_j')
-# loading all data
+if dupes:
+    print(f'WARNING: {dupes} duplicate pair(s) found — keeping first occurrence')
+keep = np.array(keep)
 
-counter = 0
-for pair in pair_indexes_to_load:
-    i_exciton_1 = pair[0] # starts at 1
-    i_exciton_2 = pair[1]
-    
-    filename = f'forces_ph.out_{i_exciton_1}_{i_exciton_2}'
-    rpa_diag, rpa_offdiag, rpa_diag_plus_kernel = read_excited_state_forces_file_ph(filename)
-    
-    data[0, :, i_exciton_1-1, i_exciton_2-1] = rpa_diag
-    data[1, :, i_exciton_1-1, i_exciton_2-1] = rpa_offdiag
-    data[2, :, i_exciton_1-1, i_exciton_2-1] = rpa_diag_plus_kernel
-    
-    # assuming there is only one i, j and not j, i
-    if i_exciton_1 != i_exciton_2:
-        data[0, :, i_exciton_2-1, i_exciton_1-1] = rpa_diag.conjugate()
-        data[1, :, i_exciton_2-1, i_exciton_1-1] = rpa_offdiag.conjugate()
-        data[2, :, i_exciton_2-1, i_exciton_1-1] = rpa_diag_plus_kernel.conjugate()
-    counter += 1
-    
-    if counter % 100 == 0:
-        print(f'  Loaded {counter} pairs of {len(pair_indexes_to_load)} ({100.0*counter/len(pair_indexes_to_load):.2f} %)')
+pairs_out    = all_pairs_arr[keep]
+rpa_diag_out = all_rpa_diag_arr[keep]
+rpa_out      = all_rpa_arr[keep]
+rpa_k_out    = all_rpa_k_arr[keep]
 
-# saving data in hdf5 file
-with h5py.File(assembled_exc_ph_file, 'w') as hf:
-    hf.create_dataset('rpa_diag', data=data[0])
-    hf.create_dataset('rpa_offdiag', data=data[1])
-    hf.create_dataset('rpa_diag_plus_kernel', data=data[2])
-    
-print('Exciton-phonon coupling data saved in exciton_phonon_couplings.h5')
-print('Finished!')
+Npairs = len(pairs_out)
+Nmodes = rpa_out.shape[1]
+max_exc = int(pairs_out.max())
+
+print(f'Total pairs: {Npairs},  Nmodes: {Nmodes},  max exciton index: {max_exc}')
+
+if phonon_frequencies is None:
+    print('WARNING: phonon_frequencies not found in any input file. '
+          'Run excited_forces.py with save_forces_h5 True to store system/phonon_frequencies.')
+
+with h5py.File(args.output, 'w') as hf:
+    hf.create_dataset('exciton_pairs', data=pairs_out)
+    hf['exciton_pairs'].attrs['description'] = 'Exciton pair (iexc, jexc) for each row (1-based)'
+
+    grp_ph = hf.require_group('forces/ph')
+
+    grp_ph.create_dataset('RPA_diag', data=rpa_diag_out)
+    grp_ph['RPA_diag'].attrs['description'] = (
+        'F_nu = -<iexc|dH/dQ_nu|jexc> in the RPA_diag approximation. '
+        'Negate to get exciton-phonon matrix elements.')
+    grp_ph['RPA_diag'].attrs['units'] = 'eV/ang'
+
+    grp_ph.create_dataset('RPA', data=rpa_out)
+    grp_ph['RPA'].attrs['description'] = (
+        'F_nu = -<iexc|dH/dQ_nu|jexc> in the full RPA. '
+        'Negate to get exciton-phonon matrix elements.')
+    grp_ph['RPA'].attrs['units'] = 'eV/ang'
+
+    grp_ph.create_dataset('RPA_diag_plus_Kernel', data=rpa_k_out)
+    grp_ph['RPA_diag_plus_Kernel'].attrs['units'] = 'eV/ang'
+
+    grp_sys = hf.require_group('system')
+    grp_sys.attrs['Nmodes']              = Nmodes
+    grp_sys.attrs['Npairs']              = Npairs
+    grp_sys.attrs['max_exciton_index']   = max_exc
+
+    if phonon_frequencies is not None:
+        grp_sys.create_dataset('phonon_frequencies', data=phonon_frequencies)
+        grp_sys['phonon_frequencies'].attrs['units'] = 'cm^-1'
+
+print(f'Saved {Npairs} pairs to {args.output}')

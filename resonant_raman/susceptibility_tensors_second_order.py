@@ -326,7 +326,7 @@ parser.add_argument('--nworkers', type=int, default=None,
                     help='Number of worker processes for double-resonance (flavor 1 only). '
                          'Default: None (serial). Set to -1 to use all CPUs.')
 parser.add_argument('--test_functions', action='store_true', help='Run all three implementations on Nexc=10 and check they agree')
-parser.add_argument('--freqs_file', default='freqs.dat', help='File containing phonon frequencies in cm^-1')
+parser.add_argument('--freqs_file', default=None, help='File containing phonon frequencies in cm^-1 (optional if stored in --first_order_exc_ph_file)')
 parser.add_argument('--limit_Nexc', type=int, default=None, help='Limit number of excitons to load (for testing)')
 parser.add_argument('--write_dummy', action='store_true',
                     help='Also compute and save dummy tensors (all numerators = 1, joint DOS of transitions) '
@@ -353,7 +353,7 @@ flavor_desc = {0: 'no vectorization (triple loop)',
 print('--- Options ---')
 print(f'  1st_order_exc_ph_file : {first_order_exc_ph_file}')
 print(f'  2nd_order_exc_ph_file : {second_order_exc_ph_file}')
-print(f'  freqs_file        : {freqs_file}')
+print(f'  freqs_file        : {freqs_file if freqs_file else "(read from h5)"}')
 print(f'  dip_mom_file_b1   : {dip_mom_file_b1}')
 print(f'  dip_mom_file_b2   : {dip_mom_file_b2}')
 print(f'  dip_mom_file_b3   : {dip_mom_file_b3}')
@@ -366,20 +366,65 @@ print(f'  limit_Nexc        : {args.limit_Nexc} (None means no limit)')
 print(f'  write_dummy       : {args.write_dummy}')
 print('---------------\n')
 
-freqs_rec_cm = np.loadtxt(freqs_file)  # Load phonon frequencies in cm^-1
-freqs_eV = freqs_rec_cm * rec_cm_to_eV  # Convert frequencies. shape (Nmodes,)
+freqs_eV = None  # loaded below from h5 or --freqs_file
 
-# reading file produced by assemble_exciton_phonon_coeffs.py
-print(f'Reading data from {first_order_exc_ph_file}')
-with h5py.File(first_order_exc_ph_file, 'r') as hf:
-    # rpa_diag_data = hf['rpa_diag'][:]  # shape: (Nmodes, Nexciton, Nexciton)
-    exc_ph = hf['rpa_offdiag'][:]  # shape: (Nmodes, Nexciton, Nexciton)
+def _load_exc_ph_h5(fname):
+    """Load (Nmodes, Nexc, Nexc) exciton-phonon matrix from an exc_forces/assembled h5.
+    Supports both the new per-pair format (forces/ph/RPA) and the old rpa_offdiag format."""
+    with h5py.File(fname, 'r') as hf:
+        if 'forces/ph/RPA' in hf:
+            pairs  = hf['exciton_pairs'][:]  # (Npairs, 2) 1-based
+            forces = hf['forces/ph/RPA'][:]  # (Npairs, Nmodes)
+            max_exc = int(pairs.max())
+            _Nm = forces.shape[1]
+            mat = np.zeros((_Nm, max_exc, max_exc), dtype=complex)
+            for k, (i, j) in enumerate(pairs):
+                val = -forces[k]             # negate: F = -<A|dH|B> → <A|dH|B>
+                mat[:, i-1, j-1] = val
+                if i != j:
+                    mat[:, j-1, i-1] = val.conj()
+            print(f'  Built {_Nm}×{max_exc}×{max_exc} matrix from {len(pairs)} pairs '
+                  f'(missing pairs assumed zero; Hermitian symmetry applied)')
+            ph_freqs = hf['system/phonon_frequencies'][:] if 'system/phonon_frequencies' in hf else None
+        else:
+            mat = hf['rpa_offdiag'][:]
+            print(f'  Loaded old-format matrix: shape {mat.shape}')
+            ph_freqs = None
+    return mat, ph_freqs
+
+print(f'Reading 1st-order exciton-phonon data from {first_order_exc_ph_file}')
+exc_ph, _freqs = _load_exc_ph_h5(first_order_exc_ph_file)
+if _freqs is not None:
+    freqs_eV = _freqs * rec_cm_to_eV
+    print(f'  Loaded {len(freqs_eV)} phonon frequencies from h5')
 print('Data read successfully.')
 
-print(f'Reading data from {second_order_exc_ph_file}')
-with h5py.File(second_order_exc_ph_file, 'r') as hf:
-    second_order_exc_ph = hf['rpa_offdiag'][:]  # shape: (Nmodes, Nexciton, Nexciton)
+print(f'Reading 2nd-order exciton-phonon data from {second_order_exc_ph_file}')
+second_order_exc_ph, _freqs2 = _load_exc_ph_h5(second_order_exc_ph_file)
+if freqs_eV is None and _freqs2 is not None:
+    freqs_eV = _freqs2 * rec_cm_to_eV
+    print(f'  Loaded {len(freqs_eV)} phonon frequencies from 2nd-order h5')
 print('Data read successfully.')
+
+# Ensure both matrices have the same Nexc (truncate to the smaller one)
+_Nexc_1 = exc_ph.shape[1]
+_Nexc_2 = second_order_exc_ph.shape[1]
+if _Nexc_1 != _Nexc_2:
+    _Nexc = min(_Nexc_1, _Nexc_2)
+    print(f'WARNING: 1st-order Nexc={_Nexc_1} ≠ 2nd-order Nexc={_Nexc_2}; truncating both to {_Nexc}')
+    exc_ph              = exc_ph[:, :_Nexc, :_Nexc]
+    second_order_exc_ph = second_order_exc_ph[:, :_Nexc, :_Nexc]
+
+if freqs_eV is None:
+    if freqs_file is not None:
+        freqs_eV = np.loadtxt(freqs_file) * rec_cm_to_eV
+        print(f'Loaded {len(freqs_eV)} phonon frequencies from {freqs_file}')
+    else:
+        sys.exit(
+            'ERROR: phonon frequencies not found in h5 files and --freqs_file not given.\n'
+            'Use assemble_exciton_phonon_coeffs.py with exc_forces.h5 input (which stores '
+            'system/phonon_frequencies), or pass --freqs_file.'
+        )
 
 print(f'Reading exciton energies from {dip_mom_file_b1}')
 data_eigvals_file = np.loadtxt(dip_mom_file_b1)  # shape: (Nexciton, 4)
@@ -400,15 +445,18 @@ pos_operator_b1 = 1j * dip_moments_b1 / exc_energies  # <0|r|i> = i * <0|p|i> / 
 pos_operator_b2 = 1j * dip_moments_b2 / exc_energies  # shape (Nexciton,)
 pos_operator_b3 = 1j * dip_moments_b3 / exc_energies  # shape (Nexciton,)
 
-if pos_operator_b1.shape[0] < exc_ph.shape[1]:
-    print(f'Warning: number of excitons in dipole moments ({pos_operator_b1.shape[0]}) is less than number of excitons in exciton-phonon coupling data ({exc_ph.shape[1]}). Truncating to {pos_operator_b1.shape[0]} excitons.')
-    exc_ph = exc_ph[:, :pos_operator_b1.shape[0], :pos_operator_b1.shape[0]]
-elif pos_operator_b1.shape[0] > exc_ph.shape[1]:
-    print(f'Warning: number of excitons in dipole moments ({pos_operator_b1.shape[0]}) is greater than number of excitons in exciton-phonon coupling data ({exc_ph.shape[1]}). Truncating to {exc_ph.shape[1]} excitons.')
-    pos_operator_b1 = pos_operator_b1[:exc_ph.shape[1]]
-    pos_operator_b2 = pos_operator_b2[:exc_ph.shape[1]]
-    pos_operator_b3 = pos_operator_b3[:exc_ph.shape[1]]
-    exc_energies = exc_energies[:exc_ph.shape[1]]
+_Nexc_mat = exc_ph.shape[1]
+_Nexc_dip = pos_operator_b1.shape[0]
+if _Nexc_dip < _Nexc_mat:
+    print(f'Warning: dipole moments have {_Nexc_dip} excitons < {_Nexc_mat} in coupling data; truncating matrices.')
+    exc_ph              = exc_ph[:, :_Nexc_dip, :_Nexc_dip]
+    second_order_exc_ph = second_order_exc_ph[:, :_Nexc_dip, :_Nexc_dip]
+elif _Nexc_dip > _Nexc_mat:
+    print(f'Warning: dipole moments have {_Nexc_dip} excitons > {_Nexc_mat} in coupling data; truncating dipole moments.')
+    pos_operator_b1 = pos_operator_b1[:_Nexc_mat]
+    pos_operator_b2 = pos_operator_b2[:_Nexc_mat]
+    pos_operator_b3 = pos_operator_b3[:_Nexc_mat]
+    exc_energies    = exc_energies[:_Nexc_mat]
 
 pos_operator_list = [pos_operator_b1, pos_operator_b2, pos_operator_b3]
 

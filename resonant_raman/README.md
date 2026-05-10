@@ -2,6 +2,8 @@
 
 Codes to calculate resonant Raman spectra based on excited state forces (exciton-phonon coefficients). Supports both 1st and 2nd order resonant Raman.
 
+---
+
 ## Theory
 
 ### Notation
@@ -69,75 +71,99 @@ and the second derivative is given by
 
 $$\left\langle A \left| \frac{\partial^2 H^{\rm{BSE}}}{\partial Q_\nu^2} \right| B \right\rangle = \sum_{\mathbf{k}cvc'v'} A^{*}_{\mathbf{k}cv} B_{\mathbf{k}c'v'} (g^{(2)\nu}_{\mathbf{k}cc'} \delta_{vv'} - g^{(2)\nu}_{\mathbf{k}vv'}\delta_{cc'})$$
 
-where $g^{\nu}_{\mathbf{k}ij}$ is the electron-phonon coefficient at GW level:
-
-$$g^{\nu}_{\mathbf{k}ij} = \left\langle \mathbf{k}i \left| \frac{\partial H^{\rm{QP}}}{\partial Q_\nu} \right| \mathbf{k}j \right\rangle$$
-
-and $g^{(2)\nu}_{\mathbf{k}ij}$ is the second-order el-ph coefficient. The second derivative is computed by
-
-$$
-g^{(2)\nu}_{\mathbf{k}ij} = 
-\sum_{n} -\frac{g^{\nu}_{\mathbf{k}in} g^{\nu}_{\mathbf{k}nj}}{\epsilon_{\mathbf{k}i} - \epsilon_{\mathbf{k}n}} - \frac{g^{\nu}_{\mathbf{k}in} g^{\nu}_{\mathbf{k}nj}}{\epsilon_{\mathbf{k}j} - \epsilon_{\mathbf{k}n}}
-$$
+where $g^{\nu}_{\mathbf{k}ij}$ is the electron-phonon coefficient at GW level and $g^{(2)\nu}_{\mathbf{k}ij}$ is the second-order el-ph coefficient (see [`elph/README.md`](../elph/README.md)).
 
 ---
 
 ## Workflow
 
-Set the path to the repository once and reuse it throughout:
+Set the repository path once and reuse it:
 
 ```bash
 ESF_DIR=/path/to/excited_state_forces
 ```
 
+### Prerequisites
+
+Both workflows assume the el-ph preparation steps from [`elph/README.md`](../elph/README.md) have already been completed:
+
+```
+elph/assemble_elph_h5.py   → elph.h5
+elph/interpolate_elph_bgw.py → elph_fine.h5
+```
+
+`forces.inp` must include:
+```
+elph_fine_h5_file   elph_fine.h5
+save_forces_h5      True          # required — writes exc_forces.h5
+read_exciton_pairs_file  True     # required — reads exciton_pairs.dat
+```
+
+---
+
 ### 1st Order Resonant Raman
 
-Run from the `1st_der_exc_ph/` directory:
+Create `exciton_pairs.dat` listing all pairs $(i,j)$ to compute, then run from the `1st_der_exc_ph/` directory:
 
 ```bash
-# Step 1: Calculate excited state forces (exciton-phonon coupling at 1st order)
+# Step 1: Compute exciton-phonon matrix elements for all pairs
 python $ESF_DIR/main/excited_forces.py
+# → exc_forces.h5  (contains forces/ph/RPA and system/phonon_frequencies)
 
-# Step 2: Convert forces from Cartesian to phonon displacement basis
-python $ESF_DIR/post_processing/cart2ph_eigvec.py --read_exciton_pairs_file
+# Step 2 (optional): Merge multiple exc_forces.h5 runs into one file
+python $ESF_DIR/main/assemble_exciton_phonon_coeffs.py \
+    --input exc_forces_batch1.h5 exc_forces_batch2.h5 \
+    --output exciton_phonon_couplings.h5
 
-# Step 3: Assemble exciton-phonon matrix elements into a single HDF5 file
-python $ESF_DIR/resonant_raman/assemble_exciton_phonon_coeffs.py
+# Step 3: Calculate susceptibility tensors
+# (use exc_forces.h5 directly, or exciton_phonon_couplings.h5 if assembled)
+python $ESF_DIR/resonant_raman/susceptibility_tensors_first_order.py \
+    --exc_ph_file exc_forces.h5
+# → susceptibility_tensors_first_order.h5
 
-# Step 4: Calculate susceptibility tensors at 1st order
-python $ESF_DIR/resonant_raman/susceptibility_tensors_first_order.py
-
-# Step 5: Calculate 1st order resonant Raman intensities (flavor 0 = d2 only)
+# Step 4: Calculate 1st order resonant Raman intensities
 python $ESF_DIR/resonant_raman/resonant_raman.py --flavor 0
+# → raman_map_*.png
 ```
+
+---
 
 ### 2nd Order Resonant Raman
 
-Run from the `2nd_der_exc_ph/` directory. Requires that `elph_coeffs.h5` was saved during the 1st order `excited_forces.py` run (set `save_elph_coeffs True` in `forces.inp`).
+Run from the `2nd_der_exc_ph/` directory. Requires the 1st-order `elph_fine.h5` from the prior workflow.
 
 ```bash
-# Step 1: Calculate 2nd-order electron-phonon coefficients via perturbation theory
-python $ESF_DIR/resonant_raman/elph_coeffs_second_derivative.py --nval 5
+# Step 1: Compute 2nd-order el-ph coefficients via perturbation theory
+python $ESF_DIR/elph/elph_coeffs_second_derivative.py \
+    --elph_fine ../1st_der_exc_ph/elph_fine.h5 \
+    --eqp eqp1.dat \
+    --Nval <Nval> \
+    --out 2nd_order_elph_fine.h5
+# → 2nd_order_elph_fine.h5
 
-# Step 2: Run excited state forces with 2nd-order el-ph coefficients
-# Add these two lines to forces.inp:
-#   elph_coeffs_file_to_be_loaded 2nd_derivative_elph_coeffs.h5
-#   use_second_derivatives_elph_coeffs True
+# Step 2: Compute 2nd-order exciton-phonon matrix elements
+# forces.inp must have:
+#   elph_fine_h5_file              2nd_order_elph_fine.h5
+#   use_second_derivatives_elph_coeffs  True
+#   save_forces_h5  True
+#   read_exciton_pairs_file  True
 python $ESF_DIR/main/excited_forces.py
+# → exc_forces.h5
 
-# Step 3: Convert forces from Cartesian to phonon displacement basis
-python $ESF_DIR/post_processing/cart2ph_eigvec.py --read_exciton_pairs_file
+# Step 3 (optional): Merge multiple runs
+python $ESF_DIR/main/assemble_exciton_phonon_coeffs.py \
+    --input exc_forces_batch1.h5 exc_forces_batch2.h5 \
+    --output 2nd_order_exciton_phonon_couplings.h5
 
-# Step 4: Assemble exciton-phonon matrix elements
-python $ESF_DIR/resonant_raman/assemble_exciton_phonon_coeffs.py
+# Step 4: Calculate 2nd-order susceptibility tensors
+python $ESF_DIR/resonant_raman/susceptibility_tensors_second_order.py \
+    --first_order_exc_ph_file  ../1st_der_exc_ph/exc_forces.h5 \
+    --second_order_exc_ph_file exc_forces.h5
+# → susceptibility_tensors_second_order.h5
 
-# Step 5: Calculate susceptibility tensors at 2nd order
-python $ESF_DIR/resonant_raman/susceptibility_tensors_second_order.py
-
-# Step 6: Calculate 2nd order resonant Raman intensities
-# Use --flavor to select the combination of 1st/2nd order contributions
+# Step 5: Calculate 2nd order resonant Raman intensities
 python $ESF_DIR/resonant_raman/resonant_raman.py \
-    --first-order-file susceptibility_tensors_first_order.h5 \
+    --first-order-file  ../1st_der_exc_ph/susceptibility_tensors_first_order.h5 \
     --second-order-file susceptibility_tensors_second_order.h5 \
     --flavor 3
 ```
@@ -161,34 +187,52 @@ The `--flavor` argument to `resonant_raman.py` selects which contributions to in
 
 ## Scripts
 
-### `assemble_exciton_phonon_coeffs.py`
+### `assemble_exciton_phonon_coeffs.py` (in `main/`)
 
-Reads per-pair exciton-phonon coupling files (in the phonon basis) and assembles them into a single HDF5 file.
+Merges one or more `exc_forces.h5` files produced by `excited_forces.py` (with `save_forces_h5 True`) into a single consolidated file. Useful when exciton pairs were computed in separate batches.
 
-**Inputs:**
-- `exciton_pairs.dat` — list of exciton index pairs `(i, j)`, one per line
-- `forces_ph.out_i_j` — excited state forces in the phonon basis for each pair `(i, j)`, produced by `cart2ph_eigvec.py`
+Duplicate pairs are detected and only the first occurrence is kept. The output has the same schema as `exc_forces.h5` and can be passed directly to the susceptibility tensor scripts.
 
-**Output:**
-- `exciton_phonon_couplings.h5` — HDF5 file with datasets:
-  - `rpa_diag` — diagonal exciton-phonon couplings, shape `(Nmodes, Nexciton, Nexciton)`
-  - `rpa_offdiag` — off-diagonal exciton-phonon couplings, shape `(Nmodes, Nexciton, Nexciton)`
+**Input:**
+- One or more `exc_forces.h5` files (`--input`)
+
+**Output `exciton_phonon_couplings.h5`** — same schema as `exc_forces.h5`:
+
+| Dataset | Shape | Description |
+|---------|-------|-------------|
+| `exciton_pairs` | `(Npairs, 2)` | 1-based pair indices $(i, j)$ |
+| `forces/ph/RPA_diag` | `(Npairs, Nmodes)` | Forces $F_\nu = -\langle i \| \partial H/\partial Q_\nu \| j \rangle$, RPA_diag |
+| `forces/ph/RPA` | `(Npairs, Nmodes)` | Same, full RPA |
+| `forces/ph/RPA_diag_plus_Kernel` | `(Npairs, Nmodes)` | Same, with kernel correction |
+| `system/phonon_frequencies` | `(Nmodes,)` | Phonon frequencies in cm⁻¹ |
+
+**Arguments:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--input`, `-i` | — | One or more `exc_forces.h5` files |
+| `--output`, `-o` | `exciton_phonon_couplings.h5` | Output file |
 
 ```bash
-python assemble_exciton_phonon_coeffs.py
+python $ESF_DIR/main/assemble_exciton_phonon_coeffs.py \
+    --input batch1/exc_forces.h5 batch2/exc_forces.h5 \
+    --output exciton_phonon_couplings.h5
 ```
 
 ---
 
 ### `susceptibility_tensors_first_order.py`
 
-Calculates the 1st-order susceptibility tensors α(α,β) as a function of excitation energy. Computes both diagonal (2-band, d2) and off-diagonal (3-band, d3) exciton-phonon coupling contributions.
+Calculates 1st-order susceptibility tensors $\alpha^{\alpha\beta}_\nu(\Omega)$ as a function of excitation energy. Computes both d2 (diagonal) and d3 (off-diagonal) exciton-phonon coupling contributions.
+
+Reads the input h5 file (from `excited_forces.py` or `assemble_exciton_phonon_coeffs.py`) and builds the full $(N_{\rm modes}, N_{\rm exc}, N_{\rm exc})$ exciton-phonon matrix: pairs not present in the file are set to zero, and the Hermitian relation $\langle A|dH|B\rangle = \langle B|dH|A\rangle^*$ is used to fill the transpose. Phonon frequencies are read from the h5 file automatically; `--freqs_file` is a fallback for files that predate this feature.
 
 **Inputs:**
-- `exciton_phonon_couplings.h5` — produced by `assemble_exciton_phonon_coeffs.py`
+- `exc_forces.h5` or `exciton_phonon_couplings.h5` — exciton-phonon couplings (from `excited_forces.py` or `assemble_exciton_phonon_coeffs.py`)
 - `eigenvalues_b1.dat`, `eigenvalues_b2.dat`, `eigenvalues_b3.dat` — exciton eigenvalues and dipole matrix elements from BerkeleyGW
 
 **Key arguments:**
+
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--exc_ph_file` | `exciton_phonon_couplings.h5` | Input exciton-phonon file |
@@ -196,64 +240,51 @@ Calculates the 1st-order susceptibility tensors α(α,β) as a function of excit
 | `--dE` | `0.001` | Excitation energy grid step (eV) |
 | `--gamma` | `0.01` | Broadening parameter (eV) |
 | `--vectorized_flavor` | `2` | Vectorization level (0=none, 1=exciton, 2=exciton+modes) |
-| `--freqs_file` | `freqs.dat` | Phonon frequencies file (cm⁻¹) |
+| `--freqs_file` | — | Phonon frequencies file in cm⁻¹ (optional; read from h5 if available) |
+| `--limit_Nexc` | — | Truncate to this many excitons (for testing) |
 
 **Output:**
-- `susceptibility_tensors_first_order.h5` — shape `(3, 3, Nmodes, Nexcitation)` for d2 and d3 contributions
+- `susceptibility_tensors_first_order.h5` — datasets `alpha_tensor_d2` and `alpha_tensor_d3`, shape `(3, 3, Nmodes, Nfreq)`
 
 ```bash
-python susceptibility_tensors_first_order.py --dE 0.005 --gamma 0.05
+python susceptibility_tensors_first_order.py \
+    --exc_ph_file exc_forces.h5 \
+    --dE 0.005 --gamma 0.05
 ```
 
 ---
 
 ### `susceptibility_tensors_second_order.py`
 
-Calculates the 2nd-order susceptibility tensors, including triple-resonance and double-resonance contributions. Uses multiprocessing for the double-resonance term.
+Calculates 2nd-order susceptibility tensors, including triple-resonance (two 1st-order el-ph vertices) and double-resonance (one 2nd-order el-ph vertex) contributions. Uses multiprocessing for the double-resonance term.
+
+Reads both the 1st-order and 2nd-order exciton-phonon files and builds their full exciton-phonon matrices using the same logic as `susceptibility_tensors_first_order.py`. If the two matrices have different $N_{\rm exc}$, both are truncated to the smaller one. Phonon frequencies are read preferentially from the 1st-order file.
 
 **Inputs:**
-- `1st_order_exciton_phonon_couplings.h5` — 1st-order exciton-phonon couplings
-- `2nd_order_exciton_phonon_couplings.h5` — 2nd-order exciton-phonon couplings (from `assemble_exciton_phonon_coeffs.py` run in `2nd_der_exc_ph/`)
+- 1st-order `exc_forces.h5` (or assembled) — from the 1st-order `excited_forces.py` run
+- 2nd-order `exc_forces.h5` (or assembled) — from the 2nd-order `excited_forces.py` run (with `use_second_derivatives_elph_coeffs True`)
 - `eigenvalues_b1.dat`, `eigenvalues_b2.dat`, `eigenvalues_b3.dat` — dipole matrix elements
 
 **Key arguments:**
+
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--first_order_exc_ph_file` | `1st_order_exciton_phonon_couplings.h5` | 1st-order couplings |
-| `--second_order_exc_ph_file` | `2nd_order_exciton_phonon_couplings.h5` | 2nd-order couplings |
+| `--first_order_exc_ph_file` | `1st_order_exciton_phonon_couplings.h5` | 1st-order exciton-phonon file |
+| `--second_order_exc_ph_file` | `2nd_order_exciton_phonon_couplings.h5` | 2nd-order exciton-phonon file |
 | `--dE` | `0.001` | Excitation energy step (eV) |
 | `--gamma` | `0.01` | Broadening (eV) |
-| `--nworkers` | system default | Number of parallel workers for double-resonance |
+| `--vectorized_flavor` | `2` | Vectorization level (0=none, 1=exciton, 2=modes+excitons) |
+| `--nworkers` | — | Parallel workers for double-resonance (flavor 1 only; `-1` = all CPUs) |
+| `--freqs_file` | — | Phonon frequencies file in cm⁻¹ (optional; read from h5 if available) |
 
 **Output:**
-- `susceptibility_tensors_second_order.h5`
+- `susceptibility_tensors_second_order.h5` — datasets `alpha_tensor_triple_resonance` `(3, 3, Nmodes, Nmodes, Nfreq)` and `alpha_tensor_double_resonance` `(3, 3, Nmodes, Nfreq)`
 
 ```bash
-python susceptibility_tensors_second_order.py --nworkers 8
-```
-
----
-
-### `elph_coeffs_second_derivative.py`
-
-Computes 2nd-order electron-phonon coupling coefficients via second-order perturbation theory, starting from the 1st-order coefficients saved in `elph_coeffs.h5`.
-
-**Inputs:**
-- `elph_coeffs.h5` — 1st-order el-ph coefficients (requires `save_elph_coeffs True` in `forces.inp`)
-- `eqp.dat` — quasiparticle energies
-
-**Key arguments:**
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--elph` | `elph_coeffs.h5` | Input 1st-order el-ph file |
-| `--eqp` | `eqp.dat` | Quasiparticle energies file |
-| `--nval` | `1` | Number of valence bands to include in the sum |
-
-**Output:**
-- `2nd_derivative_elph_coeffs.h5`
-
-```bash
-python elph_coeffs_second_derivative.py --nval 5
+python susceptibility_tensors_second_order.py \
+    --first_order_exc_ph_file  ../1st_der_exc_ph/exc_forces.h5 \
+    --second_order_exc_ph_file exc_forces.h5 \
+    --nworkers 8
 ```
 
 ---
@@ -263,6 +294,7 @@ python elph_coeffs_second_derivative.py --nval 5
 Computes resonant Raman intensity maps (Raman shift vs. excitation energy) from susceptibility tensors. Supports different combinations of 1st and 2nd order contributions via `--flavor`.
 
 **Key arguments:**
+
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--first-order-file` | `susceptibility_tensors_first_order.h5` | 1st-order susceptibility file |
@@ -281,7 +313,8 @@ Computes resonant Raman intensity maps (Raman shift vs. excitation energy) from 
 
 ```bash
 python resonant_raman.py --flavor 0
-python resonant_raman.py --flavor 3 --first-order-file ../1st_der_exc_ph/susceptibility_tensors_first_order.h5
+python resonant_raman.py --flavor 3 \
+    --first-order-file ../1st_der_exc_ph/susceptibility_tensors_first_order.h5
 ```
 
 ---
@@ -291,6 +324,7 @@ python resonant_raman.py --flavor 3 --first-order-file ../1st_der_exc_ph/suscept
 Plots Raman spectra (Raman shift vs. intensity) at one or more fixed excitation energies. Reads raw susceptibility tensors directly to allow arbitrary phonon broadening, independent of the broadening used in `resonant_raman.py`.
 
 **Key arguments:**
+
 | Argument | Description |
 |----------|-------------|
 | `--Eexc` | One or more excitation energies (eV) to plot |
@@ -306,9 +340,9 @@ python plot_raman_spectra.py --Eexc 3.0 3.5 4.0 --flavor 0
 
 ### `plot_susceptibility_tensors.py`
 
-Plots the raw susceptibility tensor components α(α,β) vs. excitation energy for each phonon mode.
+Plots the raw susceptibility tensor components $\alpha^{\alpha\beta}$ vs. excitation energy for each phonon mode.
 
-- **1st-order**: one figure per phonon mode, 3×3 subplots for each (α,β) pair
+- **1st-order**: one figure per phonon mode, 3×3 subplots for each $(\alpha,\beta)$ pair
 - **2nd-order**: one figure per (imode, jmode) pair, with titles showing the sum of phonon frequencies
 
 ```bash
@@ -326,6 +360,7 @@ Generates a self-contained interactive HTML viewer for resonant Raman maps. Read
 - **Controls**: flavor dropdown, polarization dropdown, excitation energy input, linear/log toggle
 
 **Key arguments:**
+
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--data-dir` | `.` | Directory containing the HDF5 data files |
@@ -342,10 +377,10 @@ python interactive_vis_resonant_map.py --data-dir /path/to/run --output viewer.h
 
 ### `analisys_exc_ph_offdiag_coeffs_vs_energy_diff.py`
 
-Diagnostic script that plots `|<A|dH/dQ|B>| / ΔΩ` vs. exciton energy difference `ΔΩ` for all modes and exciton pairs. Useful for choosing an energy cutoff beyond which off-diagonal coupling terms are negligible.
+Diagnostic script that plots $|\langle A|\partial H/\partial Q|B\rangle| / \Delta\Omega$ vs. exciton energy difference $\Delta\Omega$ for all modes and exciton pairs. Useful for choosing an energy cutoff beyond which off-diagonal coupling terms are negligible.
 
 **Inputs:**
-- `exciton_phonon_couplings.h5`
+- `exciton_phonon_couplings.h5` (or `exc_forces.h5`)
 - `eigenvalues_b1.dat`
 
 **Output:**
@@ -355,4 +390,11 @@ Diagnostic script that plots `|<A|dH/dQ|B>| / ΔΩ` vs. exciton energy differenc
 python analisys_exc_ph_offdiag_coeffs_vs_energy_diff.py
 ```
 
+---
 
+## Notes
+
+- **Sign convention**: `excited_forces.py` writes forces $F_\nu = -\langle A|\partial H/\partial Q_\nu|B\rangle$ (with the minus sign). The susceptibility scripts negate internally to recover the exciton-phonon matrix elements. The h5 datasets in both `exc_forces.h5` and assembled files follow the forces convention.
+- **Missing pairs**: Exciton-phonon matrix elements for pairs not present in the h5 file are set to zero in the full matrix. Use `exciton_pairs.dat` to control which pairs are computed by `excited_forces.py`.
+- **Hermitian symmetry**: If pair $(i,j)$ is computed but not $(j,i)$, the susceptibility scripts fill $\langle j|\partial H|i\rangle = \langle i|\partial H|j\rangle^*$ automatically.
+- **2nd-order el-ph**: The `elph_coeffs_second_derivative.py` script that computes $g^{(2)}$ is located in `elph/` — see [`elph/README.md`](../elph/README.md).
