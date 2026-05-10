@@ -45,7 +45,7 @@ font.family: serif
 ##     - 'monospace' (e.g., Courier).
 
 
-text.usetex: True
+text.usetex: False
 
 mathtext.fontset: dejavusans  # Should be 'dejavusans' (default),
                                # 'dejavuserif', 'cm' (Computer Modern), 'stix',
