@@ -31,8 +31,8 @@ parser.add_argument('--ipa-second-order-file', type=str,
                     default='susceptibility_tensors_second_order_IPA.h5',
                     help='HDF5 file from susceptibility_tensors_IPA.py '
                          '(required for flavors 7 and 8)')
-parser.add_argument('--freqs-file',        type=str, default='freqs.dat',
-                    help='File with phonon frequencies in cm^-1 (default: freqs.dat)')
+parser.add_argument('--freqs-file',        type=str, default=None,
+                    help='File with phonon frequencies in cm^-1 (optional; read from susceptibility h5 if not given)')
 parser.add_argument('--flavor',            type=int, default=0,
                     choices=list(FLAVOR_DESC.keys()),
                     help='Which susceptibility to use: ' +
@@ -77,9 +77,25 @@ has_double       = flavor in {3, 5}
 
 cart_dir = ['x', 'y', 'z']
 
-freqs_rec_cm = np.loadtxt(freqs_file)
-freqs_eV     = freqs_rec_cm * rec_cm_to_eV
-Nmodes       = len(freqs_rec_cm)
+freqs_rec_cm = None
+# Try to read phonon frequencies from whichever susceptibility h5 file is available
+for _h5 in [first_order_file, second_order_file, ipa_first_order_file, ipa_second_order_file]:
+    try:
+        with h5py.File(_h5, 'r') as _hf:
+            if 'phonon_frequencies_cm' in _hf:
+                freqs_rec_cm = _hf['phonon_frequencies_cm'][:]
+                print(f'Phonon frequencies read from {_h5}')
+                break
+    except (FileNotFoundError, OSError):
+        pass
+if freqs_rec_cm is None:
+    if freqs_file is not None:
+        freqs_rec_cm = np.loadtxt(freqs_file)
+        print(f'Phonon frequencies read from {freqs_file}')
+    else:
+        sys.exit('ERROR: phonon frequencies not found in any susceptibility h5 file and --freqs-file not provided.')
+freqs_eV = freqs_rec_cm * rec_cm_to_eV
+Nmodes   = len(freqs_rec_cm)
 
 # ---------------------------------------------------------------------------
 # Load susceptibility tensors

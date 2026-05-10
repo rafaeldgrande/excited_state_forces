@@ -312,6 +312,7 @@ with h5py.File(output_h5_file, 'w') as hf:
     hf.create_dataset('excitation_energies', data=Ex)
     hf.create_dataset('alpha_tensor_d2', data=alpha_tensor_d2) # shape (3, 3, Nmodes, Ndata)
     hf.create_dataset('alpha_tensor_d3', data=alpha_tensor_d3) # shape (3, 3, Nmodes, Ndata)
+    hf.create_dataset('phonon_frequencies_cm', data=freqs_eV / rec_cm_to_eV)
 
 # --- Dummy susceptibility tensors (numerator = 1, joint DOS of transitions) ---
 if args.write_dummy:
