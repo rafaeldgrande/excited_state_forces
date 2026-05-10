@@ -2,166 +2,214 @@
 
 ## Overview
 
-This code calculates excited state forces after electronic excitation using a many-body Green's function formalism. It combines exciton coefficients from the Bethe-Salpeter Equation (BSE) with electron-phonon coupling coefficients from DFPT to compute forces in excited states.
+This code calculates excited state forces and exciton-phonon matrix elements using a many-body Green's function formalism (GW/BSE + DFPT). It combines exciton coefficients from the Bethe-Salpeter Equation (BSE) with electron-phonon coupling from DFPT to compute forces and Raman spectra in excited electronic states.
+
+**For detailed theory and benchmarks, see:** https://arxiv.org/abs/2502.05144
+
+---
 
 ## Theory
 
-The excited force expression is given by:
+The excited-state force on phonon mode $\nu$ for exciton $|A\rangle$ is:
 
-![eq_esf_rpa](figures/eq_esf_rpa.png)
+$$F_\nu^{\rm RPA} = -\sum_{\mathbf{k}cvc'v'} A^*_{\mathbf{k}cv}\, A_{\mathbf{k}c'v'} \left( g^{\nu}_{\mathbf{k}cc'}\,\delta_{vv'} - g^{\nu}_{\mathbf{k}vv'}\,\delta_{cc'} \right)$$
 
-where:
-- $\hat{\nu}$ is a displacement pattern (i.e. phonon mode)
-- $A_{\mathbf{k}cv}$ are exciton coefficients from the Bethe-Salpeter Equation
-- $g^{\nu}_{ki,kj}$ are electron-phonon coefficients connecting bands $i$ and $j$ at k-point $k$
-- $c,v$ represent conduction and valence band indices
-- $k$ represents k-point indices
+where $A_{\mathbf{k}cv}$ are BSE exciton coefficients and $g^{\nu}_{\mathbf{k}ij}$ are GW-level electron-phonon matrix elements.
 
-The electron-phonon coefficients at GW level are computed using our approximation:
+The el-ph renormalization from DFT to QP level uses the approximation:
 
-![eq_renorm_elph](figures/eq_renorm_elph.png)
+$$g^{\nu,\rm QP}_{\mathbf{k}ij} = g^{\nu,\rm DFT}_{\mathbf{k}ij} \times \frac{\varepsilon^{\rm QP}_{\mathbf{k}i} - \varepsilon^{\rm QP}_{\mathbf{k}j}}{\varepsilon^{\rm DFT}_{\mathbf{k}i} - \varepsilon^{\rm DFT}_{\mathbf{k}j}}$$
 
-**For detailed implementation and benchmarks, see:** https://arxiv.org/abs/2502.05144
+---
 
+## Repository Structure
 
-### External Software Dependencies
+| Directory | Description |
+|-----------|-------------|
+| `common/` | Shared constants and utility functions (`constants.py`, `utils.py`) |
+| `elph/` | Electron-phonon assembly, interpolation, and 2nd-order coefficients |
+| `main/` | Core force calculation script and BSE/QE interface modules |
+| `post_processing/` | Cartesian-to-phonon-basis conversion and force visualization |
+| `resonant_raman/` | Susceptibility tensors and resonant Raman intensity maps |
+| `examples/` | Reference examples for CO (molecule) and LiF (bulk crystal) |
 
-- **BerkeleyGW**: For GW/BSE calculations
-- **Quantum ESPRESSO**: For DFT ground state and DFPT calculations
+---
 
+## Complete Workflow
 
-## Usage
-
-### Basic Usage
-
-1. **Prepare input files**: You need results from both GW/BSE and DFPT calculations
-   - `eigenvectors.h5`: Exciton eigenvectors from BSE calculation
-   - `eqp.dat`: Quasiparticle energies from GW calculation  
-   - `*.phsave/`: Directory containing electron-phonon coupling data from DFPT
-
-2. **Create a forces.inp file**:
-```
-iexc 1
-eqp_file         eqp.dat
-exciton_file     eigenvectors.h5
-el_ph_dir        system.phsave/
-```
-
-3. **Run the calculation**:
-```bash
-python excited_forces.py
-```
-
-### Configuration Options
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `iexc` | Excited state index to calculate forces for | 1 |
-| `jexc` | Second exciton index (for cross terms) | same as iexc |
-| `factor_head` | Scaling factor for head of dielectric matrix | 1 |
-| `ncbnds_sum` | Number of conduction bands in sum | all available |
-| `nvbnds_sum` | Number of valence bands in sum | all available |
-| `eqp_file` | Quasiparticle energies file | eqp.dat |
-| `exciton_file` | BSE eigenvectors file | eigenvectors.h5 |
-| `el_ph_dir` | Electron-phonon coupling directory | *.phsave/ |
-| `save_elph_coeffs` | Save el-ph coefficients to HDF5 (needed for 2nd order Raman) | False |
-| `load_elph_coeffs` | Load el-ph coefficients from HDF5 instead of recomputing | False |
-| `just_save_elph_coeffs` | Stop after saving el-ph coefficients (skip force calculation) | False |
-| `elph_coeffs_file_to_be_loaded` | HDF5 file to load el-ph coefficients from | elph_coeffs.h5 |
-| `use_second_derivatives_elph_coeffs` | Use 2nd-order el-ph coefficients (from `elph_coeffs_second_derivative.py`) | False |
-
-## Examples
-
-The repository includes complete examples for two systems:
-
-### CO (Carbon Monoxide)
-Located in `examples/CO/`, this example demonstrates:
-- Small molecule excited state forces
-- Complete workflow from DFT to excited state forces
-
-### LiF (Lithium Fluoride) 
-Located in `examples/LiF/`, this example shows:
-- Ionic crystal excited state forces
-- Workflow for extended systems
-
-Each example includes:
-- Input files for all calculation steps
-- Job submission scripts
-- Linking scripts for file management
-- Complete documentation of the workflow
-
-### Running Examples
+Set the repository path once:
 
 ```bash
-cd examples/CO/
-# Follow the numbered directories 1-8 for the complete workflow
-cd 8-excited_state_forces/
-python ../../../excited_forces.py
+ESF_DIR=/path/to/excited_state_forces
 ```
 
+### Prerequisite: DFT + DFPT + GW + BSE
+
+Run with Quantum ESPRESSO (`pw.x`, `ph.x`) and BerkeleyGW (`epsilon`, `sigma`, `kernel`, `absorption`). This produces:
+- `_ph0/<prefix>.phsave/` — DFPT el-ph XML files
+- `scf.in` — ground-state SCF input (used to read cell and k-grid)
+- `eqp1.dat` — GW quasiparticle energies
+- `eigenvectors.h5` — BSE exciton eigenvectors
+- `dtmat` — coarse-to-fine transformation matrices (from `absorption.x`)
+
+See [`examples/README.md`](examples/README.md) for complete input files and SLURM scripts for CO and LiF.
+
+---
+
+### Step 1: Assemble coarse-grid el-ph
+
+```bash
+# Run from the DFPT directory (containing scf.in and _ph0/)
+python $ESF_DIR/elph/assemble_elph_h5.py
+# → elph.h5
+```
+
+### Step 2: Interpolate to the fine BSE k-grid
+
+```bash
+python $ESF_DIR/elph/interpolate_elph_bgw.py \
+    --elph_coarse elph.h5 \
+    --dtmat dtmat \
+    --Nval <number_of_valence_bands>
+# → elph_fine.h5
+```
+
+### Step 3: Create `forces.inp`
+
+```
+iexc                1
+eqp_file            eqp1.dat
+exciton_file        eigenvectors.h5
+elph_fine_h5_file   elph_fine.h5
+```
+
+See [`main/README.md`](main/README.md) for the full parameter reference.
+
+### Step 4: Run the force calculation
+
+```bash
+python $ESF_DIR/main/excited_forces.py
+# → exc_forces_1_1_ph.dat, exc_forces_1_1_cart.dat
+```
+
+---
 
 ## Resonant Raman
 
-The `resonant_raman/` directory contains a complete pipeline for computing 1st and 2nd order resonant Raman spectra from the exciton-phonon coupling coefficients.
-
-Set `ESF_DIR=/path/to/excited_state_forces` to use the commands below.
+The `resonant_raman/` module computes 1st- and 2nd-order resonant Raman spectra from the exciton-phonon couplings. See [`resonant_raman/README.md`](resonant_raman/README.md) for the full theory and script documentation.
 
 ### 1st Order Workflow
 
+Run from a `1st_der_exc_ph/` directory (after completing Steps 1–4 above):
+
 ```
-1st_der_exc_ph/
-├── $ESF_DIR/main/excited_forces.py                              → exciton-phonon matrix elements (Cartesian)
-├── $ESF_DIR/post_processing/cart2ph_eigvec.py                   → convert to phonon basis
-├── $ESF_DIR/resonant_raman/assemble_exciton_phonon_coeffs.py    → build exciton_phonon_couplings.h5
-├── $ESF_DIR/resonant_raman/susceptibility_tensors_first_order.py → build susceptibility_tensors_first_order.h5
-└── $ESF_DIR/resonant_raman/resonant_raman.py --flavor 0         → Raman maps and intensities
+python $ESF_DIR/main/excited_forces.py                                       → exc_forces_*_cart.dat
+python $ESF_DIR/post_processing/cart2ph_eigvec.py --read_exciton_pairs_file  → forces in phonon basis
+python $ESF_DIR/resonant_raman/assemble_exciton_phonon_coeffs.py             → exciton_phonon_couplings.h5
+python $ESF_DIR/resonant_raman/susceptibility_tensors_first_order.py         → susceptibility_tensors_first_order.h5
+python $ESF_DIR/resonant_raman/resonant_raman.py --flavor 0                  → Raman maps
 ```
 
 ### 2nd Order Workflow
 
-```
-1st_der_exc_ph/ (with save_elph_coeffs True in forces.inp)
-└── $ESF_DIR/main/excited_forces.py  → also saves elph_coeffs.h5
+Run from a `2nd_der_exc_ph/` directory. First compute 2nd-order el-ph coefficients from the same `elph_fine.h5`:
 
-2nd_der_exc_ph/
-├── $ESF_DIR/resonant_raman/elph_coeffs_second_derivative.py     → build 2nd_derivative_elph_coeffs.h5
-├── $ESF_DIR/main/excited_forces.py  (use_second_derivatives_elph_coeffs True in forces.inp)
-├── $ESF_DIR/post_processing/cart2ph_eigvec.py
-├── $ESF_DIR/resonant_raman/assemble_exciton_phonon_coeffs.py
-├── $ESF_DIR/resonant_raman/susceptibility_tensors_second_order.py → build susceptibility_tensors_second_order.h5
-└── $ESF_DIR/resonant_raman/resonant_raman.py --flavor 3          → 2nd order Raman maps
+```bash
+# Step 1: Compute 2nd-order el-ph coefficients via perturbation theory
+python $ESF_DIR/elph/elph_coeffs_second_derivative.py \
+    --elph_fine ../1st_der_exc_ph/elph_fine.h5 \
+    --eqp eqp1.dat \
+    --Nval <number_of_valence_bands> \
+    --out 2nd_order_elph_fine.h5
 ```
 
-For full details on arguments and outputs, see [`resonant_raman/README.md`](resonant_raman/README.md).
+In `forces.inp`, point to the 2nd-order file:
+```
+elph_fine_h5_file              2nd_order_elph_fine.h5
+use_second_derivatives_elph_coeffs  True
+```
 
-## Module Structure
+Then continue the same pipeline:
+```
+python $ESF_DIR/main/excited_forces.py
+python $ESF_DIR/post_processing/cart2ph_eigvec.py --read_exciton_pairs_file
+python $ESF_DIR/resonant_raman/assemble_exciton_phonon_coeffs.py
+python $ESF_DIR/resonant_raman/susceptibility_tensors_second_order.py
+python $ESF_DIR/resonant_raman/resonant_raman.py \
+    --first-order-file ../1st_der_exc_ph/susceptibility_tensors_first_order.h5 \
+    --second-order-file susceptibility_tensors_second_order.h5 \
+    --flavor 3
+```
+
+---
+
+## Module Reference
+
+### `elph/`
+
+Scripts for electron-phonon matrix elements. See [`elph/README.md`](elph/README.md).
+
+| Script | Description |
+|--------|-------------|
+| `assemble_elph_h5.py` | Reads QE DFPT XML files, rotates to Cartesian basis → `elph.h5` |
+| `interpolate_elph_bgw.py` | Interpolates coarse → fine k-grid via BGW `dtmat` → `elph_fine.h5` |
+| `elph_coeffs_second_derivative.py` | 2nd-order el-ph via perturbation theory → `2nd_order_elph_fine.h5` |
+| `bgw_binary_io.py` | Low-level reader for BerkeleyGW binary files (`dtmat`, `vmtxel`) |
+| `modify_WFN_header.py` | Replaces `/mf_header` in a `WFN.h5` file |
 
 ### `main/`
 
-- `excited_forces.py`: Main execution script
-- `excited_forces_m.py`: Core force calculation functions
-- `excited_forces_classes.py`: Data structure classes
-- `excited_forces_config.py`: Configuration file parser
-- `bgw_interface_m.py`: BerkeleyGW file interface
-- `qe_interface_m.py`: Quantum ESPRESSO interface
+Core force calculation. See [`main/README.md`](main/README.md).
+
+| Script | Description |
+|--------|-------------|
+| `excited_forces.py` | Main script — reads inputs, orchestrates all steps, writes output |
+| `excited_forces_m.py` | Core functions: force calculation, k-point matching, el-ph renormalization |
+| `excited_forces_classes.py` | Data structure classes (`Parameters_MF`, `Parameters_BSE`) |
+| `excited_forces_config.py` | Configuration parser for `forces.inp` |
+| `bgw_interface_m.py` | Reads BerkeleyGW HDF5 files (`eigenvectors.h5`, `hbse.h5`, `eqp1.dat`) |
+| `qe_interface_m.py` | Reads Quantum ESPRESSO DFPT output |
 
 ### `post_processing/`
 
-- `cart2ph_eigvec.py`: Converts excited state forces from Cartesian to phonon displacement basis
-- `visualize_forces.py`: Force visualization utilities
-- `first_order_pert_on_eigvals_dip_moments.py`: Applies first-order perturbation theory on exciton eigenvalues and dipole moments
+| Script | Description |
+|--------|-------------|
+| `cart2ph_eigvec.py` | Converts Cartesian forces to phonon-mode basis |
+| `visualize_forces.py` | Force visualization utilities |
+| `first_order_pert_on_eigvals_dip_moments.py` | First-order perturbation theory on exciton eigenvalues and dipole moments |
 
 ### `resonant_raman/`
 
-- `elph_coeffs_second_derivative.py`: Computes 2nd-order el-ph coefficients via perturbation theory
-- `assemble_exciton_phonon_coeffs.py`: Assembles per-pair exciton-phonon couplings into a single HDF5 file
-- `susceptibility_tensors_first_order.py`: Calculates 1st-order susceptibility tensors vs. excitation energy
-- `susceptibility_tensors_second_order.py`: Calculates 2nd-order susceptibility tensors (triple + double resonance)
-- `resonant_raman.py`: Computes Raman intensity maps from susceptibility tensors; supports 6 flavors of 1st/2nd order contributions
-- `plot_raman_spectra.py`: Plots Raman spectra at fixed excitation energies
-- `plot_susceptibility_tensors.py`: Plots raw susceptibility tensor components vs. excitation energy
-- `interactive_vis_resonant_map.py`: Generates self-contained interactive HTML viewer for Raman maps
-- `analisys_exc_ph_offdiag_coeffs_vs_energy_diff.py`: Diagnostic plot for off-diagonal coupling convergence
+See [`resonant_raman/README.md`](resonant_raman/README.md).
+
+| Script | Description |
+|--------|-------------|
+| `assemble_exciton_phonon_coeffs.py` | Assembles per-pair exciton-phonon couplings into `exciton_phonon_couplings.h5` |
+| `susceptibility_tensors_first_order.py` | 1st-order polarizability derivatives vs. excitation energy |
+| `susceptibility_tensors_second_order.py` | 2nd-order susceptibility tensors (triple + double resonance) |
+| `resonant_raman.py` | Raman intensity maps; 6 flavors of 1st/2nd order contributions |
+| `plot_raman_spectra.py` | Raman spectra at fixed excitation energies |
+| `plot_susceptibility_tensors.py` | Raw susceptibility tensor components vs. excitation energy |
+| `interactive_vis_resonant_map.py` | Self-contained interactive HTML Raman map viewer |
+| `analisys_exc_ph_offdiag_coeffs_vs_energy_diff.py` | Diagnostic: off-diagonal coupling convergence vs. energy cutoff |
+
+### `common/`
+
+| Module | Description |
+|--------|-------------|
+| `constants.py` | Physical constants (`Ry2eV`, `bohr2A`) and tolerances |
+| `utils.py` | Shared utility functions |
+
+---
+
+## External Dependencies
+
+- **Quantum ESPRESSO** (`pw.x`, `ph.x`, `dynmat.x`) — DFT ground state and DFPT
+- **BerkeleyGW** (`epsilon`, `sigma`, `kernel`, `absorption`) — GW and BSE
+
+Python packages: `numpy`, `scipy`, `h5py`, `ase`
+
+---
 
 ## Citation
 
@@ -178,7 +226,3 @@ If you use this code in your research, please cite:
       url={https://arxiv.org/abs/2502.05144}, 
 }
 ```
-
-
-
-
