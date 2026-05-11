@@ -410,6 +410,94 @@ def interpolate_elph(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# QP rescaling: read eqp.dat and build per-k rescaling matrices
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _read_eqp_and_build_rescaling(
+    eqp_file: str,
+    nk: int,
+    nc: int,
+    nv: int,
+    Nval: int,
+    tol_deg: float = 1e-5,
+):
+    """
+    Read a fine-grid eqp.dat (output of inteqp.x) and compute QP rescaling matrices.
+
+    The rescaling matrix satisfies:
+        ratio[ik, n, m] = (Eqp[ik,n] - Eqp[ik,m]) / (Edft[ik,n] - Edft[ik,m])
+    with ratio = 1.0 for degenerate pairs (|Edft difference| < tol_deg).
+
+    Band ordering conventions match elph_fine arrays:
+        conduction: ic=0 → LUMO  (iband_file = Nval+1)
+        valence:    iv=0 → HOMO  (iband_file = Nval)
+
+    Parameters
+    ----------
+    eqp_file : path to eqp.dat
+    nk       : number of fine k-points (= nkpt_fi from dtmat)
+    nc       : number of conduction bands (= ncb_fi from dtmat)
+    nv       : number of valence bands    (= nvb_fi from dtmat)
+    Nval     : number of occupied bands in the DFT/DFPT run (QE nbnd convention)
+    tol_deg  : energy threshold (eV) for degenerate-pair masking
+
+    Returns
+    -------
+    QP_rescaling_cond : (nk, nc, nc) float64
+    QP_rescaling_val  : (nk, nv, nv) float64
+    Eqp_cond  : (nk, nc) float64  in eV
+    Eqp_val   : (nk, nv) float64  in eV
+    Edft_cond : (nk, nc) float64  in eV
+    Edft_val  : (nk, nv) float64  in eV
+    """
+    Eqp_cond  = np.zeros((nk, nc))
+    Eqp_val   = np.zeros((nk, nv))
+    Edft_cond = np.zeros((nk, nc))
+    Edft_val  = np.zeros((nk, nv))
+
+    print(f'\nReading QP energies from {eqp_file} ...')
+    ik = -1
+    with open(eqp_file, 'r') as fh:
+        for line in fh:
+            parts = line.split()
+            if not parts:
+                continue
+            if parts[0] != '1':
+                ik += 1
+                if ik >= nk:
+                    break
+            else:
+                iband_file = int(parts[1])
+                edft = float(parts[2])
+                eqp  = float(parts[3])
+                if iband_file > Nval:
+                    ic = iband_file - Nval - 1   # 0-indexed: ic=0 → LUMO
+                    if ic < nc:
+                        Edft_cond[ik, ic] = edft
+                        Eqp_cond[ik, ic]  = eqp
+                else:
+                    iv = Nval - iband_file       # 0-indexed: iv=0 → HOMO
+                    if iv < nv:
+                        Edft_val[ik, iv] = edft
+                        Eqp_val[ik, iv]  = eqp
+
+    print(f'  Read {ik + 1} k-points; Eqp_cond shape {Eqp_cond.shape}, Eqp_val shape {Eqp_val.shape}')
+
+    def _build_ratio(Eqp, Edft):
+        dEqp  = Eqp[:, :, None] - Eqp[:, None, :]    # (nk, nb, nb)
+        dEdft = Edft[:, :, None] - Edft[:, None, :]
+        mask  = np.abs(dEdft) > tol_deg
+        return np.where(mask, dEqp / np.where(mask, dEdft, 1.0), 1.0)
+
+    QP_rescaling_cond = _build_ratio(Eqp_cond, Edft_cond)
+    QP_rescaling_val  = _build_ratio(Eqp_val,  Edft_val)
+    print(f'  QP_rescaling_cond shape {QP_rescaling_cond.shape}, '
+          f'QP_rescaling_val shape {QP_rescaling_val.shape}')
+
+    return QP_rescaling_cond, QP_rescaling_val, Eqp_cond, Eqp_val, Edft_cond, Edft_val
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Convenience: save to HDF5
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -423,6 +511,12 @@ def save_elph_fine(
     elph_coarse_path:     str | None = None,
     compress:             bool = True,
     extra_attrs:          dict | None = None,
+    qp_rescaling_cond:    np.ndarray | None = None,
+    qp_rescaling_val:     np.ndarray | None = None,
+    Eqp_cond:             np.ndarray | None = None,
+    Eqp_val:              np.ndarray | None = None,
+    Edft_cond:            np.ndarray | None = None,
+    Edft_val:             np.ndarray | None = None,
 ) -> None:
     """
     Save interpolated fine-grid el-ph arrays to an HDF5 file.
@@ -474,6 +568,35 @@ def save_elph_fine(
                     else:
                         print(f"  WARNING: '{name}' not found in {elph_coarse_path}, skipping.")
 
+        if qp_rescaling_cond is not None:
+            ds = fh.create_dataset('QP_rescaling_matrix_cond', data=qp_rescaling_cond, **kw)
+            ds.attrs['axes'] = 'QP_rescaling_matrix_cond[ik, ic1, ic2]'
+            ds.attrs['description'] = ('(Eqp_cond[ik,ic1]-Eqp_cond[ik,ic2])/'
+                                       '(Edft_cond[ik,ic1]-Edft_cond[ik,ic2]); '
+                                       '1.0 for degenerate pairs')
+
+            ds = fh.create_dataset('QP_rescaling_matrix_val', data=qp_rescaling_val, **kw)
+            ds.attrs['axes'] = 'QP_rescaling_matrix_val[ik, iv1, iv2]'
+            ds.attrs['description'] = ('(Eqp_val[ik,iv1]-Eqp_val[ik,iv2])/'
+                                       '(Edft_val[ik,iv1]-Edft_val[ik,iv2]); '
+                                       '1.0 for degenerate pairs')
+
+            ds = fh.create_dataset('Eqp_cond', data=Eqp_cond, **kw)
+            ds.attrs['axes'] = 'Eqp_cond[ik, ic]'; ds.attrs['units'] = 'eV'
+            ds.attrs['note'] = 'ic=0 → LUMO'
+
+            ds = fh.create_dataset('Eqp_val', data=Eqp_val, **kw)
+            ds.attrs['axes'] = 'Eqp_val[ik, iv]'; ds.attrs['units'] = 'eV'
+            ds.attrs['note'] = 'iv=0 → HOMO'
+
+            ds = fh.create_dataset('Edft_cond', data=Edft_cond, **kw)
+            ds.attrs['axes'] = 'Edft_cond[ik, ic]'; ds.attrs['units'] = 'eV'
+
+            ds = fh.create_dataset('Edft_val', data=Edft_val, **kw)
+            ds.attrs['axes'] = 'Edft_val[ik, iv]'; ds.attrs['units'] = 'eV'
+
+            print(f"  Saved QP rescaling matrices and energies.")
+
         fh.attrs['Nq']     = elph_fine_cond_mode.shape[0]
         fh.attrs['Nmodes'] = elph_fine_cond_mode.shape[1]
         fh.attrs['Npert']  = elph_fine_cond_cart.shape[1]
@@ -507,6 +630,10 @@ if __name__ == '__main__':
                      help='Path to WFN_fi.h5 (needed for finite-q interpolation)')
     cli.add_argument('--real',   action='store_true',
                      help='Use real-flavor dtmat (default: complex)')
+    cli.add_argument('--eqp',    default=None,
+                     help='Path to fine-grid eqp.dat (output of inteqp.x). '
+                          'When given, QP rescaling matrices and Eqp/Edft energies '
+                          'are computed and saved into the output h5.')
     args = cli.parse_args()
 
     kpts_fi = None
@@ -544,6 +671,22 @@ if __name__ == '__main__':
     print("Interpolating Cartesian basis (g) ...")
     elph_cond_cart, elph_val_cart = interpolate_elph(dataset='g', **_common)
 
+    qp_kw = {}
+    if args.eqp is not None:
+        nk_fi = elph_cond_mode.shape[2]
+        nc_fi = elph_cond_mode.shape[3]
+        nv_fi = elph_val_mode.shape[3]
+        qp_ratio_c, qp_ratio_v, Eqp_c, Eqp_v, Edft_c, Edft_v = \
+            _read_eqp_and_build_rescaling(args.eqp, nk_fi, nc_fi, nv_fi, args.Nval)
+        qp_kw = dict(
+            qp_rescaling_cond = qp_ratio_c,
+            qp_rescaling_val  = qp_ratio_v,
+            Eqp_cond  = Eqp_c,
+            Eqp_val   = Eqp_v,
+            Edft_cond = Edft_c,
+            Edft_val  = Edft_v,
+        )
+
     save_elph_fine(
         elph_fine_cond_mode = elph_cond_mode,
         elph_fine_val_mode  = elph_val_mode,
@@ -554,4 +697,5 @@ if __name__ == '__main__':
         elph_coarse_path    = args.elph_coarse,
         extra_attrs         = {'Nval': args.Nval, 'source_elph': args.elph_coarse,
                                'source_dtmat': args.dtmat},
+        **qp_kw,
     )

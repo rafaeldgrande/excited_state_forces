@@ -287,8 +287,8 @@ if __name__ == "__main__":
     save_forces_h5    = config['save_forces_h5']
     forces_h5_file    = config['forces_h5_file']
     finite_q_phonon   = config['finite_q_phonon']
-    eigenvectors_A_file = config['eigenvectors_A_file']
-    eigenvectors_B_file = config['eigenvectors_B_file']
+    exciton_A_file = config['exciton_A_file']
+    exciton_B_file = config['exciton_B_file']
     
     if run_parallel == True:
         from multiprocessing import Pool
@@ -350,8 +350,8 @@ Please cite:
     ######################### RUNNING CODE ##############################
 
     if finite_q_phonon:
-        print(f'\nFinite-q phonon mode: using {eigenvectors_A_file} for BSE parameters')
-        config['exciton_file'] = eigenvectors_A_file
+        print(f'\nFinite-q phonon mode: using {exciton_A_file} for BSE parameters')
+        config['exciton_file'] = exciton_A_file
 
     start_time = time.clock_gettime(0)
     # Getting BSE and MF parameters
@@ -368,7 +368,7 @@ Please cite:
 
     if finite_q_phonon:
         Q_A = Qshift   # momentum of exciton A (shape (3,))
-        with h5py.File(eigenvectors_B_file, 'r') as _fh_b:
+        with h5py.File(exciton_B_file, 'r') as _fh_b:
             _Qshift_B = _fh_b['/exciton_header/kpoints/exciton_Q_shifts'][()]
         Q_B = _Qshift_B[0] if _Qshift_B.ndim == 2 else _Qshift_B
         q_phonon = np.array([correct_comp_vector(c) for c in (Q_B - Q_A)])
@@ -392,12 +392,12 @@ Please cite:
         # A and B come from separate eigenvectors files
         excitons_A_to_load = sorted({pair[0] for pair in exciton_pairs})
         excitons_B_to_load = sorted({pair[1] for pair in exciton_pairs})
-        print(f"Loading exciton A coefficients from {eigenvectors_A_file}")
+        print(f"Loading exciton A coefficients from {exciton_A_file}")
         Exciton_coeffs_A, exciton_eigenvalues_A = load_excitons_coefficients(
-            eigenvectors_A_file, excitons_A_to_load)
-        print(f"Loading exciton B coefficients from {eigenvectors_B_file}")
+            exciton_A_file, excitons_A_to_load)
+        print(f"Loading exciton B coefficients from {exciton_B_file}")
         Exciton_coeffs_B, exciton_eigenvalues_B = load_excitons_coefficients(
-            eigenvectors_B_file, excitons_B_to_load)
+            exciton_B_file, excitons_B_to_load)
         exciton_eigenvalues = np.concatenate([exciton_eigenvalues_A, exciton_eigenvalues_B])
         # keep a reference list consistent with the non-finite_q path for the h5 save
         excitons_to_be_loaded = excitons_A_to_load  # used only in save_exc_forces_h5 label
@@ -411,13 +411,13 @@ Please cite:
     print(f"Finished loading exciton coefficients")
     TASKS.append(['Loading exciton coefficients', time1 - time0])
 
-    # getting info from eqp.dat in the fine grid (from absorption calculation)
-    time0 = time.clock_gettime(0)
-    Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
-    # Shape Eqp_val = (Nkpoints_BSE, Nvbnds)
-    # Shape Eqp_cond = (Nkpoints_BSE, Ncbnds)
-    time1 = time.clock_gettime(0)
-    TASKS.append(['Reading QP and DFT energy levels', time1 - time0])
+    # QP data: will be populated from elph.h5 if present, else read from eqp.dat below
+    QP_rescaling_cond = None
+    QP_rescaling_val  = None
+    Eqp_cond          = None
+    Eqp_val           = None
+    Edft_cond         = None
+    Edft_val          = None
 
     # load pre-interpolated fine-grid el-ph from HDF5 (produced by interpolate_elph_bgw.py)
     # elph_fine_cond shape: (Nq, Nmodes, Nk_fi, Nc_fi, Nc_fi)
@@ -475,6 +475,16 @@ Please cite:
 
         Displacements        = fh['phonon_modes/eigenvectors'][_iq_modes]              # (Nmodes, Nat, 3)
         phonon_frequencies   = fh['phonon_modes/frequencies'][_iq_modes]              # (Nmodes,) in cm^-1
+
+        if 'QP_rescaling_matrix_cond' in fh:
+            QP_rescaling_cond = fh['QP_rescaling_matrix_cond'][:]   # (Nk_fi, Nc_fi, Nc_fi)
+            QP_rescaling_val  = fh['QP_rescaling_matrix_val'][:]    # (Nk_fi, Nv_fi, Nv_fi)
+            Eqp_cond  = fh['Eqp_cond'][:]                           # (Nk_fi, Nc_fi)
+            Eqp_val   = fh['Eqp_val'][:]                            # (Nk_fi, Nv_fi)
+            Edft_cond = fh['Edft_cond'][:] if 'Edft_cond' in fh else None
+            Edft_val  = fh['Edft_val'][:] if 'Edft_val' in fh else None
+            print(f'  Loaded QP rescaling matrices and energies from {elph_fine_h5_file}')
+
     print(f'  elph_cond_mode shape: {elph_cond_mode.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
     print(f'  elph_val_mode  shape: {elph_val_mode.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')
     print(f'  elph_cond_cart shape: {elph_cond_cart.shape}  (Npert,  Nk_fi, Nc_fi, Nc_fi)')
@@ -482,7 +492,16 @@ Please cite:
     print(f'  Displacements:        {Displacements.shape}  (Nmodes, Nat, 3)')
     time1 = time.clock_gettime(0)
     TASKS.append(['Loading fine-grid ELPH from h5 (interpolate_elph_bgw output)', time1 - time0])
-    
+
+    # QP energies: use data from elph.h5 if present, else read eqp.dat
+    time0 = time.clock_gettime(0)
+    if Eqp_cond is not None:
+        print(f'Using QP energies from {elph_fine_h5_file} (skipping {eqp_file})')
+    else:
+        Eqp_val, Eqp_cond, Edft_val, Edft_cond = read_eqp_data(eqp_file, BSE_params)
+    time1 = time.clock_gettime(0)
+    TASKS.append(['Reading QP and DFT energy levels', time1 - time0])
+
     Nmodes = elph_cond_mode.shape[0]   # number of phonon modes
     Npert  = elph_cond_cart.shape[0]   # = 3*Nat Cartesian perturbations
     MF_params.Nmodes = Nmodes
@@ -512,21 +531,23 @@ Please cite:
 
     # renormalize ELPH coefficients (both bases)
     time0 = time.clock_gettime(0)
-    def renormalize_elph_coeffs(elph, Eqp, Edft):
-        # elph: (Npert, nk, nb, nb),  Eqp/Edft: (nk, nb)
-        dEqp  = Eqp[:, :, None] - Eqp[:, None, :]    # (nk, nb, nb)
-        dEdft = Edft[:, :, None] - Edft[:, None, :]   # (nk, nb, nb)
-        mask  = np.abs(dEdft) > TOL_DEG
-        ratio = np.where(mask, dEqp / np.where(mask, dEdft, 1.0), 1.0)
+    def renormalize_elph_coeffs(elph, Eqp, Edft, ratio=None):
+        # elph: (Npert_or_Nmodes, nk, nb, nb)
+        # If ratio (nk, nb, nb) is pre-computed, use it directly; else compute from Eqp/Edft.
+        if ratio is None:
+            dEqp  = Eqp[:, :, None] - Eqp[:, None, :]    # (nk, nb, nb)
+            dEdft = Edft[:, :, None] - Edft[:, None, :]
+            mask  = np.abs(dEdft) > TOL_DEG
+            ratio = np.where(mask, dEqp / np.where(mask, dEdft, 1.0), 1.0)
         elph *= ratio[None, ...]
         return elph
 
     if not no_renorm_elph:
         print('Renormalizing ELPH coefficients using QP and DFT energy levels')
-        elph_cond_mode = renormalize_elph_coeffs(elph_cond_mode, Eqp_cond, Edft_cond)
-        elph_val_mode  = renormalize_elph_coeffs(elph_val_mode,  Eqp_val,  Edft_val)
-        elph_cond_cart = renormalize_elph_coeffs(elph_cond_cart, Eqp_cond, Edft_cond)
-        elph_val_cart  = renormalize_elph_coeffs(elph_val_cart,  Eqp_val,  Edft_val)
+        elph_cond_mode = renormalize_elph_coeffs(elph_cond_mode, Eqp_cond, Edft_cond, QP_rescaling_cond)
+        elph_val_mode  = renormalize_elph_coeffs(elph_val_mode,  Eqp_val,  Edft_val,  QP_rescaling_val)
+        elph_cond_cart = renormalize_elph_coeffs(elph_cond_cart, Eqp_cond, Edft_cond, QP_rescaling_cond)
+        elph_val_cart  = renormalize_elph_coeffs(elph_val_cart,  Eqp_val,  Edft_val,  QP_rescaling_val)
     else:
         print('Not renormalizing ELPH coefficients using QP and DFT energy levels')
     TASKS.append(['Renormalizing ELPH coefficients using QP and DFT energy levels', time.clock_gettime(0) - time0])

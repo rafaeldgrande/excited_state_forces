@@ -24,7 +24,7 @@ config = {
 
     # conditionals
     "Calculate_Kernel": False,
-    "just_RPA_diag": False,    # If true doesn't calculate forces a la David
+    "just_RPA_diag": False,    # If true doesn't calculate using offdiagonal electron-phonon matrix elements.
 
     # Makes the excited state forces to sum to zero (obey Newton's third law), by making sum of elph matrix elems to 0.
     "acoutic_sum_rule": True,
@@ -80,11 +80,11 @@ config = {
     'forces_h5_file': 'exc_forces.h5',
 
     # Finite-momentum exciton-phonon matrix element <A(Q)|dV(q)|B(Q+q)>
-    # When True, exciton A is loaded from eigenvectors_A_file and B from eigenvectors_B_file.
-    # The phonon momentum q is determined as Q_B - Q_A from the respective eigenvectors files.
+    # When True, exciton A is loaded from exciton_A_file and B from exciton_B_file.
+    # The phonon momentum q is determined as Q_B - Q_A from the respective exciton files.
     'finite_q_phonon': False,
-    'eigenvectors_A_file': 'eigenvectors_A.h5',
-    'eigenvectors_B_file': 'eigenvectors_B.h5',
+    'exciton_A_file': 'eigenvectors_A.h5',
+    'exciton_B_file': 'eigenvectors_B.h5',
 }
 
 def true_or_false(text, default_value):
@@ -126,7 +126,7 @@ def read_input(input_file):
                 elif key in [
                     'eqp_file', 'exciton_file', 'Acvk_directory', 'hbse_file',
                     'elph_fine_h5_file', 'forces_h5_file',
-                    'eigenvectors_A_file', 'eigenvectors_B_file'
+                    'exciton_A_file', 'exciton_B_file'
                 ]:
                     config[key] = value[0]
                 # Boolean keys

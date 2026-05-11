@@ -96,8 +96,8 @@ This renormalization is applied by default (set `no_renorm_elph True` to skip it
 | `save_forces_h5` | bool | False | Save all forces to `exc_forces.h5` |
 | `forces_h5_file` | str | `exc_forces.h5` | Output HDF5 forces file |
 | `finite_q_phonon` | bool | False | Compute finite-momentum exciton-phonon matrix elements |
-| `eigenvectors_A_file` | str | `eigenvectors_A.h5` | Exciton A file (finite-q mode) |
-| `eigenvectors_B_file` | str | `eigenvectors_B.h5` | Exciton B file (finite-q mode) |
+| `exciton_A_file` | str | `eigenvectors_A.h5` | Exciton A file (finite-q mode) |
+| `exciton_B_file` | str | `eigenvectors_B.h5` | Exciton B file (finite-q mode) |
 
 ---
 
@@ -244,8 +244,8 @@ The el-ph file must include the phonon at $\mathbf{q} = \mathbf{Q}_B - \mathbf{Q
 
 ```
 finite_q_phonon       True
-eigenvectors_A_file   eigenvectors_A.h5
-eigenvectors_B_file   eigenvectors_B.h5
+exciton_A_file   eigenvectors_A.h5
+exciton_B_file   eigenvectors_B.h5
 elph_fine_h5_file     elph_fine.h5
 eqp_file              eqp1.dat
 read_exciton_pairs_file  True
