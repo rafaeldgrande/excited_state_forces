@@ -645,6 +645,34 @@ Please cite:
             grp_sys.create_dataset('excitons_loaded', data=np.array(list(excitons_to_be_loaded), dtype=np.int32))
             grp_sys['excitons_loaded'].attrs['description'] = '1-based exciton indices loaded'
 
+            # Dense energy arrays: index i → exciton i+1 (eV); 0.0 for not-loaded slots
+            if finite_q_phonon:
+                _max_A = max(excitons_A_to_load)
+                _max_B = max(excitons_B_to_load)
+                _en_A  = np.zeros(_max_A)
+                _en_B  = np.zeros(_max_B)
+                for _k, _idx in enumerate(sorted(excitons_A_to_load)):
+                    _en_A[_idx - 1] = exciton_eigenvalues_A[_k]
+                for _k, _idx in enumerate(sorted(excitons_B_to_load)):
+                    _en_B[_idx - 1] = exciton_eigenvalues_B[_k]
+            else:
+                _sorted_exc = sorted(excitons_to_be_loaded)
+                _en_A = np.zeros(_sorted_exc[-1])
+                for _k, _idx in enumerate(_sorted_exc):
+                    _en_A[_idx - 1] = exciton_eigenvalues[_k]
+                _en_B = _en_A
+
+            grp_sys.create_dataset('exc_A_energies', data=_en_A)
+            grp_sys['exc_A_energies'].attrs['description'] = (
+                'Q=0 (A) exciton energies; index i gives energy of exciton i+1 (eV). '
+                '0.0 for not-loaded slots.')
+            grp_sys['exc_A_energies'].attrs['units'] = 'eV'
+            grp_sys.create_dataset('exc_B_energies', data=_en_B)
+            grp_sys['exc_B_energies'].attrs['description'] = (
+                'Q=q (B) exciton energies; index j gives energy of exciton j+1 (eV). '
+                'Same as exc_A_energies for Q=0 runs.')
+            grp_sys['exc_B_energies'].attrs['units'] = 'eV'
+
             # ── QP and DFT energy levels ─────────────────────────────────
             grp_en = h5.require_group('energies')
             grp_en.create_dataset('Eqp_cond',  data=Eqp_cond)

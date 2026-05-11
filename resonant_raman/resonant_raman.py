@@ -51,6 +51,10 @@ parser.add_argument('--gamma-lor',         type=float, default=10.0,
                          'Set to match your experimental resolution or phonon lifetime.')
 parser.add_argument('--plot-map-log-scale', action='store_true',
                     help='Plot log(max(I, 1e-4)) instead of I in the 2-D maps')
+parser.add_argument('--q-points-file',     type=str, default=None,
+                    help='File with q-point weights: rows of "qx qy qz weight". '
+                         'Row iq=0 loads susceptibility_tensors_second_order_q_0.h5, etc. '
+                         'Overrides --second-order-file for the second-order contribution.')
 args = parser.parse_args()
 
 T                    = args.temperature
@@ -64,6 +68,7 @@ output_file          = args.output
 gamma_lor            = args.gamma_lor          # cm^-1
 nfreq_exc_target     = args.nfreq_exc          # None → keep all
 plot_map_log_scale   = args.plot_map_log_scale
+q_points_file        = args.q_points_file
 
 flavor_label = FLAVOR_DESC[flavor]
 print(f'Flavor {flavor}: {flavor_label}')
@@ -112,16 +117,41 @@ if has_first_order and not is_ipa:
 
 alpha_tensor_second_order = None
 excitation_energies_2nd   = None
+q_contributions = []  # populated when --q-points-file is given
+
 if has_second_order and not is_ipa:
-    print(f'Reading second-order susceptibilities from {second_order_file}')
-    with h5py.File(second_order_file, 'r') as f:
-        excitation_energies_2nd   = f['excitation_energies'][:]
-        alpha_tensor_second_order = f['alpha_tensor_triple_resonance'][:]
+    if q_points_file is not None:
+        # q-averaged second order: load one h5 per q-point
+        _q_data = np.loadtxt(q_points_file)
+        if _q_data.ndim == 1:
+            _q_data = _q_data[np.newaxis, :]
+        _q_weights = _q_data[:, 3]
+        _q_norm    = _q_weights.sum()
+        print(f'Loading q-averaged second-order susceptibilities from {len(_q_weights)} q-points (q_points.dat)')
+        for iq, w_q in enumerate(_q_weights):
+            fname = f'susceptibility_tensors_second_order_q_{iq}.h5'
+            print(f'  iq={iq}: {fname}  (weight={w_q})')
+            with h5py.File(fname, 'r') as f:
+                exc_en_q     = f['excitation_energies'][:]
+                alpha_tr_q   = f['alpha_tensor_triple_resonance'][:]
+                alpha_db_q   = f['alpha_tensor_double_resonance'][:]
+                freqs_q_cm   = f['phonon_frequencies_cm'][:]
+            # Fold double-resonance diagonal into triple-resonance
+            for imode in range(alpha_tr_q.shape[2]):
+                alpha_tr_q[:, :, imode, imode, :] += alpha_db_q[:, :, imode, :]
+            q_contributions.append({'weight': w_q, 'alpha': alpha_tr_q,
+                                     'freqs_cm': freqs_q_cm, 'exc_en': exc_en_q})
+        excitation_energies_2nd = q_contributions[0]['exc_en']
+    else:
+        print(f'Reading second-order susceptibilities from {second_order_file}')
+        with h5py.File(second_order_file, 'r') as f:
+            excitation_energies_2nd   = f['excitation_energies'][:]
+            alpha_tensor_second_order = f['alpha_tensor_triple_resonance'][:]
+            if has_double:
+                alpha_tensor_double_res = f['alpha_tensor_double_resonance'][:]
         if has_double:
-            alpha_tensor_double_res = f['alpha_tensor_double_resonance'][:]
-    if has_double:
-        for imode in range(Nmodes):
-            alpha_tensor_second_order[:, :, imode, imode, :] += alpha_tensor_double_res[:, :, imode, :]
+            for imode in range(Nmodes):
+                alpha_tensor_second_order[:, :, imode, imode, :] += alpha_tensor_double_res[:, :, imode, :]
 
 if flavor in {6, 8}:
     print(f'Reading IPA first-order susceptibilities from {ipa_first_order_file}')
@@ -143,9 +173,14 @@ if nfreq_exc_target is not None:
         n2 = len(excitation_energies_2nd)
         if nfreq_exc_target < n2:
             ie2 = _downsample_idx(n2, nfreq_exc_target)
-            excitation_energies_2nd   = excitation_energies_2nd[ie2]
-            # alpha_tensor_second_order already has double-resonance folded in
-            alpha_tensor_second_order = alpha_tensor_second_order[..., ie2]
+            excitation_energies_2nd = excitation_energies_2nd[ie2]
+            if q_contributions:
+                for _d in q_contributions:
+                    _d['alpha']  = _d['alpha'][..., ie2]
+                    _d['exc_en'] = _d['exc_en'][ie2]
+            else:
+                # alpha_tensor_second_order already has double-resonance folded in
+                alpha_tensor_second_order = alpha_tensor_second_order[..., ie2]
             print(f'  Excitation axis downsampled: {n2} → {nfreq_exc_target} points')
     if has_first_order:
         n1 = len(excitation_energies_1st)
@@ -176,8 +211,14 @@ def is_valid_mode(imode):
 min_vib_freq = np.min(freqs_rec_cm)
 max_vib_freq = np.max(freqs_rec_cm)
 
+# For q-averaged second order, the axis must cover up to 2 * max(all q-point freqs)
+if q_contributions:
+    _max_2nd = max(d['freqs_cm'].max() for d in q_contributions)
+else:
+    _max_2nd = max_vib_freq
+
 freq_axis_lo = max(0.0, min_vib_freq - 5 * gamma_lor)
-freq_axis_hi = (2 * max_vib_freq if has_second_order else max_vib_freq) + 5 * gamma_lor
+freq_axis_hi = (2 * _max_2nd if has_second_order else max_vib_freq) + 5 * gamma_lor
 freq_range   = freq_axis_hi - freq_axis_lo
 
 # Auto-set Nfreq_ph so grid step <= gamma_lor / 5 (5 points per linewidth minimum).
@@ -212,17 +253,13 @@ if has_first_order:
                 + gamma_lor**2))                                       # (Nvalid, Nfreq_ph)
 
 # Second-order: pair frequencies and weights
-if has_second_order:
+if has_second_order and not q_contributions:
+    # Single-file path: use gamma-point frequencies
     freq_pairs = (freqs_rec_cm[:, np.newaxis] +
                   freqs_rec_cm[np.newaxis, :]).ravel()                 # (Nmodes²,)
     w_pairs    = (phonon_weight[:, np.newaxis] *
                   phonon_weight[np.newaxis, :]).ravel()                # (Nmodes²,)
     if ignore_0_freq_modes:
-        # Exclude any pair that contains a near-zero-frequency (acoustic) mode.
-        # The simpler cut  freq_pairs >= 1e-2  only removes acoustic+acoustic pairs;
-        # acoustic+optical pairs survive with a gigantic Bose-factor phonon weight
-        # (w_acoustic → large as ω→0) that would dominate dummy maps and add numerical
-        # noise to real ones.  Applying the per-mode filter to both indices fixes this.
         valid_pairs = (np.outer(valid_modes, valid_modes).ravel() &
                        (freq_pairs >= 1e-2))
     else:
@@ -233,6 +270,28 @@ if has_second_order:
     lor_2nd = (gamma_lor**2 /
                ((freq_axis[np.newaxis, :] - freq_pairs_v[:, np.newaxis])**2
                 + gamma_lor**2))                                       # (Npairs_v, Nfreq_ph)
+
+elif q_contributions:
+    # q-averaged path: precompute per-q phonon weights, pair masks, and Lorentzians
+    for _d in q_contributions:
+        _freqs_q_eV = _d['freqs_cm'] * rec_cm_to_eV
+        _safe_q_eV  = np.maximum(_freqs_q_eV, 1e-8)
+        _bose_q     = 1.0 / (np.exp(_safe_q_eV / (k_B * T)) - 1)
+        _ph_wt_q    = np.sqrt((_bose_q + 1) * hbar / (2 * _safe_q_eV))
+        _Nm_q       = len(_d['freqs_cm'])
+        _fp_q       = (_d['freqs_cm'][:, None] + _d['freqs_cm'][None, :]).ravel()
+        _wp_q       = (_ph_wt_q[:, None] * _ph_wt_q[None, :]).ravel()
+        if ignore_0_freq_modes:
+            _vm_q    = _d['freqs_cm'] > 1e-2
+            _valid_q = np.outer(_vm_q, _vm_q).ravel() & (_fp_q >= 1e-2)
+        else:
+            _valid_q = np.ones(_Nm_q**2, dtype=bool)
+        _lor_q = (gamma_lor**2 /
+                  ((freq_axis[np.newaxis, :] - _fp_q[_valid_q, np.newaxis])**2
+                   + gamma_lor**2))                                    # (Npairs_v_q, Nfreq_ph)
+        _d['valid_pairs'] = _valid_q
+        _d['w_pairs_v']   = _wp_q[_valid_q]
+        _d['lor_2nd']     = _lor_q
 
 # ---------------------------------------------------------------------------
 # Compute Raman intensity maps — vectorised
@@ -259,8 +318,14 @@ for ialpha in range(3):
             raman_map += int_1st.T @ lor_1st
 
         # --- Second-order ---
-        # intensity_2nd: (Npairs_v, Nfreq)
-        if has_second_order:
+        if q_contributions:
+            for _d in q_contributions:
+                _Nm_q      = _d['alpha'].shape[2]
+                _ap_q      = (_d['alpha'][ialpha, ibeta]
+                              .reshape(_Nm_q**2, -1)[_d['valid_pairs']])   # (Npairs_v_q, Nfreq)
+                _int_2nd   = np.abs(_d['w_pairs_v'][:, np.newaxis] * _ap_q)**2
+                raman_map += (_d['weight'] / _q_norm) * (_int_2nd.T @ _d['lor_2nd'])
+        elif has_second_order:
             alpha_pairs = (alpha_tensor_second_order[ialpha, ibeta]
                            .reshape(Nmodes**2, Nfreq)[valid_pairs])    # (Npairs_v, Nfreq)
             int_2nd = np.abs(w_pairs_v[:, np.newaxis] * alpha_pairs)**2  # (Npairs_v, Nfreq)
@@ -292,7 +357,15 @@ if has_first_order:
     int_1st_u = unpolarized_invariant(alpha_w)           # (Nvalid, Nfreq)
     raman_map_unpol += int_1st_u.T @ lor_1st                   # (Nfreq, Nfreq_ph)
 
-if has_second_order:
+if q_contributions:
+    for _d in q_contributions:
+        _Nm_q  = _d['alpha'].shape[2]
+        _Nf_q  = _d['alpha'].shape[4]
+        _aw_q  = (_d['w_pairs_v'][np.newaxis, np.newaxis, :, np.newaxis]
+                  * _d['alpha'].reshape(3, 3, _Nm_q**2, _Nf_q)[:, :, _d['valid_pairs'], :])
+        _int_u = unpolarized_invariant(_aw_q)            # (Npairs_v_q, Nfreq)
+        raman_map_unpol += (_d['weight'] / _q_norm) * (_int_u.T @ _d['lor_2nd'])
+elif has_second_order:
     # alpha_w: (3, 3, Npairs_v, Nfreq)
     alpha_w = (w_pairs_v[np.newaxis, np.newaxis, :, np.newaxis]
                * alpha_tensor_second_order.reshape(3, 3, Nmodes**2, Nfreq)[:, :, valid_pairs, :])
