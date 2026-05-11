@@ -213,16 +213,20 @@ def load_excitons_coefficients(exciton_file, excitons_to_be_loaded):
     else:
         Akcv = eigenvecs[0, excitons_to_be_loaded_ini_0,:,:,:,0,0]
         
-    for iexc in excitons_to_be_loaded_ini_0:
-        print(f'Exciton {iexc+1} energy (eV) = {eigenvalues[iexc]:.6f}')
+    # for iexc in excitons_to_be_loaded_ini_0:
+    #     print(f'Exciton {iexc+1} energy (eV) = {eigenvalues[iexc]:.6f}')
 
     eigenvalues_loaded = eigenvalues[excitons_to_be_loaded_ini_0]
-    if np.any(np.isnan(eigenvalues_loaded)):
-        nan_list = [excitons_to_be_loaded_ini_0[i] + 1
-                    for i in range(len(eigenvalues_loaded))
-                    if np.isnan(eigenvalues_loaded[i])]
-        print(f'  WARNING: NaN eigenvalue(s) for exciton(s) {nan_list} — '
-              f'energies unavailable in this file (force calculation is unaffected).')
+
+    if len(excitons_to_be_loaded) == 1:
+        print('Exciton energy (eV): '+str(eigenvalues_loaded[0]))
+    else:
+        max_energy = max(eigenvalues_loaded)
+        min_energy = min(eigenvalues_loaded)
+        print(f'Loaded {len(excitons_to_be_loaded)} excitons')
+        print('Max energy (eV): '+str(max_energy))
+        print('Min energy (eV): '+str(min_energy))
+        
     return Akcv, eigenvalues_loaded
 
 

@@ -383,10 +383,14 @@ Please cite:
 
     read_exciton_pairs(config)
 
-    print("Exciton-ph matrix elements to be computed:")
+    
     exciton_pairs = config['exciton_pairs']
-    for exc_pair in exciton_pairs:
+    print("Total exciton-ph matrix elements to be computed:", len(exciton_pairs))
+    for i_pair in range(min(len(exciton_pairs), 5)):
+        exc_pair = exciton_pairs[i_pair]
         print(f" <{exc_pair[0]} | dH | {exc_pair[1]}>")
+    if len(exciton_pairs) > 5:
+        print(f" ... and {len(exciton_pairs) - 5} terms more")
         
     # loading exciton coefficients
     time0 = time.clock_gettime(0)
@@ -428,15 +432,7 @@ Please cite:
     print(f'\nLoading fine-grid el-ph from {elph_fine_h5_file}')
     print(  '  This file contains interpolated electron-phonon matrix elements')
     print(  '  <n,k+q|dV(q)|m,k> on the fine k-grid (produced by interpolate_elph_bgw.py).')
-    print(  '  Datasets:')
-    print(  '    elph_fine_cond_mode / elph_fine_val_mode : (Nq, Nmodes, Nk_fi, Nb, Nb)')
-    print(  '       phonon-mode basis — used to compute exciton-phonon matrix elements')
-    print(  '    elph_fine_cond_cart / elph_fine_val_cart : (Nq, Npert,  Nk_fi, Nb, Nb)')
-    print(  '       Cartesian-displacement basis — used for real-space forces')
-    print(  '    phonon_modes/eigenvectors / frequencies  : phonon polarization vectors')
-    print(  '       and frequencies from matdyn.x (cm⁻¹)')
-    print(  '    Kpoints_in_elph_file                     : fine k-grid (crystal coords)')
-    print(  '    qpoints_crystal (finite-q only)          : phonon q-points in the file')
+    
     with h5py.File(elph_fine_h5_file, 'r') as fh:
         # print file-level metadata if available
         _attrs = {k: fh.attrs[k] for k in fh.attrs}
@@ -499,14 +495,14 @@ Please cite:
 
         # phonon_modes/* is indexed by matdyn.modes q-points, which may differ
         # in count and ordering from the elph q-points.  Match by coordinate.
-        _ph_qpts_cart = fh['phonon_modes/qpoints'][:]             # (Nq_modes, 3) Cartesian 2pi/a
+        # qpoints stored in crystal (fractional) coords — compare directly with BZ folding.
+        _ph_qpts_cryst = fh['phonon_modes/qpoints'][:]            # (Nq_modes, 3) crystal coords
         _q_lookup = (-q_phonon if _used_minus_q else q_phonon)
-        _q_cart = _q_lookup @ rec_cell_vecs                        # crystal → Cartesian 2pi/a
         _iq_modes = next(
-            (i for i, qm in enumerate(_ph_qpts_cart)
-             if np.linalg.norm(qm - _q_cart) < 1e-5), -1)
+            (i for i, qm in enumerate(_ph_qpts_cryst)
+             if np.linalg.norm((_q_lookup - qm) - np.round(_q_lookup - qm)) < 1e-5), -1)
         if _iq_modes == -1:
-            print(f'  WARNING: phonon q = {_q_lookup} (Cartesian: {_q_cart}) not found in '
+            print(f'  WARNING: phonon q = {_q_lookup} not found in '
                   f'phonon_modes/qpoints of {elph_fine_h5_file}.')
             print(f'  Falling back to Gamma (index 0) for phonon eigenvectors/frequencies.')
             print(f'  NOTE: if matdyn.x was not run at this q, g_mode at iq={iq_phonon} '
@@ -514,7 +510,7 @@ Please cite:
             _iq_modes = 0
         else:
             print(f'  phonon eigenvectors: using phonon_modes index {_iq_modes} '
-                  f'(q = {_ph_qpts_cart[_iq_modes]})')
+                  f'(q = {_ph_qpts_cryst[_iq_modes]})')
 
         Displacements        = fh['phonon_modes/eigenvectors'][_iq_modes]              # (Nmodes, Nat, 3)
         phonon_frequencies   = fh['phonon_modes/frequencies'][_iq_modes]              # (Nmodes,) in cm^-1
