@@ -289,6 +289,7 @@ if __name__ == "__main__":
     finite_q_phonon   = config['finite_q_phonon']
     exciton_A_file = config['exciton_A_file']
     exciton_B_file = config['exciton_B_file']
+    use_inv_symm_q_grid = config['use_inv_symm_q_grid']
     
     if run_parallel == True:
         from multiprocessing import Pool
@@ -371,10 +372,11 @@ Please cite:
         with h5py.File(exciton_B_file, 'r') as _fh_b:
             _Qshift_B = _fh_b['/exciton_header/kpoints/exciton_Q_shifts'][()]
         Q_B = _Qshift_B[0] if _Qshift_B.ndim == 2 else _Qshift_B
-        q_phonon = np.array([correct_comp_vector(c) for c in (Q_B - Q_A)])
+        _q_raw = Q_B - Q_A
+        q_phonon = _q_raw - np.round(_q_raw)   # fold to [-0.5, 0.5) first BZ
         print(f'  Q_A (exciton A momentum) = {Q_A}')
         print(f'  Q_B (exciton B momentum) = {Q_B}')
-        print(f'  phonon q = Q_B - Q_A     = {q_phonon} (BZ-wrapped)')
+        print(f'  phonon q = Q_B - Q_A     = {q_phonon} (folded to first BZ)')
         
     if use_second_derivatives_elph_coeffs == True:
         print('Using second derivatives of elph coefficients to calculate forces. The units of exc-ph matrix elements in this case will be eV/angstrom**2.')
@@ -454,18 +456,31 @@ Please cite:
                     f"'{_key}' not found in {elph_fine_h5_file}. "
                     f"Re-run interpolate_elph_bgw.py to regenerate the file.")
 
+        # Track whether we need to apply the g(q) → g(-q) inversion-symmetry transform
+        _used_minus_q = False
+
         if finite_q_phonon:
             qpoints_crystal = fh['qpoints_crystal'][:]   # (Nq, 3) fractional coords
             iq_phonon = find_kpoint(q_phonon, qpoints_crystal)
+            if iq_phonon == -1 and use_inv_symm_q_grid:
+                # Phonons at -q satisfy g(-q)_{nm} = conj(g(q)_{mn}), so try -q_phonon
+                iq_phonon = find_kpoint(-q_phonon, qpoints_crystal)
+                if iq_phonon != -1:
+                    _used_minus_q = True
+                    print(f'  q = {q_phonon} not found; using -q = {-q_phonon} '
+                          f'(iq={iq_phonon}) via inversion symmetry.')
             if iq_phonon == -1:
                 print(f'\nERROR: phonon q = {q_phonon} (= Q_B - Q_A) was NOT found in '
                       f'{elph_fine_h5_file} (Nq = {len(qpoints_crystal)} q-points).')
+                if use_inv_symm_q_grid:
+                    print(f'  Also tried -q = {-q_phonon}: not found.')
                 print('Q-points found in the file:')
                 for _iq, _q in enumerate(qpoints_crystal):
                     print(f'  iq={_iq}: {_q}')
                 print('Please re-run interpolate_elph_bgw.py including this q-point.')
                 import sys; sys.exit(1)
-            print(f'  Found phonon q at index iq = {iq_phonon} in elph_fine.h5')
+            if not _used_minus_q:
+                print(f'  Found phonon q at index iq = {iq_phonon} in elph_fine.h5')
         else:
             iq_phonon = 0
 
@@ -473,17 +488,25 @@ Please cite:
         elph_val_mode    = fh['elph_fine_val_mode'][iq_phonon].astype(np.complex64)   # (Nmodes, Nk_fi, Nv_fi, Nv_fi)
         elph_cond_cart   = fh['elph_fine_cond_cart'][iq_phonon].astype(np.complex64)  # (Npert,  Nk_fi, Nc_fi, Nc_fi)
         elph_val_cart    = fh['elph_fine_val_cart'][iq_phonon].astype(np.complex64)   # (Npert,  Nk_fi, Nv_fi, Nv_fi)
+
+        if _used_minus_q:
+            # g(-q)_{nm} = conj(g(q)_{mn}) — conjugate and swap the two band indices
+            elph_cond_mode = np.conj(elph_cond_mode).transpose(0, 1, 3, 2)
+            elph_val_mode  = np.conj(elph_val_mode).transpose(0, 1, 3, 2)
+            elph_cond_cart = np.conj(elph_cond_cart).transpose(0, 1, 3, 2)
+            elph_val_cart  = np.conj(elph_val_cart).transpose(0, 1, 3, 2)
         Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                          # (Nk_fi, 3) crystal coords
 
         # phonon_modes/* is indexed by matdyn.modes q-points, which may differ
         # in count and ordering from the elph q-points.  Match by coordinate.
         _ph_qpts_cart = fh['phonon_modes/qpoints'][:]             # (Nq_modes, 3) Cartesian 2pi/a
-        _q_cart = q_phonon @ rec_cell_vecs                         # crystal → Cartesian 2pi/a
+        _q_lookup = (-q_phonon if _used_minus_q else q_phonon)
+        _q_cart = _q_lookup @ rec_cell_vecs                        # crystal → Cartesian 2pi/a
         _iq_modes = next(
             (i for i, qm in enumerate(_ph_qpts_cart)
              if np.linalg.norm(qm - _q_cart) < 1e-5), -1)
         if _iq_modes == -1:
-            print(f'  WARNING: phonon q = {q_phonon} (Cartesian: {_q_cart}) not found in '
+            print(f'  WARNING: phonon q = {_q_lookup} (Cartesian: {_q_cart}) not found in '
                   f'phonon_modes/qpoints of {elph_fine_h5_file}.')
             print(f'  Falling back to Gamma (index 0) for phonon eigenvectors/frequencies.')
             print(f'  NOTE: if matdyn.x was not run at this q, g_mode at iq={iq_phonon} '

@@ -43,7 +43,9 @@ def correct_comp_vector(comp):
 def find_kpoint(kpoint, K_list):
     index_in_matrix = -1
     for index in range(len(K_list)):
-        if np.linalg.norm(kpoint - K_list[index]) <= TOL_DEG:
+        diff = kpoint - K_list[index]
+        diff = diff - np.round(diff)   # fold to [-0.5, 0.5) to handle BZ translations
+        if np.linalg.norm(diff) <= TOL_DEG:
             index_in_matrix = index
     return index_in_matrix
 

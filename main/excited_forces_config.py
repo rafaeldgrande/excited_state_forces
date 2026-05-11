@@ -85,6 +85,10 @@ config = {
     'finite_q_phonon': False,
     'exciton_A_file': 'eigenvectors_A.h5',
     'exciton_B_file': 'eigenvectors_B.h5',
+
+    # When q_phonon = Q_B - Q_A is not found in elph_fine.h5, try -q_phonon as well.
+    # Phonons at q and -q are related by inversion symmetry: g(-q)_{nm} = conj(g(q)_{mn}).
+    'use_inv_symm_q_grid': True,
 }
 
 def true_or_false(text, default_value):
@@ -137,7 +141,7 @@ def read_input(input_file):
                     'write_dK_mat', 'trust_kpoints_order', 'run_parallel',
                     'do_vectorized_sums', 'read_exciton_pairs_file',
                     'use_second_derivatives_elph_coeffs',
-                    'save_forces_h5', 'finite_q_phonon'
+                    'save_forces_h5', 'finite_q_phonon', 'use_inv_symm_q_grid'
                 ]:
                     config[key] = true_or_false(value[0], config.get(key, False))
                 # List of integers
