@@ -424,7 +424,24 @@ Please cite:
     # elph_fine_val  shape: (Nq, Nmodes, Nk_fi, Nv_fi, Nv_fi)
     time0 = time.clock_gettime(0)
     print(f'\nLoading fine-grid el-ph from {elph_fine_h5_file}')
+    print(  '  This file contains interpolated electron-phonon matrix elements')
+    print(  '  <n,k+q|dV(q)|m,k> on the fine k-grid (produced by interpolate_elph_bgw.py).')
+    print(  '  Datasets:')
+    print(  '    elph_fine_cond_mode / elph_fine_val_mode : (Nq, Nmodes, Nk_fi, Nb, Nb)')
+    print(  '       phonon-mode basis — used to compute exciton-phonon matrix elements')
+    print(  '    elph_fine_cond_cart / elph_fine_val_cart : (Nq, Npert,  Nk_fi, Nb, Nb)')
+    print(  '       Cartesian-displacement basis — used for real-space forces')
+    print(  '    phonon_modes/eigenvectors / frequencies  : phonon polarization vectors')
+    print(  '       and frequencies from matdyn.x (cm⁻¹)')
+    print(  '    Kpoints_in_elph_file                     : fine k-grid (crystal coords)')
+    print(  '    qpoints_crystal (finite-q only)          : phonon q-points in the file')
     with h5py.File(elph_fine_h5_file, 'r') as fh:
+        # print file-level metadata if available
+        _attrs = {k: fh.attrs[k] for k in fh.attrs}
+        if _attrs:
+            print('  File attributes:')
+            for _k, _v in _attrs.items():
+                print(f'    {_k} = {_v}')
         _required = ('elph_fine_cond_mode', 'elph_fine_val_mode',
                      'elph_fine_cond_cart', 'elph_fine_val_cart',
                      'Kpoints_in_elph_file', 'phonon_modes/eigenvectors',
@@ -443,6 +460,9 @@ Please cite:
             if iq_phonon == -1:
                 print(f'\nERROR: phonon q = {q_phonon} (= Q_B - Q_A) was NOT found in '
                       f'{elph_fine_h5_file} (Nq = {len(qpoints_crystal)} q-points).')
+                print('Q-points found in the file:')
+                for _iq, _q in enumerate(qpoints_crystal):
+                    print(f'  iq={_iq}: {_q}')
                 print('Please re-run interpolate_elph_bgw.py including this q-point.')
                 import sys; sys.exit(1)
             print(f'  Found phonon q at index iq = {iq_phonon} in elph_fine.h5')
@@ -485,11 +505,19 @@ Please cite:
             Edft_val  = fh['Edft_val'][:] if 'Edft_val' in fh else None
             print(f'  Loaded QP rescaling matrices and energies from {elph_fine_h5_file}')
 
-    print(f'  elph_cond_mode shape: {elph_cond_mode.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
-    print(f'  elph_val_mode  shape: {elph_val_mode.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')
-    print(f'  elph_cond_cart shape: {elph_cond_cart.shape}  (Npert,  Nk_fi, Nc_fi, Nc_fi)')
-    print(f'  elph_val_cart  shape: {elph_val_cart.shape}  (Npert,  Nk_fi, Nv_fi, Nv_fi)')
-    print(f'  Displacements:        {Displacements.shape}  (Nmodes, Nat, 3)')
+    _Nm, _Nk, _Nc = elph_cond_mode.shape[0], elph_cond_mode.shape[1], elph_cond_mode.shape[2]
+    _Nv  = elph_val_mode.shape[2]
+    _Np  = elph_cond_cart.shape[0]
+    _Nat = Displacements.shape[1]
+    print(f'\n  Loaded arrays (iq = {iq_phonon}):')
+    print(f'    Nmodes = {_Nm}   Nk_fi = {_Nk}   Nc_fi = {_Nc}   Nv_fi = {_Nv}   Npert = {_Np}   Nat = {_Nat}')
+    print(f'    elph_cond_mode : {elph_cond_mode.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
+    print(f'    elph_val_mode  : {elph_val_mode.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')
+    print(f'    elph_cond_cart : {elph_cond_cart.shape}  (Npert,  Nk_fi, Nc_fi, Nc_fi)')
+    print(f'    elph_val_cart  : {elph_val_cart.shape}  (Npert,  Nk_fi, Nv_fi, Nv_fi)')
+    print(f'    Displacements  : {Displacements.shape}  (Nmodes, Nat, 3)')
+    print(f'    phonon freqs   : {phonon_frequencies.shape}  min={phonon_frequencies.min():.2f}'
+          f'  max={phonon_frequencies.max():.2f} cm⁻¹')
     time1 = time.clock_gettime(0)
     TASKS.append(['Loading fine-grid ELPH from h5 (interpolate_elph_bgw output)', time1 - time0])
 
