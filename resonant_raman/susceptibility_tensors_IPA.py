@@ -365,10 +365,10 @@ parser.add_argument('--limit_transitions', type=int, default=None,
 parser.add_argument('--flavor_energy_levels', type=int, default=1, choices=[1, 2], help='Flavor energy levels. 1 = GW, 2 = DFT (default: 1)')
 parser.add_argument('--skip_first_order_calculation', action='store_true',
                     help='Skip the first-order susceptibility calculation (saves time when only second-order is needed)')
-parser.add_argument('--q-points-file', dest='q_points_file', default=None,
-                    help='File with q-point coordinates and BZ weights: rows of "qx qy qz weight". '
-                         'Enables BZ-averaged second-order calculation by looping over q-points '
-                         'stored in --elph_fine_file. (default: None — Gamma only)')
+parser.add_argument('--iq', type=int, default=0,
+                    help='Index of the q-point in --elph_fine_file to use for the second-order '
+                         'calculation. The output is saved as susceptibility_tensors_second_order_IPA_q_{iq}.h5. '
+                         'Run once per q-point and average in resonant_raman.py. (default: 0 = Gamma)')
 args = parser.parse_args()
 
 flavor_energy_levels = args.flavor_energy_levels
@@ -390,7 +390,7 @@ eqp_file = args.eqp_file
 nval_in_eqp = args.nval_in_eqp
 no_renorm_elph = args.no_renorm_elph
 skip_first_order_calculation = args.skip_first_order_calculation
-q_points_file = args.q_points_file
+iq_second_order = args.iq
 
 flavor_desc = {0: 'no vectorization (quintuple loop)',
                1: 'vectorized over k, c, v',
@@ -418,7 +418,7 @@ print(f'  test_functions    : {test_functions}')
 print(f'  write_dummy       : {args.write_dummy}')
 print(f'  flavor_energy_levels : {flavor_energy_levels}. 1 = GW, 2 = DFT')
 print(f'  skip_first_order  : {skip_first_order_calculation}')
-print(f'  q_points_file     : {q_points_file}  (None = Gamma only)')
+print(f'  iq (second order) : {iq_second_order}  (q-point index in elph_fine.h5)')
 print('---------------\n')
 
 # Energy grid
@@ -658,67 +658,46 @@ else:
     print('\n--- Skipping first-order calculation (--skip_first_order_calculation) ---')
 
 if compute_second_order:
-    print('\n--- Computing second-order susceptibility tensor (IPA) ---')
+    print(f'\n--- Computing second-order susceptibility tensor (IPA) at iq={iq_second_order} ---')
 
-    if q_points_file is not None:
-        # BZ-averaged second order: loop over q-points in the file
-        _q_data = np.loadtxt(q_points_file)
-        if _q_data.ndim == 1:
-            _q_data = _q_data[np.newaxis, :]
-        q_weights = _q_data[:, 3]
-        q_norm    = q_weights.sum()
-        print(f'  BZ average: {len(q_weights)} q-points from {q_points_file}  (total weight = {q_norm:.4f})')
+    # Load elph at the requested q-point
+    with h5py.File(elph_fine_file, 'r') as hf_q:
+        _qpts_cryst = hf_q['qpoints_crystal'][:]
+        nq_avail = len(_qpts_cryst)
+        if iq_second_order < 0 or iq_second_order >= nq_avail:
+            sys.exit(f'ERROR: --iq {iq_second_order} out of range '
+                     f'(elph_fine.h5 has {nq_avail} q-points, indices 0..{nq_avail-1}).')
+        q_crystal = _qpts_cryst[iq_second_order]
+        print(f'  q-point iq={iq_second_order}: q_crystal = {q_crystal}')
 
-        susceptibility_tensor_second_order = np.zeros((3, 3, Nmodes, Nmodes, Nfreq), dtype=complex)
+        g_cond_q = hf_q['elph_fine_cond_mode'][iq_second_order].astype(complex)
+        g_val_q  = hf_q['elph_fine_val_mode'][iq_second_order].astype(complex)
 
-        with h5py.File(elph_fine_file, 'r') as hf_q:
-            _qpts_cryst = hf_q['qpoints_crystal'][:]   # (Nq, 3)
+    # Apply QP renormalization
+    if not no_renorm_elph:
+        if QP_rescaling_cond is not None:
+            g_cond_q = renormalize_elph_coeffs(g_cond_q, None, None, QP_rescaling_cond)
+            g_val_q  = renormalize_elph_coeffs(g_val_q,  None, None, QP_rescaling_val)
+        elif Edft_cond is not None:
+            g_cond_q = renormalize_elph_coeffs(g_cond_q, Eqp_cond.T, Edft_cond.T)
+            g_val_q  = renormalize_elph_coeffs(g_val_q,  Eqp_val.T,  Edft_val.T)
 
-            for iq_row, (qrow, w_q) in enumerate(zip(_q_data, q_weights)):
-                q_crystal = qrow[:3]
-                iq = next(
-                    (i for i, qc in enumerate(_qpts_cryst)
-                     if np.linalg.norm((q_crystal - qc) - np.round(q_crystal - qc)) < _TOL_Q), -1)
-                if iq == -1:
-                    sys.exit(f'ERROR: q={q_crystal} (row {iq_row} of {q_points_file}) '
-                             f'not found in {elph_fine_file} qpoints_crystal.')
-                print(f'  q-point {iq_row}: q={q_crystal}  iq={iq}  weight={w_q:.4f}')
+    # imode vertex: g at +q;  jmode vertex: g† at -q (second phonon)
+    g_cond     = g_cond_q
+    g_val      = g_val_q
+    g_cond_dag = g_cond_q.conj().transpose(0, 1, 3, 2)
+    g_val_dag  = g_val_q.conj().transpose(0, 1, 3, 2)
 
-                g_cond_q = hf_q['elph_fine_cond_mode'][iq].astype(complex)
-                g_val_q  = hf_q['elph_fine_val_mode'][iq].astype(complex)
+    susceptibility_tensor_second_order = np.zeros((3, 3, Nmodes, Nmodes, Nfreq), dtype=complex)
+    for ialpha in range(3):
+        for ibeta in range(3):
+            susceptibility_tensor_second_order[ialpha, ibeta] = _run_second_order_fn(ialpha, ibeta)
 
-                # Apply QP renormalization to q-specific elph
-                if not no_renorm_elph:
-                    if QP_rescaling_cond is not None:
-                        g_cond_q = renormalize_elph_coeffs(g_cond_q, None, None, QP_rescaling_cond)
-                        g_val_q  = renormalize_elph_coeffs(g_val_q,  None, None, QP_rescaling_val)
-                    elif Edft_cond is not None:
-                        g_cond_q = renormalize_elph_coeffs(g_cond_q, Eqp_cond.T, Edft_cond.T)
-                        g_val_q  = renormalize_elph_coeffs(g_val_q,  Eqp_val.T,  Edft_val.T)
-
-                # Update module-level elph globals for this q:
-                # imode vertex uses g at +q; jmode vertex uses g† at -q
-                g_cond          = g_cond_q
-                g_val           = g_val_q
-                g_cond_dag      = g_cond_q.conj().transpose(0, 1, 3, 2)
-                g_val_dag       = g_val_q.conj().transpose(0, 1, 3, 2)
-
-                tensor_q = np.zeros((3, 3, Nmodes, Nmodes, Nfreq), dtype=complex)
-                for ialpha in range(3):
-                    for ibeta in range(3):
-                        tensor_q[ialpha, ibeta] = _run_second_order_fn(ialpha, ibeta)
-                susceptibility_tensor_second_order += (w_q / q_norm) * tensor_q
-
-    else:
-        # Single q=0 (Gamma) calculation — g_cond/g_val/g_cond_dag/g_val_dag already set
-        susceptibility_tensor_second_order = np.zeros((3, 3, Nmodes, Nmodes, Nfreq), dtype=complex)
-        for ialpha in range(3):
-            for ibeta in range(3):
-                susceptibility_tensor_second_order[ialpha, ibeta] = _run_second_order_fn(ialpha, ibeta)
-
-    output_h5_file_2nd = 'susceptibility_tensors_second_order_IPA.h5'
+    output_h5_file_2nd = f'susceptibility_tensors_second_order_IPA_q_{iq_second_order}.h5'
     with h5py.File(output_h5_file_2nd, 'w') as hf:
         hf.create_dataset('excitation_energies', data=Ex)
         hf.create_dataset('susceptibility_tensor_second_order', data=susceptibility_tensor_second_order)
         hf.create_dataset('phonon_frequencies_cm', data=freqs_rec_cm)
+        hf.attrs['iq'] = iq_second_order
+        hf.attrs['q_crystal'] = q_crystal
     print(f'Saved second-order susceptibility tensors to {output_h5_file_2nd}')
