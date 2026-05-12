@@ -486,11 +486,23 @@ Please cite:
         elph_val_cart    = fh['elph_fine_val_cart'][iq_phonon].astype(np.complex64)   # (Npert,  Nk_fi, Nv_fi, Nv_fi)
 
         if _used_minus_q:
-            # g(-q)_{nm} = conj(g(q)_{mn}) — conjugate and swap the two band indices
+            # g(-q)_{nm} = conj(g(q)_{mn}) — conjugate and swap band indices.
+            # With dV(q)=dV(-q) this also converts elph_cond to the g' convention
+            # (<c,k|dV|c',k+q> = conj(g[k,c',c])) in one step, so no separate
+            # conduction convention fix is needed when _used_minus_q is True.
             elph_cond_mode = np.conj(elph_cond_mode).transpose(0, 1, 3, 2)
             elph_val_mode  = np.conj(elph_val_mode).transpose(0, 1, 3, 2)
             elph_cond_cart = np.conj(elph_cond_cart).transpose(0, 1, 3, 2)
             elph_val_cart  = np.conj(elph_val_cart).transpose(0, 1, 3, 2)
+
+        elif finite_q_phonon and np.linalg.norm(q_phonon) > 1e-8:
+            # The file stores g[ν,k,n,m] = <n,k+q|dV|m,k> (bra at k+q, ket at k).
+            # The formula needs <c,k|dV|c',k+q> = conj(g[k,c',c]) (using dV(q)=dV(-q)).
+            # Apply conj().T_bands to elph_cond only; elph_val is handled correctly
+            # once Q_B shift is applied in apply_Qshift_on_valence_states below.
+            elph_cond_mode = np.conj(elph_cond_mode).transpose(0, 1, 3, 2)
+            elph_cond_cart = np.conj(elph_cond_cart).transpose(0, 1, 3, 2)
+            print('  Applied conduction el-ph convention fix: g[k,n,m] → conj(g[k,m,n])')
         Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                          # (Nk_fi, 3) crystal coords
 
         # phonon_modes/* may have a different q-point ordering than elph_fine datasets.
@@ -620,9 +632,15 @@ Please cite:
     Gc_mode, Gv_mode, Gc_mode_diag, Gv_mode_diag = _expand_elph(elph_cond_mode, elph_val_mode, Nmodes, 'phonon-mode')
     Gc_cart, Gv_cart, Gc_cart_diag, Gv_cart_diag = _expand_elph(elph_cond_cart, elph_val_cart, Npert,  'Cartesian')
 
-    # apply Q shift on valence states (finite-momentum BSE) — print once
-    Gv_mode = apply_Qshift_on_valence_states(Qshift, Gv_mode, Kpoints_in_elph_file_frac, verbose=True)
-    Gv_cart = apply_Qshift_on_valence_states(Qshift, Gv_cart, Kpoints_in_elph_file_frac, verbose=False)
+    # apply Q shift on valence states (finite-momentum BSE)
+    # The valence k-point in the formula is k - Q_B = k - Q_A - q_phonon.
+    # The ELPH at k_v gives <v, k_v+q|dV|v', k_v>; to get <v, k-Q_A|dV|v', k-Q_A-q>
+    # we need k_v = k - Q_B.  For q=0 (or Q=0) this reduces to k_v = k - Q_A (no change).
+    Q_val_shift = (Qshift + q_phonon) if finite_q_phonon else Qshift
+    if finite_q_phonon and np.linalg.norm(q_phonon) > 1e-8:
+        print(f'  Valence Q shift: using Q_B = Q_A + q = {Q_val_shift} (was Q_A = {Qshift})')
+    Gv_mode = apply_Qshift_on_valence_states(Q_val_shift, Gv_mode, Kpoints_in_elph_file_frac, verbose=True)
+    Gv_cart = apply_Qshift_on_valence_states(Q_val_shift, Gv_cart, Kpoints_in_elph_file_frac, verbose=False)
 
     time1 = time.clock_gettime(0)
     TASKS.append(['ELPH matrices expansion (for vectorized multiplication)', time1 - time0])
