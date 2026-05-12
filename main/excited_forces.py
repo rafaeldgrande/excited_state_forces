@@ -123,8 +123,8 @@ def f_disp_to_cart_basis(f_dis_basis, Displacements):
 def report_forces_ph(iexc, jexc, f_rpa_diag, f_rpa, f_kernel, frequencies, verbose=False):
     """Write phonon-mode basis forces: one row per mode with frequency and force values."""
     F_kernel = f_kernel if f_kernel is not None else np.zeros_like(f_rpa_diag)
-    iexc_name = excitons_to_be_loaded[iexc]
-    jexc_name = excitons_to_be_loaded[jexc]
+    iexc_name = iexc
+    jexc_name = jexc
     fname = f'exc_forces_{iexc_name}_{jexc_name}_ph.dat'
     unit_label = '(eV/ang^2)' if use_second_derivatives_elph_coeffs else '(eV/ang)'
     header = (
@@ -169,8 +169,8 @@ def report_forces(iexc, jexc, F_RPA_diag, F_RPA, F_kernel, suffix='ph', verbose=
     # Reporting forces in cartesian basis
     DIRECTION = ['x', 'y', 'z']
 
-    iexc_name = excitons_to_be_loaded[iexc]
-    jexc_name = excitons_to_be_loaded[jexc]
+    iexc_name = iexc
+    jexc_name = jexc
     arq_out_name = f'exc_forces_{iexc_name}_{jexc_name}_{suffix}.dat'
     arq_out = open(arq_out_name, 'w')
         
@@ -883,11 +883,11 @@ Please cite:
     for i, exc_pair in enumerate(exciton_pairs):
         iexc, jexc = exc_pair
         verbose = len(exciton_pairs) == 1
-        report_forces_ph(iexc-1, jexc-1,
+        report_forces_ph(iexc, jexc,
                          forces_ph_RPA_diag[i], forces_ph_RPA[i],
                          forces_ph_Kernel[i] if Calculate_Kernel else None,
                          phonon_frequencies, verbose=verbose)
-        report_forces(iexc-1, jexc-1, forces_ca_RPA_diag[i], forces_ca_RPA[i],
+        report_forces(iexc, jexc, forces_ca_RPA_diag[i], forces_ca_RPA[i],
                       None, suffix='cart', verbose=verbose)
 
     if save_forces_h5:

@@ -46,27 +46,31 @@ pairs = []
 
 if args.eigenvalues_2_file is None:
     # ── One-file mode ──────────────────────────────────────────────────────────
-    print('\nMode: single file')
-    print('  Generating (i, i) diagonal pairs and (i, j) off-diagonal pairs with i < j')
-
-    n_diag = 0
-    n_offdiag = 0
-    for i in range(len(energies_1)):
-        if energies_1[i] >= Emax:
-            continue
-        # diagonal (always include for d2 Raman / excited-state forces)
-        pairs.append((i + 1, i + 1))
-        n_diag += 1
-        # off-diagonal
-        for j in range(i + 1, len(energies_1)):
-            if energies_1[j] >= Emax:
+    if maxEdiff == 0:
+        print('\nMode: single file — diagonal only (maxEdiff = 0)')
+        for i in range(len(energies_1)):
+            if energies_1[i] >= Emax:
                 continue
-            if abs(energies_1[i] - energies_1[j]) < maxEdiff:
-                pairs.append((i + 1, j + 1))
-                n_offdiag += 1
-
-    print(f'  Diagonal pairs    : {n_diag}')
-    print(f'  Off-diagonal pairs: {n_offdiag}')
+            pairs.append((i + 1, i + 1))
+        print(f'  Diagonal pairs: {len(pairs)}')
+    else:
+        print('\nMode: single file')
+        print('  Generating (i, i) diagonal pairs and (i, j) off-diagonal pairs with i < j')
+        n_diag = 0
+        n_offdiag = 0
+        for i in range(len(energies_1)):
+            if energies_1[i] >= Emax:
+                continue
+            pairs.append((i + 1, i + 1))
+            n_diag += 1
+            for j in range(i + 1, len(energies_1)):
+                if energies_1[j] >= Emax:
+                    continue
+                if abs(energies_1[i] - energies_1[j]) < maxEdiff:
+                    pairs.append((i + 1, j + 1))
+                    n_offdiag += 1
+        print(f'  Diagonal pairs    : {n_diag}')
+        print(f'  Off-diagonal pairs: {n_offdiag}')
 
 else:
     # ── Two-file mode ──────────────────────────────────────────────────────────
@@ -76,17 +80,26 @@ else:
     print(f'  Total excitons : {len(energies_2)}')
     print(f'  E < {Emax} eV   : {within_2.sum()}  '
           f'(E range: {energies_2[within_2].min():.3f} – {energies_2[within_2].max():.3f} eV)')
-    print('\nMode: two files (finite-q phonon)')
-    print('  Generating all (i, j) cross-pairs with i from file 1, j from file 2')
 
-    for i in range(len(energies_1)):
-        if energies_1[i] >= Emax:
-            continue
-        for j in range(len(energies_2)):
-            if energies_2[j] >= Emax:
+    if maxEdiff == 0:
+        print('\nMode: two files — diagonal only (maxEdiff = 0)')
+        print('  Generating (i, i) pairs with i from both files (same index)')
+        for i in range(min(len(energies_1), len(energies_2))):
+            if energies_1[i] >= Emax or energies_2[i] >= Emax:
                 continue
-            if abs(energies_1[i] - energies_2[j]) < maxEdiff:
-                pairs.append((i + 1, j + 1))
+            pairs.append((i + 1, i + 1))
+        print(f'  Diagonal pairs: {len(pairs)}')
+    else:
+        print('\nMode: two files (finite-q phonon)')
+        print('  Generating all (i, j) cross-pairs with i from file 1, j from file 2')
+        for i in range(len(energies_1)):
+            if energies_1[i] >= Emax:
+                continue
+            for j in range(len(energies_2)):
+                if energies_2[j] >= Emax:
+                    continue
+                if abs(energies_1[i] - energies_2[j]) < maxEdiff:
+                    pairs.append((i + 1, j + 1))
 
 print(f'\nTotal pairs generated: {len(pairs)}')
 
