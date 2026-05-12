@@ -35,11 +35,11 @@ import sys
 parser = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument('--elph_file',   default='elph_coeffs.h5',
-                    help='HDF5 file with electron-phonon matrix elements in displacement-pattern basis')
+                    help='HDF5 file with electron-phonon matrix elements in displacement-pattern basis (default: elph_coeffs.h5)')
 parser.add_argument('--modes_file',  default='modes.axsf',
-                    help='AXSF file containing phonon eigenvectors (ANIMSTEPS format)')
+                    help='AXSF file containing phonon eigenvectors (ANIMSTEPS format; default: modes.axsf)')
 parser.add_argument('--output',      default='elph_in_ph_basis.h5',
-                    help='Output HDF5 file name')
+                    help='Output HDF5 file name (default: elph_in_ph_basis.h5)')
 parser.add_argument('--atom_masses', type=float, nargs='+', default=None,
                     help='Atomic masses in amu, one per atom (e.g. 12.011 12.011 ... 1.008 1.008 ...)')
 args = parser.parse_args()

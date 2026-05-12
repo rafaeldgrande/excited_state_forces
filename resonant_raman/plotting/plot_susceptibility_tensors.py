@@ -22,13 +22,16 @@ plt.style.use(config_dir)
 
 parser = argparse.ArgumentParser(description='Plot susceptibility tensors α vs excitation energy')
 parser.add_argument('--first-order-file',  type=str,
-                    default='susceptibility_tensors_first_order.h5')
+                    default='susceptibility_tensors_first_order.h5',
+                    help='HDF5 file from susceptibility_tensors_first_order.py (default: susceptibility_tensors_first_order.h5)')
 parser.add_argument('--second-order-file', type=str,
                     default='susceptibility_tensors_second_order.h5',
-                    help='Required for flavors 2–5')
-parser.add_argument('--freqs-file',        type=str, default='freqs.dat')
+                    help='Required for flavors 2–5 (default: susceptibility_tensors_second_order.h5)')
+parser.add_argument('--freqs-file',        type=str, default='freqs.dat',
+                    help='Phonon frequencies file in cm^-1 (default: freqs.dat)')
 parser.add_argument('--flavor',            type=int, default=0,
-                    choices=list(FLAVOR_DESC.keys()))
+                    choices=list(FLAVOR_DESC.keys()),
+                    help='Which susceptibility to plot (default: 0)')
 parser.add_argument('--temperature',       type=float, default=300,
                     help='Temperature in K — used in figure titles only (default: 300)')
 args = parser.parse_args()

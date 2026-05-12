@@ -128,16 +128,16 @@ def calculate_tensor_vectorized_over_modes_and_excitons(ialpha, ibeta):
     return d2, d3
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--exc_ph_file', default='exciton_phonon_couplings.h5')
-parser.add_argument('--dip_mom_file_b1', default='eigenvalues_b1.dat')
-parser.add_argument('--dip_mom_file_b2', default='eigenvalues_b2.dat')
-parser.add_argument('--dip_mom_file_b3', default='eigenvalues_b3.dat')
-parser.add_argument('--dE', type=float, default=0.001, help='Energy step in eV for the Ex grid')
-parser.add_argument('--gamma', type=float, default=0.01, help='Broadening parameter in eV')
-parser.add_argument('--vectorized_flavor', type=int, default=2, choices=[0, 1, 2], help='0: no vectorization (triple loop), 1: vectorize over excitons only, 2: vectorize over both excitons and modes (more memory usage but faster)')
+parser.add_argument('--exc_ph_file', default='exciton_phonon_couplings.h5', help='HDF5 file with exciton-phonon couplings (default: exciton_phonon_couplings.h5)')
+parser.add_argument('--dip_mom_file_b1', default='eigenvalues_b1.dat', help='Dipole moment file for polarization b1 (default: eigenvalues_b1.dat)')
+parser.add_argument('--dip_mom_file_b2', default='eigenvalues_b2.dat', help='Dipole moment file for polarization b2 (default: eigenvalues_b2.dat)')
+parser.add_argument('--dip_mom_file_b3', default='eigenvalues_b3.dat', help='Dipole moment file for polarization b3 (default: eigenvalues_b3.dat)')
+parser.add_argument('--dE', type=float, default=0.001, help='Energy step in eV for the Ex grid (default: 0.001)')
+parser.add_argument('--gamma', type=float, default=0.01, help='Broadening parameter in eV (default: 0.01)')
+parser.add_argument('--vectorized_flavor', type=int, default=2, choices=[0, 1, 2], help='0: no vectorization (triple loop), 1: vectorize over excitons only, 2: vectorize over both excitons and modes (more memory usage but faster; default: 2)')
 parser.add_argument('--test_functions', action='store_true', help='Run all three implementations on Nexc=10 and check they agree')
-parser.add_argument('--freqs_file', default=None, help='File containing phonon frequencies in cm^-1 (optional if stored in --exc_ph_file)')
-parser.add_argument('--limit_Nexc', type=int, default=None, help='Limit number of excitons to load (for testing)')
+parser.add_argument('--freqs_file', default=None, help='File containing phonon frequencies in cm^-1 (optional if stored in --exc_ph_file; default: None)')
+parser.add_argument('--limit_Nexc', type=int, default=None, help='Limit number of excitons to load (for testing; default: None)')
 parser.add_argument('--write_dummy', action='store_true',
                     help='Also compute and save dummy tensors (all numerators = 1, joint DOS of transitions) '
                          'to susceptibility_tensors_first_order_dummy.h5')

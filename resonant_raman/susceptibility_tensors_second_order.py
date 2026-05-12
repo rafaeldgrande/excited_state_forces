@@ -320,28 +320,37 @@ def calculate_tensor_vectorized_over_modes_and_excitons_double_resonance(ialpha,
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--first_order_exc_ph_file', default='1st_order_exciton_phonon_couplings.h5')
+parser.add_argument('--first_order_exc_ph_file', default='1st_order_exciton_phonon_couplings.h5',
+                    help='1st-order exciton-phonon h5 file (default: 1st_order_exciton_phonon_couplings.h5)')
 parser.add_argument('--second_order_exc_ph_file', default=None,
-                    help='2nd-order exciton-phonon h5 file. If not provided, <A|d^2H/dRa dRb|B> is assumed zero.')
-parser.add_argument('--dip_mom_file_b1', default='eigenvalues_b1.dat')
-parser.add_argument('--dip_mom_file_b2', default='eigenvalues_b2.dat')
-parser.add_argument('--dip_mom_file_b3', default='eigenvalues_b3.dat')
-parser.add_argument('--dE', type=float, default=0.001, help='Energy step in eV for the Ex grid')
-parser.add_argument('--gamma', type=float, default=0.01, help='Broadening parameter in eV')
-parser.add_argument('--vectorized_flavor', type=int, default=2, choices=[0, 1, 2], help='0: no vectorization (triple loop), 1: vectorize over excitons only, 2: vectorize over both excitons and modes (more memory usage but faster)')
+                    help='2nd-order exciton-phonon h5 file. If not provided, <A|d^2H/dRa dRb|B> is assumed zero. (default: None)')
+parser.add_argument('--dip_mom_file_b1', default='eigenvalues_b1.dat',
+                    help='Dipole moment file for polarization b1 (default: eigenvalues_b1.dat)')
+parser.add_argument('--dip_mom_file_b2', default='eigenvalues_b2.dat',
+                    help='Dipole moment file for polarization b2 (default: eigenvalues_b2.dat)')
+parser.add_argument('--dip_mom_file_b3', default='eigenvalues_b3.dat',
+                    help='Dipole moment file for polarization b3 (default: eigenvalues_b3.dat)')
+parser.add_argument('--dE', type=float, default=0.001, help='Energy step in eV for the Ex grid (default: 0.001 eV)')
+parser.add_argument('--gamma', type=float, default=0.01, help='Broadening parameter in eV (default: 0.01 eV)')
+parser.add_argument('--vectorized_flavor', type=int, default=2, choices=[0, 1, 2],
+                    help='0: no vectorization (triple loop), 1: vectorize over excitons only, '
+                         '2: vectorize over both excitons and modes (more memory usage but faster) (default: 2)')
 parser.add_argument('--nworkers', type=int, default=None,
                     help='Number of worker processes for double-resonance (flavor 1 only). '
-                         'Default: None (serial). Set to -1 to use all CPUs.')
-parser.add_argument('--test_functions', action='store_true', help='Run all three implementations on Nexc=10 and check they agree')
-parser.add_argument('--freqs_file', default=None, help='File containing phonon frequencies in cm^-1 (optional if stored in --first_order_exc_ph_file)')
-parser.add_argument('--limit_Nexc', type=int, default=None, help='Limit number of excitons to load (for testing)')
+                         'Set to -1 to use all CPUs. (default: None — serial)')
+parser.add_argument('--test_functions', action='store_true',
+                    help='Run all three implementations on Nexc=10 and check they agree (default: False)')
+parser.add_argument('--freqs_file', default=None,
+                    help='File containing phonon frequencies in cm^-1 (optional if stored in --first_order_exc_ph_file) (default: None)')
+parser.add_argument('--limit_Nexc', type=int, default=None,
+                    help='Limit number of excitons to load (for testing) (default: None — use all)')
 parser.add_argument('--finite-q', dest='finite_q', action='store_true',
-                    help='Finite-q phonon mode: loads exc_A/B_energies from h5, uses g_q† for second phonon vertex.')
+                    help='Finite-q phonon mode: loads exc_A/B_energies from h5, uses g_q† for second phonon vertex. (default: False)')
 parser.add_argument('--output', default='susceptibility_tensors_second_order.h5',
                     help='Output h5 file (default: susceptibility_tensors_second_order.h5)')
 parser.add_argument('--write_dummy', action='store_true',
                     help='Also compute and save dummy tensors (all numerators = 1, joint DOS of transitions) '
-                         'to susceptibility_tensors_second_order_dummy.h5')
+                         'to susceptibility_tensors_second_order_dummy.h5 (default: False)')
 args = parser.parse_args()
 
 first_order_exc_ph_file = args.first_order_exc_ph_file

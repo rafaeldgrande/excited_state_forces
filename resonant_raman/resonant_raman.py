@@ -13,30 +13,58 @@ from common import (k_B, rec_cm_to_eV, hbar, FLAVOR_DESC,
 config_dir = Path(__file__).parent.parent / 'presentation.mplstyle'
 plt.style.use(config_dir)
 
-parser = argparse.ArgumentParser(description='Compute resonant Raman intensity maps')
+parser = argparse.ArgumentParser(
+    description=(
+        'Compute resonant Raman intensity maps.\n\n'
+        'Required files per flavor:\n'
+        '  Flavor 0  First-order d2 only\n'
+        '            --first-order-file\n'
+        '  Flavor 1  First-order d3 only\n'
+        '            --first-order-file\n'
+        '  Flavor 2  Second-order triple resonance only\n'
+        '            --second-order-file  (or --q-points-file for finite-q BZ average)\n'
+        '  Flavor 3  Second-order triple + double resonance\n'
+        '            --second-order-file  (or --q-points-file)\n'
+        '  Flavor 4  Second-order triple resonance + first-order d3\n'
+        '            --first-order-file  +  --second-order-file  (or --q-points-file)\n'
+        '  Flavor 5  Second-order triple + double resonance + first-order d3\n'
+        '            --first-order-file  +  --second-order-file  (or --q-points-file)\n'
+        '  Flavor 6  IPA first order\n'
+        '            --ipa-first-order-file\n'
+        '  Flavor 7  IPA second order\n'
+        '            --ipa-second-order-file\n'
+        '  Flavor 8  IPA first + second order\n'
+        '            --ipa-first-order-file  +  --ipa-second-order-file\n\n'
+        'Note: --q-points-file enables BZ-averaged second-order Raman (finite-q phonons).\n'
+        '  Row iq in the file maps to susceptibility_tensors_second_order_q_{iq}.h5.'
+    ),
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
 parser.add_argument('--temperature',       type=float, default=300,
                     help='Temperature in Kelvin (default: 300)')
 parser.add_argument('--first-order-file',  type=str,
                     default='susceptibility_tensors_first_order.h5',
-                    help='HDF5 file from susceptibility_tensors_first_order.py')
+                    help='HDF5 file from susceptibility_tensors_first_order.py '
+                         '(default: susceptibility_tensors_first_order.h5)')
 parser.add_argument('--second-order-file', type=str,
                     default='susceptibility_tensors_second_order.h5',
                     help='HDF5 file from susceptibility_tensors_second_order.py '
-                         '(required for flavors 2 and 3)')
+                         '(required for flavors 2 and 3; default: susceptibility_tensors_second_order.h5)')
 parser.add_argument('--ipa-first-order-file', type=str,
                     default='susceptibility_tensors_first_order_IPA.h5',
                     help='HDF5 file from susceptibility_tensors_IPA.py '
-                         '(required for flavors 6 and 8)')
+                         '(required for flavors 6 and 8; default: susceptibility_tensors_first_order_IPA.h5)')
 parser.add_argument('--ipa-second-order-file', type=str,
                     default='susceptibility_tensors_second_order_IPA.h5',
                     help='HDF5 file from susceptibility_tensors_IPA.py '
-                         '(required for flavors 7 and 8)')
+                         '(required for flavors 7 and 8; default: susceptibility_tensors_second_order_IPA.h5)')
 parser.add_argument('--freqs-file',        type=str, default=None,
                     help='File with phonon frequencies in cm^-1 (optional; read from susceptibility h5 if not given)')
 parser.add_argument('--flavor',            type=int, default=0,
                     choices=list(FLAVOR_DESC.keys()),
                     help='Which susceptibility to use: ' +
-                         ', '.join(f'{k}={v}' for k, v in FLAVOR_DESC.items()))
+                         ', '.join(f'{k}={v}' for k, v in FLAVOR_DESC.items()) +
+                         ' (default: 0)')
 parser.add_argument('--output',            type=str, default='resonant_raman_data.h5',
                     help='Output HDF5 file (default: resonant_raman_data.h5)')
 parser.add_argument('--nfreq-ph',          type=int, default=None,

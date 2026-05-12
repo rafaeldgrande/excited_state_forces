@@ -124,9 +124,9 @@ def cart_to_ph(displacements, forces_cart, output_file):
 # taking inputs
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--forces_cart_file', default='forces_cart.out', type=str, help='File with forces in cartesian basis')
-parser.add_argument('--eigvecs_file', type=str, default='modes.axsf', help='File with phonon eigenvectors')
-parser.add_argument('--output_file', type=str, default='forces_ph.out', help='Output file for forces in phonon basis')
+parser.add_argument('--forces_cart_file', default='forces_cart.out', type=str, help='File with forces in cartesian basis (default: forces_cart.out)')
+parser.add_argument('--eigvecs_file', type=str, default='modes.axsf', help='File with phonon eigenvectors (default: modes.axsf)')
+parser.add_argument('--output_file', type=str, default='forces_ph.out', help='Output file for forces in phonon basis (default: forces_ph.out)')
 parser.add_argument('--read_exciton_pairs_file', default=False, action='store_true', help='Read exciton pairs from exciton_pairs.dat file instead of using iexc and jexc from forces.inp')
 args = parser.parse_args()
 

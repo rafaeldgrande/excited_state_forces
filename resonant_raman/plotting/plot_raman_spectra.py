@@ -27,16 +27,17 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--raman-file',        type=str, default='resonant_raman_data.h5',
                     help='HDF5 file from resonant_raman.py (for metadata, default: resonant_raman_data.h5)')
 parser.add_argument('--first-order-file',  type=str,
-                    default='susceptibility_tensors_first_order.h5')
+                    default='susceptibility_tensors_first_order.h5',
+                    help='HDF5 file from susceptibility_tensors_first_order.py (default: susceptibility_tensors_first_order.h5)')
 parser.add_argument('--second-order-file', type=str,
                     default='susceptibility_tensors_second_order.h5',
-                    help='Required for flavors 2–5')
+                    help='Required for flavors 2–5 (default: susceptibility_tensors_second_order.h5)')
 parser.add_argument('--ipa-first-order-file', type=str,
                     default='susceptibility_tensors_first_order_IPA.h5',
-                    help='Required for flavors 6 and 8')
+                    help='Required for flavors 6 and 8 (default: susceptibility_tensors_first_order_IPA.h5)')
 parser.add_argument('--ipa-second-order-file', type=str,
                     default='susceptibility_tensors_second_order_IPA.h5',
-                    help='Required for flavors 7 and 8')
+                    help='Required for flavors 7 and 8 (default: susceptibility_tensors_second_order_IPA.h5)')
 parser.add_argument('--Eexc',              type=float, nargs='+', required=True,
                     help='One or more excitation energies in eV')
 parser.add_argument('--broadening',        type=float, default=10.0,

@@ -17,7 +17,7 @@ python modify_WFN_header.py source_header_file base_file --output output_file
 parser = argparse.ArgumentParser(description="Replace /mf_header in a WFN.h5 file.")
 parser.add_argument("source_header_file", help="WFN.h5 file to copy /mf_header from")
 parser.add_argument("base_file", help="WFN.h5 file to apply the header to")
-parser.add_argument("--output", default="WFN_mod.h5", dest="output_file", help="Output file name (default: WFN_fi_mod.h5)")
+parser.add_argument("--output", default="WFN_mod.h5", dest="output_file", help="Output file name (default: WFN_mod.h5)")
 args = parser.parse_args()
 
 source_header_file = args.source_header_file

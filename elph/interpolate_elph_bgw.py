@@ -627,13 +627,13 @@ if __name__ == '__main__':
     cli.add_argument('--out',    default='elph_fine.h5',
                      help='Output HDF5 filename (default: elph_fine.h5)')
     cli.add_argument('--wfn-fi', default=None,
-                     help='Path to WFN_fi.h5 (needed for finite-q interpolation)')
+                     help='Path to WFN_fi.h5 (needed for finite-q interpolation; default: None)')
     cli.add_argument('--real',   action='store_true',
                      help='Use real-flavor dtmat (default: complex)')
     cli.add_argument('--eqp',    default=None,
                      help='Path to fine-grid eqp.dat (output of inteqp.x). '
                           'When given, QP rescaling matrices and Eqp/Edft energies '
-                          'are computed and saved into the output h5.')
+                          'are computed and saved into the output h5 (default: None).')
     args = cli.parse_args()
 
     kpts_fi = None
