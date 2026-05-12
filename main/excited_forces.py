@@ -493,24 +493,23 @@ Please cite:
             elph_val_cart  = np.conj(elph_val_cart).transpose(0, 1, 3, 2)
         Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                          # (Nk_fi, 3) crystal coords
 
-        # phonon_modes/* is indexed by matdyn.modes q-points, which may differ
-        # in count and ordering from the elph q-points.  Match by coordinate.
-        # qpoints stored in crystal (fractional) coords — compare directly with BZ folding.
-        _ph_qpts_cryst = fh['phonon_modes/qpoints'][:]            # (Nq_modes, 3) crystal coords
+        # phonon_modes/* may have a different q-point ordering than elph_fine datasets.
+        # Use qpoints_crystal (fractional) for matching — compare directly with q_phonon.
+        _qpts_cryst = fh['qpoints_crystal'][:]                    # (Nq, 3) crystal coords
         _q_lookup = (-q_phonon if _used_minus_q else q_phonon)
         _iq_modes = next(
-            (i for i, qm in enumerate(_ph_qpts_cryst)
+            (i for i, qm in enumerate(_qpts_cryst)
              if np.linalg.norm((_q_lookup - qm) - np.round(_q_lookup - qm)) < 1e-5), -1)
         if _iq_modes == -1:
             print(f'  WARNING: phonon q = {_q_lookup} not found in '
-                  f'phonon_modes/qpoints of {elph_fine_h5_file}.')
+                  f'qpoints_crystal of {elph_fine_h5_file}.')
             print(f'  Falling back to Gamma (index 0) for phonon eigenvectors/frequencies.')
             print(f'  NOTE: if matdyn.x was not run at this q, g_mode at iq={iq_phonon} '
                   f'is zero in elph.h5 and ph-mode forces will be zero.')
             _iq_modes = 0
         else:
             print(f'  phonon eigenvectors: using phonon_modes index {_iq_modes} '
-                  f'(q = {_ph_qpts_cryst[_iq_modes]})')
+                  f'(q_crystal = {_qpts_cryst[_iq_modes]})')
 
         Displacements        = fh['phonon_modes/eigenvectors'][_iq_modes]              # (Nmodes, Nat, 3)
         phonon_frequencies   = fh['phonon_modes/frequencies'][_iq_modes]              # (Nmodes,) in cm^-1
