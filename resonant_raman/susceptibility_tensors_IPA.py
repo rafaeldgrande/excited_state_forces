@@ -69,7 +69,7 @@ def calculate_tensor_second_order_not_vectorized(ialpha, ibeta):
                             term2_cond = g_cond[imode, ik, ic, icp] / (Ex - DeltaE[ik, icp, iv] - freqs_eV[imode] - 1j*gamma)
                             sum_term3_cond = np.zeros(Nfreq, dtype=complex)
                             for icpp in range(nc_elph):
-                                sum_term3_cond += pb[ik, icpp, iv] * g_cond[jmode, ik, icp, icpp] / (Ex - DeltaE[ik, icpp, iv] - freqs_eV[jmode] - freqs_eV[imode] - 1j*gamma)
+                                sum_term3_cond += pb[ik, icpp, iv] * g_cond_dag[jmode, ik, icp, icpp] / (Ex - DeltaE[ik, icpp, iv] - freqs_eV[jmode] - freqs_eV[imode] - 1j*gamma)
                             sum_term2_cond += term2_cond * sum_term3_cond
                         sum_temp[imode, jmode] += term1_cond * sum_term2_cond
                         
@@ -79,7 +79,7 @@ def calculate_tensor_second_order_not_vectorized(ialpha, ibeta):
                             term2_val = g_val[imode, ik, iv, ivp] / (Ex - DeltaE[ik, ic, ivp] - freqs_eV[imode] - 1j*gamma)
                             sum_term3_val = np.zeros(Nfreq, dtype=complex)
                             for ivpp in range(nv_elph):
-                                sum_term3_val += pb[ik, ic, ivpp] * g_val[jmode, ik, ivp, ivpp] / (Ex - DeltaE[ik, ic, ivpp] - freqs_eV[jmode] - freqs_eV[imode] - 1j*gamma)
+                                sum_term3_val += pb[ik, ic, ivpp] * g_val_dag[jmode, ik, ivp, ivpp] / (Ex - DeltaE[ik, ic, ivpp] - freqs_eV[jmode] - freqs_eV[imode] - 1j*gamma)
                             sum_term2_val += term2_val * sum_term3_val
                         sum_temp[imode, jmode] += term1_val * sum_term2_val
                         
@@ -89,14 +89,15 @@ def calculate_tensor_second_order_not_vectorized(ialpha, ibeta):
                             term2_mixed = g_cond[imode, ik, ic, icp] / (Ex - DeltaE[ik, icp, iv] - freqs_eV[imode] - 1j*gamma)
                             sum_term3_mixed = np.zeros(Nfreq, dtype=complex)
                             for ivp in range(nv_elph):
-                                sum_term3_mixed += pb[ik, icp, ivp] * g_val[jmode, ik, ivp, iv] / (Ex - DeltaE[ik, icp, ivp] - freqs_eV[jmode] - freqs_eV[imode] - 1j*gamma)
+                                sum_term3_mixed += pb[ik, icp, ivp] * g_val_dag[jmode, ik, ivp, iv] / (Ex - DeltaE[ik, icp, ivp] - freqs_eV[jmode] - freqs_eV[imode] - 1j*gamma)
                             sum_term2_mixed += term2_mixed * sum_term3_mixed
                         sum_temp[imode, jmode] -= term1_mixed * sum_term2_mixed
 
             iter_done += 1
             elapsed = time.perf_counter() - t0
             eta = elapsed / iter_done * (total_iters - iter_done) if iter_done < total_iters else 0.0
-            print(f'  ({imode+1},{jmode+1})/({Nmodes},{Nmodes}) (alpha={ialpha+1}, beta={ibeta+1}) elapsed={elapsed:.1f}s ETA={eta:.1f}s')
+            print(f'  modes (imode={imode+1}, jmode={jmode+1}) of ({Nmodes},{Nmodes}) '
+                  f'(alpha={ialpha+1}, beta={ibeta+1}) elapsed={elapsed:.1f}s ETA={eta:.1f}s')
 
     print(f'  (alpha={ialpha+1}, beta={ibeta+1}) done in {time.perf_counter() - t0:.3f}s')
     return sum_temp
@@ -125,16 +126,16 @@ def calculate_tensor_second_order_vectorized_over_kcv(ialpha, ibeta):
             # pb_inv_D3 transposed for val and mixed contractions over nv
             pb_inv_D3_T = pb_inv_D3.transpose(0, 2, 1, 3).reshape(nk_elph, nv_elph, -1)  # (nk, nv, nc*Nf)
 
-            # Conduction: Σ_{c'} g_cond[i] Σ_{c''} g_cond[j] * pb_inv_D3[c''] * inv_D2_i[c']
-            T3c = (np.matmul(g_cond[jmode], pb_inv_D3.reshape(nk_elph, nc_elph, -1))
+            # Conduction: Σ_{c'} g_cond[i] Σ_{c''} g_cond†[j] * pb_inv_D3[c''] * inv_D2_i[c']
+            T3c = (np.matmul(g_cond_dag[jmode], pb_inv_D3.reshape(nk_elph, nc_elph, -1))
                      .reshape(nk_elph, nc_elph, nv_elph, Nfreq))
             A_c = T3c * inv_D2_i
             T2c = (np.matmul(g_cond[imode], A_c.reshape(nk_elph, nc_elph, -1))
                      .reshape(nk_elph, nc_elph, nv_elph, Nfreq))
             sum_temp[imode, jmode] += (G1 * T2c).sum(axis=(0, 1, 2))
 
-            # Valence: Σ_{v'} g_val[i] Σ_{v''} g_val[j] * pb_inv_D3[v''] * inv_D2_i[v']
-            T3v = (np.matmul(g_val[jmode], pb_inv_D3_T)
+            # Valence: Σ_{v'} g_val[i] Σ_{v''} g_val†[j] * pb_inv_D3[v''] * inv_D2_i[v']
+            T3v = (np.matmul(g_val_dag[jmode], pb_inv_D3_T)
                      .reshape(nk_elph, nv_elph, nc_elph, Nfreq)
                      .transpose(0, 2, 1, 3))                   # (nk, nc, nv', Nf)
             A_v = T3v * inv_D2_i
@@ -144,8 +145,8 @@ def calculate_tensor_second_order_vectorized_over_kcv(ialpha, ibeta):
                      .transpose(0, 2, 1, 3))                   # (nk, nc, nv, Nf)
             sum_temp[imode, jmode] += (G1 * T2v).sum(axis=(0, 1, 2))
 
-            # Mixed: Σ_{c'} g_cond[i] Σ_{v'} g_val[j,v',v] * pb_inv_D3[c',v'] * inv_D2_i[c',v]
-            gvalT_j = g_val[jmode].transpose(0, 2, 1)          # (nk, nv_outer, nv')
+            # Mixed: Σ_{c'} g_cond[i] Σ_{v'} g_val†[j,v',v] * pb_inv_D3[c',v'] * inv_D2_i[c',v]
+            gvalT_j = g_val_dag[jmode].transpose(0, 2, 1)      # (nk, nv_outer, nv')
             T3m = (np.matmul(gvalT_j, pb_inv_D3_T)
                      .reshape(nk_elph, nv_elph, nc_elph, Nfreq)
                      .transpose(0, 2, 1, 3))                   # (nk, nc', nv_outer, Nf)
@@ -157,7 +158,8 @@ def calculate_tensor_second_order_vectorized_over_kcv(ialpha, ibeta):
             iter_done += 1
             elapsed = time.perf_counter() - t0
             eta = elapsed / iter_done * (total_iters - iter_done) if iter_done < total_iters else 0.0
-            print(f'  ({imode+1},{jmode+1})/({Nmodes},{Nmodes}) (alpha={ialpha+1}, beta={ibeta+1}) elapsed={elapsed:.1f}s ETA={eta:.1f}s')
+            print(f'  modes (imode={imode+1}, jmode={jmode+1}) of ({Nmodes},{Nmodes}) '
+                  f'(alpha={ialpha+1}, beta={ibeta+1}) elapsed={elapsed:.1f}s ETA={eta:.1f}s')
 
     print(f'  (alpha={ialpha+1}, beta={ibeta+1}) done in {time.perf_counter() - t0:.3f}s')
     return sum_temp
@@ -172,7 +174,7 @@ def calculate_tensor_second_order_vectorized_over_jmode_and_kcv(ialpha, ibeta):
     sum_temp = np.zeros((Nmodes, Nmodes, Nfreq), dtype=complex)
 
     G1 = pa[:, :, :, None] / (Ex - DeltaE[:, :, :, None] - 1j * gamma)  # (nk, nc, nv, Nf)
-    gvalT_all = g_val.transpose(0, 1, 3, 2)  # (Nmodes, nk, nv, nv) — transposed for mixed term
+    gvalT_dag_all = g_val_dag.transpose(0, 1, 3, 2)  # (Nmodes, nk, nv, nv) — g_val† transposed for mixed term
 
     for imode in range(Nmodes):
 
@@ -188,16 +190,16 @@ def calculate_tensor_second_order_vectorized_over_jmode_and_kcv(ialpha, ibeta):
         pb_inv_D3_all = pb[None, :, :, :, None] * inv_D3_all  # (Nmodes, nk, nc, nv, Nf)
         pb_inv_D3_T_all = pb_inv_D3_all.transpose(0, 1, 3, 2, 4).reshape(Nmodes, nk_elph, nv_elph, -1)
 
-        # Conduction
-        T3c_all = (np.matmul(g_cond, pb_inv_D3_all.reshape(Nmodes, nk_elph, nc_elph, -1))
+        # Conduction — second vertex uses g_cond†
+        T3c_all = (np.matmul(g_cond_dag, pb_inv_D3_all.reshape(Nmodes, nk_elph, nc_elph, -1))
                      .reshape(Nmodes, nk_elph, nc_elph, nv_elph, Nfreq))
         A_c_all = T3c_all * inv_D2_i[None]
         T2c_all = (np.matmul(g_cond[imode][None], A_c_all.reshape(Nmodes, nk_elph, nc_elph, -1))
                      .reshape(Nmodes, nk_elph, nc_elph, nv_elph, Nfreq))
         sum_temp[imode] += (G1[None] * T2c_all).sum(axis=(1, 2, 3))  # (Nmodes, Nf)
 
-        # Valence
-        T3v_all = (np.matmul(g_val, pb_inv_D3_T_all)
+        # Valence — second vertex uses g_val†
+        T3v_all = (np.matmul(g_val_dag, pb_inv_D3_T_all)
                      .reshape(Nmodes, nk_elph, nv_elph, nc_elph, Nfreq)
                      .transpose(0, 1, 3, 2, 4))                        # (Nm, nk, nc, nv', Nf)
         A_v_all = T3v_all * inv_D2_i[None]
@@ -207,8 +209,8 @@ def calculate_tensor_second_order_vectorized_over_jmode_and_kcv(ialpha, ibeta):
                      .transpose(0, 1, 3, 2, 4))                        # (Nm, nk, nc, nv, Nf)
         sum_temp[imode] += (G1[None] * T2v_all).sum(axis=(1, 2, 3))
 
-        # Mixed
-        T3m_all = (np.matmul(gvalT_all, pb_inv_D3_T_all)
+        # Mixed — second vertex uses g_val† (transposed)
+        T3m_all = (np.matmul(gvalT_dag_all, pb_inv_D3_T_all)
                      .reshape(Nmodes, nk_elph, nv_elph, nc_elph, Nfreq)
                      .transpose(0, 1, 3, 2, 4))                        # (Nm, nk, nc', nv_outer, Nf)
         A_m_all = T3m_all * inv_D2_i[None]
@@ -361,6 +363,12 @@ parser.add_argument('--write_dummy', action='store_true',
 parser.add_argument('--limit_transitions', type=int, default=None,
                     help='Truncate to first N transitions (for quick tests; default: None)')
 parser.add_argument('--flavor_energy_levels', type=int, default=1, choices=[1, 2], help='Flavor energy levels. 1 = GW, 2 = DFT (default: 1)')
+parser.add_argument('--skip_first_order_calculation', action='store_true',
+                    help='Skip the first-order susceptibility calculation (saves time when only second-order is needed)')
+parser.add_argument('--q-points-file', dest='q_points_file', default=None,
+                    help='File with q-point coordinates and BZ weights: rows of "qx qy qz weight". '
+                         'Enables BZ-averaged second-order calculation by looping over q-points '
+                         'stored in --elph_fine_file. (default: None — Gamma only)')
 args = parser.parse_args()
 
 flavor_energy_levels = args.flavor_energy_levels
@@ -381,6 +389,8 @@ limit_transitions = args.limit_transitions
 eqp_file = args.eqp_file
 nval_in_eqp = args.nval_in_eqp
 no_renorm_elph = args.no_renorm_elph
+skip_first_order_calculation = args.skip_first_order_calculation
+q_points_file = args.q_points_file
 
 flavor_desc = {0: 'no vectorization (quintuple loop)',
                1: 'vectorized over k, c, v',
@@ -407,6 +417,8 @@ print(f'  vectorized_flavor_second_order: {vectorized_flavor_second_order} ({fla
 print(f'  test_functions    : {test_functions}')
 print(f'  write_dummy       : {args.write_dummy}')
 print(f'  flavor_energy_levels : {flavor_energy_levels}. 1 = GW, 2 = DFT')
+print(f'  skip_first_order  : {skip_first_order_calculation}')
+print(f'  q_points_file     : {q_points_file}  (None = Gamma only)')
 print('---------------\n')
 
 # Energy grid
@@ -490,6 +502,10 @@ else:
         DeltaE = delta_E(Eqp_cond, Eqp_val)
 # shape of DeltaE: (nk, nc, nv)
 
+_in_range = (DeltaE >= Emin) & (DeltaE < Emax)
+print(f'  Transitions in [{Emin:.3f}, {Emax:.3f}] eV: {_in_range.sum()} / {DeltaE.size} '
+      f'(nk={nk_elph}, nc={nc_elph}, nv={nv_elph})')
+
 # QP renormalization of el-ph coefficients
 def renormalize_elph_coeffs(elph, Eqp_nk_nb, Edft_nk_nb, ratio=None):
     """Scale elph by ΔE_QP/ΔE_DFT for each (k, n, m) pair."""
@@ -515,7 +531,11 @@ if not no_renorm_elph:
         print('  WARNING: Edft not available; skipping QP renormalization')
 else:
     print('  Skipping QP renormalization of elph (--no_renorm_elph)')
-    
+
+# Second-phonon vertex: g† = conj(g).T_bands. At Gamma (Hermitian), g† = g.
+g_cond_dag = g_cond.conj().transpose(0, 1, 3, 2)   # (Nmodes, nk, nc, nc)
+g_val_dag  = g_val.conj().transpose(0, 1, 3, 2)    # (Nmodes, nk, nv, nv)
+
 # ---------------------------------------------------------------------------
 # 4. Load dipole matrix elements (momentum → position)
 # ---------------------------------------------------------------------------
@@ -549,6 +569,8 @@ if test_functions:
     # Truncate all module-level globals the functions read
     g_cond          = g_cond[:Nm_t, :nk_t, :nc_t, :nc_t]
     g_val           = g_val[:Nm_t,  :nk_t, :nv_t, :nv_t]
+    g_cond_dag      = g_cond_dag[:Nm_t, :nk_t, :nc_t, :nc_t]
+    g_val_dag       = g_val_dag[:Nm_t,  :nk_t, :nv_t, :nv_t]
     DeltaE          = DeltaE[:nk_t, :nc_t, :nv_t]
     freqs_eV        = freqs_eV[:Nm_t]
     pos_operator_list = [p[:nk_t, :nc_t, :nv_t] for p in pos_operator_list]
@@ -606,37 +628,97 @@ if test_functions:
 # 6. Calculate susceptibility tensors
 # ---------------------------------------------------------------------------
 
-susceptibility_tensor_first_order = np.zeros((3, 3, Nmodes, Nfreq), dtype=complex)
+def _run_second_order_fn(ialpha, ibeta):
+    if vectorized_flavor_second_order == 2:
+        return calculate_tensor_second_order_vectorized_over_jmode_and_kcv(ialpha, ibeta)
+    elif vectorized_flavor_second_order == 1:
+        return calculate_tensor_second_order_vectorized_over_kcv(ialpha, ibeta)
+    else:
+        return calculate_tensor_second_order_not_vectorized(ialpha, ibeta)
 
-for ialpha in range(3):
-    for ibeta in range(3):
-        if vectorized_flavor == 2:
-            susceptibility_tensor_first_order[ialpha, ibeta] = calculate_tensor_first_order_vectorized_over_modes_and_kcv(ialpha, ibeta)
-        elif vectorized_flavor == 1:
-            susceptibility_tensor_first_order[ialpha, ibeta] = calculate_tensor_first_order_vectorized_over_kcv(ialpha, ibeta)
-        else:
-            susceptibility_tensor_first_order[ialpha, ibeta] = calculate_tensor_first_order_not_vectorized(ialpha, ibeta)
-
-output_h5_file = 'susceptibility_tensors_first_order_IPA.h5'
-with h5py.File(output_h5_file, 'w') as hf:
-    hf.create_dataset('excitation_energies', data=Ex)
-    hf.create_dataset('susceptibility_tensor_first_order', data=susceptibility_tensor_first_order)  # (3, 3, Nmodes, Nfreq)
-print(f'Saved first-order susceptibility tensors to {output_h5_file}')
-
-if compute_second_order:
-    susceptibility_tensor_second_order = np.zeros((3, 3, Nmodes, Nmodes, Nfreq), dtype=complex)
-
+if not skip_first_order_calculation:
+    print('\n--- Computing first-order susceptibility tensor (IPA) ---')
+    susceptibility_tensor_first_order = np.zeros((3, 3, Nmodes, Nfreq), dtype=complex)
     for ialpha in range(3):
         for ibeta in range(3):
-            if vectorized_flavor_second_order == 2:
-                susceptibility_tensor_second_order[ialpha, ibeta] = calculate_tensor_second_order_vectorized_over_jmode_and_kcv(ialpha, ibeta)
-            elif vectorized_flavor_second_order == 1:
-                susceptibility_tensor_second_order[ialpha, ibeta] = calculate_tensor_second_order_vectorized_over_kcv(ialpha, ibeta)
+            if vectorized_flavor == 2:
+                susceptibility_tensor_first_order[ialpha, ibeta] = calculate_tensor_first_order_vectorized_over_modes_and_kcv(ialpha, ibeta)
+            elif vectorized_flavor == 1:
+                susceptibility_tensor_first_order[ialpha, ibeta] = calculate_tensor_first_order_vectorized_over_kcv(ialpha, ibeta)
             else:
-                susceptibility_tensor_second_order[ialpha, ibeta] = calculate_tensor_second_order_not_vectorized(ialpha, ibeta)
+                susceptibility_tensor_first_order[ialpha, ibeta] = calculate_tensor_first_order_not_vectorized(ialpha, ibeta)
+
+    output_h5_file = 'susceptibility_tensors_first_order_IPA.h5'
+    with h5py.File(output_h5_file, 'w') as hf:
+        hf.create_dataset('excitation_energies', data=Ex)
+        hf.create_dataset('susceptibility_tensor_first_order', data=susceptibility_tensor_first_order)
+        hf.create_dataset('phonon_frequencies_cm', data=freqs_rec_cm)
+    print(f'Saved first-order susceptibility tensors to {output_h5_file}')
+else:
+    print('\n--- Skipping first-order calculation (--skip_first_order_calculation) ---')
+
+if compute_second_order:
+    print('\n--- Computing second-order susceptibility tensor (IPA) ---')
+
+    if q_points_file is not None:
+        # BZ-averaged second order: loop over q-points in the file
+        _q_data = np.loadtxt(q_points_file)
+        if _q_data.ndim == 1:
+            _q_data = _q_data[np.newaxis, :]
+        q_weights = _q_data[:, 3]
+        q_norm    = q_weights.sum()
+        print(f'  BZ average: {len(q_weights)} q-points from {q_points_file}  (total weight = {q_norm:.4f})')
+
+        susceptibility_tensor_second_order = np.zeros((3, 3, Nmodes, Nmodes, Nfreq), dtype=complex)
+
+        with h5py.File(elph_fine_file, 'r') as hf_q:
+            _qpts_cryst = hf_q['qpoints_crystal'][:]   # (Nq, 3)
+
+            for iq_row, (qrow, w_q) in enumerate(zip(_q_data, q_weights)):
+                q_crystal = qrow[:3]
+                iq = next(
+                    (i for i, qc in enumerate(_qpts_cryst)
+                     if np.linalg.norm((q_crystal - qc) - np.round(q_crystal - qc)) < _TOL_Q), -1)
+                if iq == -1:
+                    sys.exit(f'ERROR: q={q_crystal} (row {iq_row} of {q_points_file}) '
+                             f'not found in {elph_fine_file} qpoints_crystal.')
+                print(f'  q-point {iq_row}: q={q_crystal}  iq={iq}  weight={w_q:.4f}')
+
+                g_cond_q = hf_q['elph_fine_cond_mode'][iq].astype(complex)
+                g_val_q  = hf_q['elph_fine_val_mode'][iq].astype(complex)
+
+                # Apply QP renormalization to q-specific elph
+                if not no_renorm_elph:
+                    if QP_rescaling_cond is not None:
+                        g_cond_q = renormalize_elph_coeffs(g_cond_q, None, None, QP_rescaling_cond)
+                        g_val_q  = renormalize_elph_coeffs(g_val_q,  None, None, QP_rescaling_val)
+                    elif Edft_cond is not None:
+                        g_cond_q = renormalize_elph_coeffs(g_cond_q, Eqp_cond.T, Edft_cond.T)
+                        g_val_q  = renormalize_elph_coeffs(g_val_q,  Eqp_val.T,  Edft_val.T)
+
+                # Update module-level elph globals for this q:
+                # imode vertex uses g at +q; jmode vertex uses g† at -q
+                g_cond          = g_cond_q
+                g_val           = g_val_q
+                g_cond_dag      = g_cond_q.conj().transpose(0, 1, 3, 2)
+                g_val_dag       = g_val_q.conj().transpose(0, 1, 3, 2)
+
+                tensor_q = np.zeros((3, 3, Nmodes, Nmodes, Nfreq), dtype=complex)
+                for ialpha in range(3):
+                    for ibeta in range(3):
+                        tensor_q[ialpha, ibeta] = _run_second_order_fn(ialpha, ibeta)
+                susceptibility_tensor_second_order += (w_q / q_norm) * tensor_q
+
+    else:
+        # Single q=0 (Gamma) calculation — g_cond/g_val/g_cond_dag/g_val_dag already set
+        susceptibility_tensor_second_order = np.zeros((3, 3, Nmodes, Nmodes, Nfreq), dtype=complex)
+        for ialpha in range(3):
+            for ibeta in range(3):
+                susceptibility_tensor_second_order[ialpha, ibeta] = _run_second_order_fn(ialpha, ibeta)
 
     output_h5_file_2nd = 'susceptibility_tensors_second_order_IPA.h5'
     with h5py.File(output_h5_file_2nd, 'w') as hf:
         hf.create_dataset('excitation_energies', data=Ex)
-        hf.create_dataset('susceptibility_tensor_second_order', data=susceptibility_tensor_second_order)  # (3, 3, Nmodes, Nmodes, Nfreq)
+        hf.create_dataset('susceptibility_tensor_second_order', data=susceptibility_tensor_second_order)
+        hf.create_dataset('phonon_frequencies_cm', data=freqs_rec_cm)
     print(f'Saved second-order susceptibility tensors to {output_h5_file_2nd}')
