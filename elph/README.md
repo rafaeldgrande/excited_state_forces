@@ -116,6 +116,7 @@ python interpolate_elph_bgw.py --elph_coarse elph.h5 --dtmat dtmat --Nval 13 --r
 | `--out` | `elph_fine.h5` | Output filename |
 | `--wfn-fi` | auto-discovered | Path to `WFN_fi.h5` (required for finite-q) |
 | `--real` | — | Use real-flavor dtmat |
+| `--eqp` | `None` | Path to fine-grid `eqp.dat` (output of `inteqp.x`). When given, saves QP rescaling matrices and Eqp/Edft energies into the output h5 |
 
 **Output `elph_fine.h5` layout:**
 
@@ -129,6 +130,12 @@ python interpolate_elph_bgw.py --elph_coarse elph.h5 --dtmat dtmat --Nval 13 --r
 | `qpoints_crystal` | `(Nq, 3)` | fractional | q-points (copied from `elph.h5`) |
 | `qpoints_cart` | `(Nq, 3)` | 2π/a | q-points in Cartesian (copied from `elph.h5`) |
 | `phonon_modes/` | group | — | Phonon frequencies and eigenvectors (copied from `elph.h5`) |
+| `QP_rescaling_matrix_cond` | `(Nk_fi, Nc, Nc)` | dimensionless | QP renorm. ratio $(E^{\rm QP}_n - E^{\rm QP}_m)/(E^{\rm DFT}_n - E^{\rm DFT}_m)$ for conduction bands; only when `--eqp` given |
+| `QP_rescaling_matrix_val` | `(Nk_fi, Nv, Nv)` | dimensionless | QP renorm. ratio for valence bands; only when `--eqp` given |
+| `Eqp_cond` | `(Nk_fi, Nc)` | eV | QP conduction energies from `eqp.dat`; only when `--eqp` given |
+| `Eqp_val` | `(Nk_fi, Nv)` | eV | QP valence energies; only when `--eqp` given |
+| `Edft_cond` | `(Nk_fi, Nc)` | eV | DFT conduction energies (from `eqp.dat`); only when `--eqp` given |
+| `Edft_val` | `(Nk_fi, Nv)` | eV | DFT valence energies; only when `--eqp` given |
 
 ---
 

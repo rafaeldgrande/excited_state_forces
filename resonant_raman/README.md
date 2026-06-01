@@ -174,14 +174,45 @@ python $ESF_DIR/resonant_raman/resonant_raman.py \
 
 The `--flavor` argument to `resonant_raman.py` selects which contributions to include:
 
-| Flavor | Description |
-|--------|-------------|
-| 0 | First-order d2 only |
-| 1 | First-order d3 only |
-| 2 | Second-order triple resonance only |
-| 3 | Second-order triple + double resonance |
-| 4 | Second-order triple resonance + first-order d3 |
-| 5 | Second-order triple + double resonance + first-order d3 |
+| Flavor | Description | Required files |
+|--------|-------------|----------------|
+| 0 | First-order d2 only | `--first-order-file` |
+| 1 | First-order d3 only | `--first-order-file` |
+| 2 | Second-order triple resonance only | `--second-order-file` (or `--q-points-file`) |
+| 3 | Second-order triple + double resonance | `--second-order-file` (or `--q-points-file`) |
+| 4 | Second-order triple resonance + first-order d3 | both `--first-order-file` and `--second-order-file` |
+| 5 | Second-order triple + double resonance + first-order d3 | both `--first-order-file` and `--second-order-file` |
+| 6 | IPA first order | `--ipa-first-order-file` |
+| 7 | IPA second order | `--ipa-second-order-file` |
+| 8 | IPA first + second order | `--ipa-first-order-file` and `--ipa-second-order-file` |
+
+Flavors 0–5 use BSE exciton-phonon matrix elements from `excited_forces.py`. Flavors 6–8 use the Independent Particle Approximation (IPA) computed directly from the interpolated el-ph coefficients in `elph_fine.h5`.
+
+---
+
+---
+
+### IPA Workflow (flavors 6–8)
+
+The IPA susceptibility tensors are computed directly from `elph_fine.h5` (produced by `interpolate_elph_bgw.py` with `--eqp`), bypassing the BSE exciton-phonon step. This is faster but omits excitonic effects.
+
+```bash
+# First order (gamma point, default iq=0)
+python $ESF_DIR/resonant_raman/susceptibility_tensors_IPA.py
+# → susceptibility_tensors_first_order_IPA.h5
+
+# Second order at q-point iq
+python $ESF_DIR/resonant_raman/susceptibility_tensors_IPA.py \
+    --compute_second_order --skip_first_order_calculation --iq 0
+# → susceptibility_tensors_second_order_IPA_q_0.h5
+
+# Rename/symlink for resonant_raman.py (which expects the default filename)
+ln -sf susceptibility_tensors_second_order_IPA_q_0.h5 \
+        susceptibility_tensors_second_order_IPA.h5
+
+# Compute Raman map (IPA first + second order)
+python $ESF_DIR/resonant_raman/resonant_raman.py --flavor 8
+```
 
 ---
 
@@ -276,15 +307,24 @@ Reads both the 1st-order and 2nd-order exciton-phonon files and builds their ful
 | `--vectorized_flavor` | `2` | Vectorization level (0=none, 1=exciton, 2=modes+excitons) |
 | `--nworkers` | — | Parallel workers for double-resonance (flavor 1 only; `-1` = all CPUs) |
 | `--freqs_file` | — | Phonon frequencies file in cm⁻¹ (optional; read from h5 if available) |
+| `--output` | `susceptibility_tensors_second_order.h5` | Output filename |
+| `--finite-q` | off | Enable finite-q mode: reads `exc_forces.h5` at a finite q-point (exciton-phonon matrix non-Hermitian); uses Q=q energies for the intermediate exciton state |
 
 **Output:**
-- `susceptibility_tensors_second_order.h5` — datasets `alpha_tensor_triple_resonance` `(3, 3, Nmodes, Nmodes, Nfreq)` and `alpha_tensor_double_resonance` `(3, 3, Nmodes, Nfreq)`
+- Datasets `alpha_tensor_triple_resonance` `(3, 3, Nmodes, Nmodes, Nfreq)` and `alpha_tensor_double_resonance` `(3, 3, Nmodes, Nfreq)` saved to `--output`.
 
 ```bash
+# Standard (gamma-only) second order
 python susceptibility_tensors_second_order.py \
     --first_order_exc_ph_file  ../1st_der_exc_ph/exc_forces.h5 \
     --second_order_exc_ph_file exc_forces.h5 \
     --nworkers 8
+
+# Finite-q: one output file per q-point
+python susceptibility_tensors_second_order.py \
+    --first_order_exc_ph_file exc_phonon_q_1.h5 \
+    --finite-q \
+    --output susceptibility_tensors_second_order_q_1.h5
 ```
 
 ---
@@ -298,7 +338,10 @@ Computes resonant Raman intensity maps (Raman shift vs. excitation energy) from 
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--first-order-file` | `susceptibility_tensors_first_order.h5` | 1st-order susceptibility file |
-| `--second-order-file` | `susceptibility_tensors_second_order.h5` | 2nd-order susceptibility file |
+| `--second-order-file` | `susceptibility_tensors_second_order.h5` | 2nd-order susceptibility file (single q-point) |
+| `--q-points-file` | `None` | File with `qx qy qz weight` rows for BZ-averaged 2nd-order Raman; row `iq` → `susceptibility_tensors_second_order_q_{iq}.h5` |
+| `--ipa-first-order-file` | `susceptibility_tensors_first_order_IPA.h5` | IPA 1st-order file (flavors 6, 8) |
+| `--ipa-second-order-file` | `susceptibility_tensors_second_order_IPA.h5` | IPA 2nd-order file (flavors 7, 8) |
 | `--freqs-file` | `freqs.dat` | Phonon frequencies (cm⁻¹) |
 | `--flavor` | `0` | Contribution flavor (see table above) |
 | `--temperature` | `300` | Temperature in Kelvin |
@@ -312,14 +355,24 @@ Computes resonant Raman intensity maps (Raman shift vs. excitation energy) from 
 - `raman_map_unpolarized_flavor_{N}.png` — unpolarized Raman map
 
 ```bash
+# 1st-order BSE
 python resonant_raman.py --flavor 0
+
+# 2nd-order BSE (single gamma-point)
 python resonant_raman.py --flavor 3 \
     --first-order-file ../1st_der_exc_ph/susceptibility_tensors_first_order.h5
+
+# 2nd-order BSE (BZ average over finite-q phonons)
+python resonant_raman.py --flavor 2 \
+    --q-points-file q_points.dat
+
+# IPA first + second order
+python resonant_raman.py --flavor 8
 ```
 
 ---
 
-### `plot_raman_spectra.py`
+### `plotting/plot_raman_spectra.py`
 
 Plots Raman spectra (Raman shift vs. intensity) at one or more fixed excitation energies. Reads raw susceptibility tensors directly to allow arbitrary phonon broadening, independent of the broadening used in `resonant_raman.py`.
 
@@ -333,12 +386,12 @@ Plots Raman spectra (Raman shift vs. intensity) at one or more fixed excitation 
 | `--flavor` | Contribution flavor |
 
 ```bash
-python plot_raman_spectra.py --Eexc 3.0 3.5 4.0 --flavor 0
+python plotting/plot_raman_spectra.py --Eexc 3.0 3.5 4.0 --flavor 0
 ```
 
 ---
 
-### `plot_susceptibility_tensors.py`
+### `plotting/plot_susceptibility_tensors.py`
 
 Plots the raw susceptibility tensor components $\alpha^{\alpha\beta}$ vs. excitation energy for each phonon mode.
 
@@ -346,14 +399,14 @@ Plots the raw susceptibility tensor components $\alpha^{\alpha\beta}$ vs. excita
 - **2nd-order**: one figure per (imode, jmode) pair, with titles showing the sum of phonon frequencies
 
 ```bash
-python plot_susceptibility_tensors.py --flavor 0
+python plotting/plot_susceptibility_tensors.py --flavor 0
 ```
 
 ---
 
-### `interactive_vis_resonant_map.py`
+### `plotting/interactive_vis_resonant_map.py`
 
-Generates a self-contained interactive HTML viewer for resonant Raman maps. Reads `resonant_raman_data_flavor{0..5}.h5` and embeds all data into a single HTML file backed by Plotly.js.
+Generates a self-contained interactive HTML viewer for resonant Raman maps. Reads `resonant_raman_data_flavor{0..8}.h5` and embeds all data into a single HTML file backed by Plotly.js.
 
 - **Left panel**: 2D Raman map — click anywhere to set the excitation energy
 - **Right panel**: Raman spectrum at the selected excitation energy
@@ -369,8 +422,73 @@ Generates a self-contained interactive HTML viewer for resonant Raman maps. Read
 | `--max-ph-points` | all | Downsample phonon frequency axis |
 
 ```bash
-python interactive_vis_resonant_map.py
-python interactive_vis_resonant_map.py --data-dir /path/to/run --output viewer.html
+python plotting/interactive_vis_resonant_map.py
+python plotting/interactive_vis_resonant_map.py --data-dir /path/to/run --output viewer.html
+```
+
+---
+
+### `plotting/interactive_vis_resonant_map_2D_materials.py`
+
+Interactive BZ q-contribution map for second-order resonant Raman in 2D materials. For each q-point loads `susceptibility_tensors_second_order_q_{iq}.h5`, computes the phonon-weighted Raman intensity, and renders an interactive HTML showing which q-points in the first BZ dominate the signal at each excitation energy.
+
+Reads direct lattice vectors either from a BerkeleyGW `WFN.h5` or from explicit `--a1`/`--a2` arguments, then constructs the reciprocal lattice and Wigner–Seitz BZ boundary via a Voronoi construction.
+
+**Key arguments:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--q-points-file` | — | `qx qy qz weight` file in crystal coords (one q per row) |
+| `--data-dir` | `.` | Directory with `susceptibility_tensors_second_order_q_{iq}.h5` files |
+| `--wfn` | `None` | BerkeleyGW `WFN.h5` — reads direct lattice vectors automatically |
+| `--a1` | `None` | In-plane lattice vector a1 in Å (x y), alternative to `--wfn` |
+| `--a2` | `None` | In-plane lattice vector a2 in Å (x y), alternative to `--wfn` |
+| `--temperature` | `300` | Temperature in K for Bose factors |
+| `--output` | `bz_raman_map.html` | Output HTML file |
+
+```bash
+# From BGW WFN.h5
+python plotting/interactive_vis_resonant_map_2D_materials.py \
+    --q-points-file q_points.dat --wfn WFN_fi.h5
+
+# From explicit lattice vectors (graphene, a=2.46 Å)
+python plotting/interactive_vis_resonant_map_2D_materials.py \
+    --q-points-file q_points.dat \
+    --a1 2.46 0.0 --a2 1.23 2.132
+```
+
+---
+
+### `susceptibility_tensors_IPA.py`
+
+Computes IPA susceptibility tensors for 1st and/or 2nd order resonant Raman using el-ph coefficients from `elph_fine.h5` directly (bypassing the BSE exciton-phonon step). QP renormalization of el-ph is applied automatically when `elph_fine.h5` contains `QP_rescaling_matrix_cond/val` datasets (produced by `interpolate_elph_bgw.py --eqp`).
+
+**Key arguments:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--elph_fine_file` | `elph_fine.h5` | Input from `interpolate_elph_bgw.py` (must include `--eqp` datasets for QP renorm) |
+| `--dip_mom_noeh_file_b1/b2/b3` | `eigenvalues_b{1,2,3}_noeh.dat` | Dipole moment files (IPA, no electron-hole interaction) |
+| `--dE` | `0.001` | Excitation energy grid step (eV) |
+| `--gamma` | `0.01` | Broadening (eV) |
+| `--no_renorm_elph` | off | Skip QP renormalization of el-ph coefficients |
+| `--skip_first_order_calculation` | off | Skip first-order susceptibility (saves time when only second-order is needed) |
+| `--compute_second_order` | off | Compute and save the second-order susceptibility tensor |
+| `--iq` | `0` | q-point index in `elph_fine.h5` for the second-order calculation |
+| `--vectorized_flavor` | `2` | Vectorization level for first order |
+| `--vectorized_flavor_second_order` | `1` | Vectorization level for second order |
+
+**Outputs:**
+- First order → `susceptibility_tensors_first_order_IPA.h5` (always, unless `--skip_first_order_calculation`)
+- Second order → `susceptibility_tensors_second_order_IPA_q_{iq}.h5` (when `--compute_second_order`)
+
+```bash
+# First order only (gamma)
+python susceptibility_tensors_IPA.py
+
+# Second order at q-point 0 only
+python susceptibility_tensors_IPA.py \
+    --compute_second_order --skip_first_order_calculation --iq 0
 ```
 
 ---

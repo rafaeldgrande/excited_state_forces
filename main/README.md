@@ -146,7 +146,9 @@ Enabled by `save_forces_h5 True`. Contains all forces for all pairs plus system 
 | `exciton_pairs` | `(Npairs, 2)` | — | 1-based pair indices $(i,j)$ |
 | `system/kpoints_bse` | `(Nk, 3)` | crystal | BSE k-points |
 | `system/phonon_frequencies` | `(Nmodes,)` | cm⁻¹ | Phonon frequencies |
-| `system/exciton_energies` | `(Nexc,)` | eV | Exciton eigenvalues |
+| `system/exciton_energies` | `(Nexc,)` | eV | Exciton eigenvalues (Q=0 runs) |
+| `system/exc_A_energies` | `(Nexc_A,)` | eV | Q=0 (A) exciton eigenvalues; index $i$ → exciton $i+1$ (0.0 for unloaded slots) |
+| `system/exc_B_energies` | `(Nexc_B,)` | eV | Q=q (B) exciton eigenvalues; same as `exc_A_energies` for Q=0 runs |
 | `energies/Eqp_cond` | `(Nk, Nc)` | eV | QP conduction energies |
 | `energies/Eqp_val` | `(Nk, Nv)` | eV | QP valence energies |
 | `config/` | attrs | — | Full `forces.inp` configuration |
@@ -284,6 +286,8 @@ Produces `exc_forces_{i}_{j}_ph.dat` and `exc_forces_{i}_{j}_cart.dat` for each 
 | `excited_forces_config.py` | Configuration parser for `forces.inp` |
 | `bgw_interface_m.py` | Reads BerkeleyGW HDF5 files (`eigenvectors.h5`, `hbse.h5`, `eqp1.dat`) |
 | `qe_interface_m.py` | Reads Quantum ESPRESSO DFPT output |
+| `generate_exc_pairs.py` | Generates `exciton_pairs.dat` with energy-window and energy-difference filters; supports one-file (Q=0) and two-file (finite-q) modes |
+| `assemble_exciton_phonon_coeffs.py` | Merges multiple `exc_forces.h5` batch outputs into a single consolidated file |
 
 ---
 

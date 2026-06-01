@@ -169,6 +169,8 @@ Core force calculation. See [`main/README.md`](main/README.md).
 | `excited_forces_config.py` | Configuration parser for `forces.inp` |
 | `bgw_interface_m.py` | Reads BerkeleyGW HDF5 files (`eigenvectors.h5`, `hbse.h5`, `eqp1.dat`) |
 | `qe_interface_m.py` | Reads Quantum ESPRESSO DFPT output |
+| `generate_exc_pairs.py` | Generates `exciton_pairs.dat` from eigenvalue files with energy filters |
+| `assemble_exciton_phonon_coeffs.py` | Merges multiple `exc_forces.h5` batch outputs into one file |
 
 ### `post_processing/`
 
@@ -184,14 +186,14 @@ See [`resonant_raman/README.md`](resonant_raman/README.md).
 
 | Script | Description |
 |--------|-------------|
-| `assemble_exciton_phonon_coeffs.py` | Assembles per-pair exciton-phonon couplings into `exciton_phonon_couplings.h5` |
 | `susceptibility_tensors_first_order.py` | 1st-order polarizability derivatives vs. excitation energy |
-| `susceptibility_tensors_second_order.py` | 2nd-order susceptibility tensors (triple + double resonance) |
-| `resonant_raman.py` | Raman intensity maps; 6 flavors of 1st/2nd order contributions |
-| `plot_raman_spectra.py` | Raman spectra at fixed excitation energies |
-| `plot_susceptibility_tensors.py` | Raw susceptibility tensor components vs. excitation energy |
-| `interactive_vis_resonant_map.py` | Self-contained interactive HTML Raman map viewer |
-| `analisys_exc_ph_offdiag_coeffs_vs_energy_diff.py` | Diagnostic: off-diagonal coupling convergence vs. energy cutoff |
+| `susceptibility_tensors_second_order.py` | 2nd-order susceptibility tensors (triple + double resonance); `--finite-q` for finite-q phonons |
+| `susceptibility_tensors_IPA.py` | IPA susceptibility tensors (1st and 2nd order) from `elph_fine.h5` directly |
+| `resonant_raman.py` | Raman intensity maps; flavors 0–8 covering 1st/2nd order BSE and IPA contributions |
+| `plotting/plot_raman_spectra.py` | Raman spectra at fixed excitation energies |
+| `plotting/plot_susceptibility_tensors.py` | Raw susceptibility tensor components vs. excitation energy |
+| `plotting/interactive_vis_resonant_map.py` | Self-contained interactive HTML Raman map viewer (BSE, flavors 0–8) |
+| `plotting/interactive_vis_resonant_map_2D_materials.py` | Interactive BZ q-contribution map for second-order Raman in 2D materials |
 
 ### `common/`
 
