@@ -1,14 +1,16 @@
 """
-Pytest configuration: add main/ and common/ to sys.path so their modules are importable,
-and provide a shared fixture that resets the global config dict between tests.
+Pytest configuration: add module directories to sys.path, and provide a shared
+fixture that resets the global config dict between tests.
 """
 import sys
 import os
 import pytest
 
 REPO_ROOT = os.path.join(os.path.dirname(__file__), '..')
-sys.path.insert(0, os.path.abspath(os.path.join(REPO_ROOT, 'main')))
-sys.path.insert(0, os.path.abspath(os.path.join(REPO_ROOT, 'common')))
+for subdir in ('main', 'common', 'elph'):
+    sys.path.insert(0, os.path.abspath(os.path.join(REPO_ROOT, subdir)))
+# Also insert repo root so `from common import ...` works for elph scripts
+sys.path.insert(0, os.path.abspath(REPO_ROOT))
 
 
 @pytest.fixture(autouse=True)
