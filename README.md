@@ -1,5 +1,7 @@
 # Excited State Forces
 
+[![Tests](https://github.com/rafaeldgrande/excited_state_forces/actions/workflows/tests.yml/badge.svg)](https://github.com/rafaeldgrande/excited_state_forces/actions/workflows/tests.yml)
+
 ## Overview
 
 This code calculates excited state forces and exciton-phonon matrix elements using a many-body Green's function formalism (GW/BSE + DFPT). It combines exciton coefficients from the Bethe-Salpeter Equation (BSE) with electron-phonon coupling from DFPT to compute forces and Raman spectra in excited electronic states.
