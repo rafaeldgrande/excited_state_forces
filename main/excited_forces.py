@@ -440,10 +440,7 @@ Please cite:
             print('  File attributes:')
             for _k, _v in _attrs.items():
                 print(f'    {_k} = {_v}')
-        _required = ('elph_fine_cond_mode', 'elph_fine_val_mode',
-                     'elph_fine_cond_cart', 'elph_fine_val_cart',
-                     'Kpoints_in_elph_file', 'phonon_modes/eigenvectors',
-                     'phonon_modes/frequencies')
+        _required = ('elph_fine_cond_cart', 'elph_fine_val_cart', 'Kpoints_in_elph_file')
         if finite_q_phonon:
             _required = _required + ('qpoints_crystal',)
         for _key in _required:
@@ -451,6 +448,13 @@ Please cite:
                 raise KeyError(
                     f"'{_key}' not found in {elph_fine_h5_file}. "
                     f"Re-run interpolate_elph_bgw.py to regenerate the file.")
+
+        has_g_mode = ('elph_fine_cond_mode' in fh and 'elph_fine_val_mode' in fh
+                      and 'phonon_modes/eigenvectors' in fh
+                      and 'phonon_modes/frequencies' in fh)
+        if not has_g_mode:
+            print('  WARNING: phonon-mode basis datasets not found in elph_fine.h5 '
+                  '(matdyn.modes was not provided). Only Cartesian-basis forces will be computed.')
 
         # Track whether we need to apply the g(q) → g(-q) inversion-symmetry transform
         _used_minus_q = False
@@ -480,8 +484,11 @@ Please cite:
         else:
             iq_phonon = 0
 
-        elph_cond_mode   = fh['elph_fine_cond_mode'][iq_phonon].astype(np.complex64)  # (Nmodes, Nk_fi, Nc_fi, Nc_fi)
-        elph_val_mode    = fh['elph_fine_val_mode'][iq_phonon].astype(np.complex64)   # (Nmodes, Nk_fi, Nv_fi, Nv_fi)
+        if has_g_mode:
+            elph_cond_mode = fh['elph_fine_cond_mode'][iq_phonon].astype(np.complex64)  # (Nmodes, Nk_fi, Nc_fi, Nc_fi)
+            elph_val_mode  = fh['elph_fine_val_mode'][iq_phonon].astype(np.complex64)   # (Nmodes, Nk_fi, Nv_fi, Nv_fi)
+        else:
+            elph_cond_mode = elph_val_mode = None
         elph_cond_cart   = fh['elph_fine_cond_cart'][iq_phonon].astype(np.complex64)  # (Npert,  Nk_fi, Nc_fi, Nc_fi)
         elph_val_cart    = fh['elph_fine_val_cart'][iq_phonon].astype(np.complex64)   # (Npert,  Nk_fi, Nv_fi, Nv_fi)
 
@@ -490,8 +497,9 @@ Please cite:
             # With dV(q)=dV(-q) this also converts elph_cond to the g' convention
             # (<c,k|dV|c',k+q> = conj(g[k,c',c])) in one step, so no separate
             # conduction convention fix is needed when _used_minus_q is True.
-            elph_cond_mode = np.conj(elph_cond_mode).transpose(0, 1, 3, 2)
-            elph_val_mode  = np.conj(elph_val_mode).transpose(0, 1, 3, 2)
+            if has_g_mode:
+                elph_cond_mode = np.conj(elph_cond_mode).transpose(0, 1, 3, 2)
+                elph_val_mode  = np.conj(elph_val_mode).transpose(0, 1, 3, 2)
             elph_cond_cart = np.conj(elph_cond_cart).transpose(0, 1, 3, 2)
             elph_val_cart  = np.conj(elph_val_cart).transpose(0, 1, 3, 2)
 
@@ -500,31 +508,31 @@ Please cite:
             # The formula needs <c,k|dV|c',k+q> = conj(g[k,c',c]) (using dV(q)=dV(-q)).
             # Apply conj().T_bands to elph_cond only; elph_val is handled correctly
             # once Q_B shift is applied in apply_Qshift_on_valence_states below.
-            elph_cond_mode = np.conj(elph_cond_mode).transpose(0, 1, 3, 2)
+            if has_g_mode:
+                elph_cond_mode = np.conj(elph_cond_mode).transpose(0, 1, 3, 2)
             elph_cond_cart = np.conj(elph_cond_cart).transpose(0, 1, 3, 2)
             print('  Applied conduction el-ph convention fix: g[k,n,m] → conj(g[k,m,n])')
         Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                          # (Nk_fi, 3) crystal coords
 
-        # phonon_modes/* may have a different q-point ordering than elph_fine datasets.
-        # Use qpoints_crystal (fractional) for matching — compare directly with q_phonon.
-        _qpts_cryst = fh['qpoints_crystal'][:]                    # (Nq, 3) crystal coords
-        _q_lookup = (-q_phonon if _used_minus_q else q_phonon)
-        _iq_modes = next(
-            (i for i, qm in enumerate(_qpts_cryst)
-             if np.linalg.norm((_q_lookup - qm) - np.round(_q_lookup - qm)) < 1e-5), -1)
-        if _iq_modes == -1:
-            print(f'  WARNING: phonon q = {_q_lookup} not found in '
-                  f'qpoints_crystal of {elph_fine_h5_file}.')
-            print(f'  Falling back to Gamma (index 0) for phonon eigenvectors/frequencies.')
-            print(f'  NOTE: if matdyn.x was not run at this q, g_mode at iq={iq_phonon} '
-                  f'is zero in elph.h5 and ph-mode forces will be zero.')
-            _iq_modes = 0
-        else:
-            print(f'  phonon eigenvectors: using phonon_modes index {_iq_modes} '
-                  f'(q_crystal = {_qpts_cryst[_iq_modes]})')
-
-        Displacements        = fh['phonon_modes/eigenvectors'][_iq_modes]              # (Nmodes, Nat, 3)
-        phonon_frequencies   = fh['phonon_modes/frequencies'][_iq_modes]              # (Nmodes,) in cm^-1
+        Displacements = phonon_frequencies = None
+        if has_g_mode:
+            # phonon_modes/* may have a different q-point ordering than elph_fine datasets.
+            # Use qpoints_crystal (fractional) for matching — compare directly with q_phonon.
+            _qpts_cryst = fh['qpoints_crystal'][:]                    # (Nq, 3) crystal coords
+            _q_lookup = (-q_phonon if _used_minus_q else q_phonon)
+            _iq_modes = next(
+                (i for i, qm in enumerate(_qpts_cryst)
+                 if np.linalg.norm((_q_lookup - qm) - np.round(_q_lookup - qm)) < 1e-5), -1)
+            if _iq_modes == -1:
+                print(f'  WARNING: phonon q = {_q_lookup} not found in '
+                      f'qpoints_crystal of {elph_fine_h5_file}.')
+                print(f'  Falling back to Gamma (index 0) for phonon eigenvectors/frequencies.')
+                _iq_modes = 0
+            else:
+                print(f'  phonon eigenvectors: using phonon_modes index {_iq_modes} '
+                      f'(q_crystal = {_qpts_cryst[_iq_modes]})')
+            Displacements      = fh['phonon_modes/eigenvectors'][_iq_modes]          # (Nmodes, Nat, 3)
+            phonon_frequencies = fh['phonon_modes/frequencies'][_iq_modes]           # (Nmodes,) in cm^-1
 
         if 'QP_rescaling_matrix_cond' in fh:
             QP_rescaling_cond = fh['QP_rescaling_matrix_cond'][:]   # (Nk_fi, Nc_fi, Nc_fi)
@@ -535,19 +543,20 @@ Please cite:
             Edft_val  = fh['Edft_val'][:] if 'Edft_val' in fh else None
             print(f'  Loaded QP rescaling matrices and energies from {elph_fine_h5_file}')
 
-    _Nm, _Nk, _Nc = elph_cond_mode.shape[0], elph_cond_mode.shape[1], elph_cond_mode.shape[2]
-    _Nv  = elph_val_mode.shape[2]
     _Np  = elph_cond_cart.shape[0]
-    _Nat = Displacements.shape[1]
+    _Nk  = elph_cond_cart.shape[1]
+    _Nc  = elph_cond_cart.shape[2]
+    _Nv  = elph_val_cart.shape[2]
     print(f'\n  Loaded arrays (iq = {iq_phonon}):')
-    print(f'    Nmodes = {_Nm}   Nk_fi = {_Nk}   Nc_fi = {_Nc}   Nv_fi = {_Nv}   Npert = {_Np}   Nat = {_Nat}')
-    print(f'    elph_cond_mode : {elph_cond_mode.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
-    print(f'    elph_val_mode  : {elph_val_mode.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')
+    print(f'    Nk_fi = {_Nk}   Nc_fi = {_Nc}   Nv_fi = {_Nv}   Npert = {_Np}')
     print(f'    elph_cond_cart : {elph_cond_cart.shape}  (Npert,  Nk_fi, Nc_fi, Nc_fi)')
     print(f'    elph_val_cart  : {elph_val_cart.shape}  (Npert,  Nk_fi, Nv_fi, Nv_fi)')
-    print(f'    Displacements  : {Displacements.shape}  (Nmodes, Nat, 3)')
-    print(f'    phonon freqs   : {phonon_frequencies.shape}  min={phonon_frequencies.min():.2f}'
-          f'  max={phonon_frequencies.max():.2f} cm⁻¹')
+    if has_g_mode:
+        print(f'    elph_cond_mode : {elph_cond_mode.shape}  (Nmodes, Nk_fi, Nc_fi, Nc_fi)')
+        print(f'    elph_val_mode  : {elph_val_mode.shape}  (Nmodes, Nk_fi, Nv_fi, Nv_fi)')
+        print(f'    Displacements  : {Displacements.shape}  (Nmodes, Nat, 3)')
+        print(f'    phonon freqs   : {phonon_frequencies.shape}  min={phonon_frequencies.min():.2f}'
+              f'  max={phonon_frequencies.max():.2f} cm⁻\xb9')
     time1 = time.clock_gettime(0)
     TASKS.append(['Loading fine-grid ELPH from h5 (interpolate_elph_bgw output)', time1 - time0])
 
@@ -560,9 +569,10 @@ Please cite:
     time1 = time.clock_gettime(0)
     TASKS.append(['Reading QP and DFT energy levels', time1 - time0])
 
-    Nmodes = elph_cond_mode.shape[0]   # number of phonon modes
+    Nmodes = elph_cond_mode.shape[0] if has_g_mode else None
     Npert  = elph_cond_cart.shape[0]   # = 3*Nat Cartesian perturbations
-    MF_params.Nmodes = Nmodes
+    if has_g_mode:
+        MF_params.Nmodes = Nmodes
 
     # ensure shape (Nk_fi, 3) — guard against transposed save
     if Kpoints_in_elph_file.shape[-1] != 3:
@@ -602,8 +612,9 @@ Please cite:
 
     if not no_renorm_elph:
         print('Renormalizing ELPH coefficients using QP and DFT energy levels')
-        elph_cond_mode = renormalize_elph_coeffs(elph_cond_mode, Eqp_cond, Edft_cond, QP_rescaling_cond)
-        elph_val_mode  = renormalize_elph_coeffs(elph_val_mode,  Eqp_val,  Edft_val,  QP_rescaling_val)
+        if has_g_mode:
+            elph_cond_mode = renormalize_elph_coeffs(elph_cond_mode, Eqp_cond, Edft_cond, QP_rescaling_cond)
+            elph_val_mode  = renormalize_elph_coeffs(elph_val_mode,  Eqp_val,  Edft_val,  QP_rescaling_val)
         elph_cond_cart = renormalize_elph_coeffs(elph_cond_cart, Eqp_cond, Edft_cond, QP_rescaling_cond)
         elph_val_cart  = renormalize_elph_coeffs(elph_val_cart,  Eqp_val,  Edft_val,  QP_rescaling_val)
     else:
@@ -629,7 +640,8 @@ Please cite:
     time0 = time.clock_gettime(0)
     print("\nExpanding ELPH matrices for vectorized multiplication")
 
-    Gc_mode, Gv_mode, Gc_mode_diag, Gv_mode_diag = _expand_elph(elph_cond_mode, elph_val_mode, Nmodes, 'phonon-mode')
+    if has_g_mode:
+        Gc_mode, Gv_mode, Gc_mode_diag, Gv_mode_diag = _expand_elph(elph_cond_mode, elph_val_mode, Nmodes, 'phonon-mode')
     Gc_cart, Gv_cart, Gc_cart_diag, Gv_cart_diag = _expand_elph(elph_cond_cart, elph_val_cart, Npert,  'Cartesian')
 
     # apply Q shift on valence states (finite-momentum BSE)
@@ -639,14 +651,15 @@ Please cite:
     Q_val_shift = (Qshift + q_phonon) if finite_q_phonon else Qshift
     if finite_q_phonon and np.linalg.norm(q_phonon) > 1e-8:
         print(f'  Valence Q shift: using Q_B = Q_A + q = {Q_val_shift} (was Q_A = {Qshift})')
-    Gv_mode = apply_Qshift_on_valence_states(Q_val_shift, Gv_mode, Kpoints_in_elph_file_frac, verbose=True)
+    if has_g_mode:
+        Gv_mode = apply_Qshift_on_valence_states(Q_val_shift, Gv_mode, Kpoints_in_elph_file_frac, verbose=True)
     Gv_cart = apply_Qshift_on_valence_states(Q_val_shift, Gv_cart, Kpoints_in_elph_file_frac, verbose=False)
 
     time1 = time.clock_gettime(0)
     TASKS.append(['ELPH matrices expansion (for vectorized multiplication)', time1 - time0])
 
-    dRPA_dr_mode_mat      = Gc_mode - Gv_mode
-    dRPA_dr_mode_diag_mat = Gc_mode_diag - Gv_mode_diag
+    dRPA_dr_mode_mat      = (Gc_mode - Gv_mode)       if has_g_mode else None
+    dRPA_dr_mode_diag_mat = (Gc_mode_diag - Gv_mode_diag) if has_g_mode else None
     dRPA_dr_cart_mat      = Gc_cart - Gv_cart
     dRPA_dr_cart_diag_mat = Gc_cart_diag - Gv_cart_diag
     
@@ -663,9 +676,11 @@ Please cite:
         time1 = time.clock_gettime(0)
         TASKS.append(['Loading kernel matrix elements', time1 - time0])
         
+        DKernel_dr_imode_mat = None
         time0 = time.clock_gettime(0)
-        print("Calculating d/dr_imode <kcv|K|kc'v'> matrix elements. Equation (29) of arxiv:2502.05144")
-        DKernel_dr_imode_mat = calc_Dkernel_new(kernel_matrix, elph_cond_mode, elph_val_mode, Eqp_cond, Eqp_val, vectorized=do_vectorized_sums) # units ry/bohr
+        if has_g_mode:
+            print("Calculating d/dr_imode <kcv|K|kc'v'> matrix elements. Equation (29) of arxiv:2502.05144")
+            DKernel_dr_imode_mat = calc_Dkernel_new(kernel_matrix, elph_cond_mode, elph_val_mode, Eqp_cond, Eqp_val, vectorized=do_vectorized_sums) # units ry/bohr
         time1 = time.clock_gettime(0)
         TASKS.append(['Calculating d/dr_imode <kcv|K|kc\'v\'> matrix elements', time1 - time0])
 
@@ -675,23 +690,24 @@ Please cite:
 
     def save_exc_forces_h5(out_path):
         """Write all forces + run metadata to an HDF5 file."""
-        f_ph_kernel_arr = np.array(forces_ph_Kernel) if Calculate_Kernel else np.zeros_like(forces_ph_RPA_diag)
         f_ca_kernel_arr = np.zeros_like(forces_ca_RPA_diag)  # kernel in Cartesian not computed separately
 
         pairs_arr = np.array(exciton_pairs, dtype=np.int32)
 
         with h5py.File(out_path, 'w') as h5:
             # ── forces ──────────────────────────────────────────────────
-            grp_ph = h5.require_group('forces/ph')
-            grp_ph.create_dataset('RPA_diag', data=np.real(forces_ph_RPA_diag))
-            grp_ph['RPA_diag'].attrs['axes'] = '(Npairs, Nmodes)'
-            grp_ph['RPA_diag'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
-            grp_ph.create_dataset('RPA', data=np.real(forces_ph_RPA))
-            grp_ph['RPA'].attrs['axes'] = '(Npairs, Nmodes)'
-            grp_ph['RPA'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
-            grp_ph.create_dataset('RPA_diag_plus_Kernel', data=np.real(f_ph_kernel_arr + forces_ph_RPA_diag))
-            grp_ph['RPA_diag_plus_Kernel'].attrs['axes'] = '(Npairs, Nmodes)'
-            grp_ph['RPA_diag_plus_Kernel'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
+            if has_g_mode:
+                f_ph_kernel_arr = np.array(forces_ph_Kernel) if Calculate_Kernel else np.zeros_like(forces_ph_RPA_diag)
+                grp_ph = h5.require_group('forces/ph')
+                grp_ph.create_dataset('RPA_diag', data=np.real(forces_ph_RPA_diag))
+                grp_ph['RPA_diag'].attrs['axes'] = '(Npairs, Nmodes)'
+                grp_ph['RPA_diag'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
+                grp_ph.create_dataset('RPA', data=np.real(forces_ph_RPA))
+                grp_ph['RPA'].attrs['axes'] = '(Npairs, Nmodes)'
+                grp_ph['RPA'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
+                grp_ph.create_dataset('RPA_diag_plus_Kernel', data=np.real(f_ph_kernel_arr + forces_ph_RPA_diag))
+                grp_ph['RPA_diag_plus_Kernel'].attrs['axes'] = '(Npairs, Nmodes)'
+                grp_ph['RPA_diag_plus_Kernel'].attrs['units'] = 'eV/ang^2' if use_second_derivatives_elph_coeffs else 'eV/ang'
 
             grp_ca = h5.require_group('forces/cart')
             grp_ca.create_dataset('RPA_diag', data=np.real(forces_ca_RPA_diag))
@@ -714,13 +730,15 @@ Please cite:
             grp_sys.attrs['Ncbnds']   = Ncbnds
             grp_sys.attrs['Nvbnds']   = Nvbnds
             grp_sys.attrs['Nval']     = Nval
-            grp_sys.attrs['Nmodes']   = Nmodes
+            if has_g_mode:
+                grp_sys.attrs['Nmodes'] = Nmodes
             grp_sys.attrs['Nat']      = Nat
             grp_sys.create_dataset('kpoints_bse', data=Kpoints_BSE)
             grp_sys['kpoints_bse'].attrs['axes']  = '(Nkpoints, 3)'
             grp_sys['kpoints_bse'].attrs['units'] = 'crystal (fractional) coordinates'
-            grp_sys.create_dataset('phonon_frequencies', data=phonon_frequencies)
-            grp_sys['phonon_frequencies'].attrs['units'] = 'cm^-1'
+            if has_g_mode:
+                grp_sys.create_dataset('phonon_frequencies', data=phonon_frequencies)
+                grp_sys['phonon_frequencies'].attrs['units'] = 'cm^-1'
             # exciton energies for the unique excitons loaded
             grp_sys.create_dataset('exciton_energies', data=exciton_eigenvalues)
             grp_sys['exciton_energies'].attrs['description'] = (
@@ -809,10 +827,13 @@ Please cite:
             Akcv, Bkcv = Exciton_coeffs[exc_pair[0]-1], Exciton_coeffs[exc_pair[1]-1]
 
         # ── phonon-mode basis: keep raw mode forces (Nmodes,) in eV/ang ──
-        time0 = time.clock_gettime(0)
-        f_ph_rpa      = compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_mode_mat, elph_cond_mode, elph_val_mode, vectorized=do_vectorized_sums) * _unit
-        f_ph_rpa_diag = compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_mode_diag_mat, elph_cond_mode, elph_val_mode, vectorized=do_vectorized_sums) * _unit
-        time_rpa = time.clock_gettime(0) - time0
+        f_ph_rpa = f_ph_rpa_diag = None
+        time_rpa = 0.0
+        if has_g_mode:
+            time0 = time.clock_gettime(0)
+            f_ph_rpa      = compute_A_dRPA_dr_imode_B(Akcv, Bkcv, dRPA_dr_mode_mat, elph_cond_mode, elph_val_mode, vectorized=do_vectorized_sums) * _unit
+            f_ph_rpa_diag = compute_A_dRPAdiag_dr_imode_B(Akcv, Bkcv, dRPA_dr_mode_diag_mat, elph_cond_mode, elph_val_mode, vectorized=do_vectorized_sums) * _unit
+            time_rpa = time.clock_gettime(0) - time0
 
         # ── Cartesian basis: reshape (3*Nat,) → (Nat, 3) ──
         time0 = time.clock_gettime(0)
@@ -822,7 +843,7 @@ Please cite:
 
         f_ph_kernel = f_ca_kernel = None
         time_kernel = 0.0
-        if Calculate_Kernel == True:
+        if Calculate_Kernel == True and has_g_mode:
             time0 = time.clock_gettime(0)
             f_ph_kernel = compute_A_dKernel_dr_imode_B(Akcv, Bkcv, DKernel_dr_imode_mat, vectorized=do_vectorized_sums) * _unit
             time_kernel = time.clock_gettime(0) - time0
@@ -837,7 +858,8 @@ Please cite:
          rpa_ph, rpa_diag_ph, kernel_ph,
          rpa_ca, rpa_diag_ca, kernel_ca,
          time_rpa, time_rpa_diag, time_kernel) = result
-        forces_ph_RPA.append(rpa_ph);        forces_ph_RPA_diag.append(rpa_diag_ph)
+        if has_g_mode:
+            forces_ph_RPA.append(rpa_ph);    forces_ph_RPA_diag.append(rpa_diag_ph)
         forces_ca_RPA.append(rpa_ca);        forces_ca_RPA_diag.append(rpa_diag_ca)
         if kernel_ph is not None: forces_ph_Kernel.append(kernel_ph)
         if kernel_ca is not None: forces_ca_Kernel.append(kernel_ca)
@@ -873,20 +895,22 @@ Please cite:
     TASKS.append(['Calculating forces with RPA', time_calc_RPA])
     TASKS.append(['Calculating forces with Kernel part', time_calc_Kernel])
 
-    forces_ph_RPA      = np.array(forces_ph_RPA)
-    forces_ph_RPA_diag = np.array(forces_ph_RPA_diag)
+    if has_g_mode:
+        forces_ph_RPA      = np.array(forces_ph_RPA)
+        forces_ph_RPA_diag = np.array(forces_ph_RPA_diag)
     forces_ca_RPA      = np.array(forces_ca_RPA)
     forces_ca_RPA_diag = np.array(forces_ca_RPA_diag)
-    if Calculate_Kernel:
+    if Calculate_Kernel and has_g_mode:
         forces_ph_Kernel = np.array(forces_ph_Kernel)
 
     for i, exc_pair in enumerate(exciton_pairs):
         iexc, jexc = exc_pair
         verbose = len(exciton_pairs) == 1
-        report_forces_ph(iexc, jexc,
-                         forces_ph_RPA_diag[i], forces_ph_RPA[i],
-                         forces_ph_Kernel[i] if Calculate_Kernel else None,
-                         phonon_frequencies, verbose=verbose)
+        if has_g_mode:
+            report_forces_ph(iexc, jexc,
+                             forces_ph_RPA_diag[i], forces_ph_RPA[i],
+                             forces_ph_Kernel[i] if Calculate_Kernel else None,
+                             phonon_frequencies, verbose=verbose)
         report_forces(iexc, jexc, forces_ca_RPA_diag[i], forces_ca_RPA[i],
                       None, suffix='cart', verbose=verbose)
 
