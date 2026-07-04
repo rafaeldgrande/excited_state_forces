@@ -60,7 +60,7 @@ kpts_fi_crys : (Nk_fi, 3) array, optional
 
 dataset : str, optional  {'g_mode', 'g'}
     Which el-ph dataset from elph_h5_file to interpolate.
-    Default: 'g_mode'  (phonon-mode basis, shape Nq×Nmodes×Nk×Nb×Nb).
+    Default: 'g_mode'  (phonon-mode basis, shape Nq*Nmodes*Nk*Nb*Nb).
     Use 'g' for the Cartesian-displacement basis.
 
 tol_k : float, optional
@@ -624,17 +624,18 @@ if __name__ == '__main__':
 
     cli = argparse.ArgumentParser(
         description='Interpolate el-ph from coarse to fine k-grid using BGW dtmat.')
-    cli.add_argument('--elph_coarse', required=True, help='Path to elph_coarse.h5')
-    cli.add_argument('--dtmat',       required=True, help='Path to dtmat binary')
     cli.add_argument('--Nval',        required=True, type=int,
                      help='Number of valence bands in DFPT (QE nbnd convention)')
-    cli.add_argument('--out',    default='elph_fine.h5',
+    cli.add_argument('--elph_coarse', default='elph_co.h5', help='Path to elph_coarse.h5')
+    cli.add_argument('--dtmat',       default='dtmat', 
+                     help='Path to dtmat binary file produced by absorption.<flavour>.x. It contains the projections <psi_n,kfi|psi_m,kco>, interpolation coefficients from coarse to fine grids.')
+    cli.add_argument('--out',    default='elph_fi.h5',
                      help='Output HDF5 filename (default: elph_fine.h5)')
-    cli.add_argument('--wfn-fi', default=None,
+    cli.add_argument('--wfn-fi', default='WFN_fi.h5',
                      help='Path to WFN_fi.h5 (needed for finite-q interpolation; default: None)')
     cli.add_argument('--real',   action='store_true',
                      help='Use real-flavor dtmat (default: complex)')
-    cli.add_argument('--eqp',    default=None,
+    cli.add_argument('--eqp',    default='eqp.dat',
                      help='Path to fine-grid eqp.dat (output of inteqp.x). '
                           'When given, QP rescaling matrices and Eqp/Edft energies '
                           'are computed and saved into the output h5 (default: None).')

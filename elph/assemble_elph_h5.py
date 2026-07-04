@@ -9,19 +9,22 @@ assemble_elph_h5.py
 Read QE DFPT elph XML files, transform to a Cartesian-displacement basis,
 and assemble into a single HDF5 file.
 
-System:  MoS₂, QE 7.5, ldisp=.true., electron_phonon='simple'.
+QE 7.5, ldisp=.true., electron_phonon='simple'.
          QE writes one elph.iq.ipert.xml per (q, perturbation) where
          "ipert" indexes the symmetry-adapted patterns chosen by ph.x
          (NOT necessarily simple Cartesian unit vectors).
 
+         The directory containing the elph*.xml files (i.e. the phsave
+         directory, e.g. "_ph0/<prefix>.phsave") is passed via --elph_dir
+         on the command line.
          The displacement patterns U[ipert, alpha] are read from
-         _ph0/mos2.phsave/patterns.iq.xml and used to rotate
+         <elph_dir>/patterns.iq.xml and used to rotate
          <n,k+q|dV/du_pattern_ipert|m,k>  →  <n,k+q|dV/du_cart_alpha|m,k>.
 
 Cell parameters, reciprocal lattice, Nat, and Npert are read from scf.in via ASE.
 Nbnds is parsed from scf.in (nbnd = ...).
 Nk is taken from the k-points block of scf.in.
-The list of q-points and Nq are read from _ph0/mos2.phsave/control_ph.xml
+The list of q-points and Nq are read from <elph_dir>/control_ph.xml
 (Q-POINT_COORDINATES, units = 2pi/a).
 
 If ANY ipert file is missing for a given iq, the entire q-point is skipped
@@ -106,17 +109,15 @@ from datetime import datetime
 from ase.io import read as ase_read
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-# HERE    = os.path.dirname(os.path.abspath(__file__))
-
 import os
 HERE = os.getcwd()
 
-PHSAVE  = os.path.join(HERE, '_ph0/mos2.phsave')
-SCF_IN  = os.path.join(HERE, 'scf.in')
-CTRL_PH = os.path.join(PHSAVE, 'control_ph.xml')
-
-TOL_K   = 1e-5   # tolerance for k-point matching in crystal coords
+SCF_IN       = os.path.join(HERE, 'scf.in')
 MATDYN_MODES = os.path.join(HERE, 'matdyn.modes')
+
+# PHSAVE and CTRL_PH are built at runtime from --elph_dir (see __main__)
+
+TOL_K = 1e-5   # tolerance for k-point matching in crystal coords
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -587,11 +588,25 @@ if __name__ == '__main__':
         help="Disable the acoustic sum rule (default: ASR is applied so that "
              "sum_atoms g[iq, 3*atom + d, ik, n, m] = 0 for each Cartesian "
              "direction d). Use this to keep the raw, uncorrected couplings.")
+    cli.add_argument(
+        '--elph_dir', dest='elph_dir', required=True,
+        help="Directory containing the elph.iq.ipert.xml, patterns.iq.xml, and "
+             "control_ph.xml files (i.e. the QE phsave dir, e.g. _ph0/<prefix>.phsave).")
+    cli.add_argument('--out_name', default='elph.h5', help="Output HDF5 file")
+    cli.add_argument('--scf_file', default=SCF_IN,
+                      help="scf.in (from QE DFPT calculations)")
+    cli.add_argument('--modes_file', default=MATDYN_MODES,
+                      help="matdyn.modes (from QE DFPT calculations)")
     cli.set_defaults(asr=True)
     args = cli.parse_args()
 
     t0 = datetime.now()
 
+    PHSAVE       = os.path.abspath(args.elph_dir)
+    SCF_IN       = os.path.abspath(args.scf_file)
+    MATDYN_MODES = os.path.abspath(args.modes_file)
+    CTRL_PH      = os.path.join(PHSAVE, 'control_ph.xml')
+    
     # ── 1. Load parameters from scf.in ────────────────────────────────────────
     print("Reading parameters from scf.in via ASE ...")
     nat, NPERT, NBNDS, kpts_nscf, NK_NSCF, rec_vecs, bt_inv = \
@@ -616,7 +631,8 @@ if __name__ == '__main__':
     for iq, q in enumerate(qpts_cart):
         print(f"    iq={iq+1:2d}:  [{q[0]:10.7f}  {q[1]:10.7f}  {q[2]:10.7f}]")
 
-    OUT_H5 = os.path.join(HERE, f'elph.h5')
+    OUT_H5 = os.path.join(HERE, f'{args.out_name}')
+    print(f"Writing output to {os.path.relpath(OUT_H5, HERE)} ...")
 
     # ── 3. Allocate output (Cartesian basis, initialised to zero) ─────────────
     g_all = np.zeros((NQ_LOAD, NPERT, NK_NSCF, NBNDS, NBNDS), dtype=np.complex128)
