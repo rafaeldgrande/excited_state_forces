@@ -424,7 +424,7 @@ def check_extended_zone(kmap, kpts_nscf, kpts_xml_crys, g_xml):
 
     (1) BZ-copy check: verify that kmap[ik] points to the first-BZ copy of
         each NSCF k-point (not an extended-zone image).  With QE ldisp+nosym,
-        irrek() appends extended-zone copies *after* the original 36 k-points,
+        irrek() appends extended-zone copies *after* the original Nk k-points,
         so find_kpt_index (which iterates in XML order) should always hit the
         first-BZ entry first.  If any match is NOT in the first BZ, we warn.
 
@@ -447,8 +447,8 @@ def check_extended_zone(kmap, kpts_nscf, kpts_xml_crys, g_xml):
         if idx < 0:
             continue
 
-        kn = kpts_nscf[ik_nscf, :2]
-        kx = kpts_xml_crys[idx, :2]
+        kn = kpts_nscf[ik_nscf]
+        kx = kpts_xml_crys[idx]
 
         # (1) Is the matched XML k-point the first-BZ copy?
         if np.linalg.norm(kx - kn) < TOL_K * 100:
@@ -463,7 +463,7 @@ def check_extended_zone(kmap, kpts_nscf, kpts_xml_crys, g_xml):
         for ij in range(NK_XML):
             if ij == idx:
                 continue
-            diff_crys = kpts_xml_crys[ij, :2] - kn
+            diff_crys = kpts_xml_crys[ij] - kn
             diff_crys -= np.round(diff_crys)        # fold difference to [-0.5, 0.5)
             if np.linalg.norm(diff_crys) < TOL_K * 10:
                 # This is another extended-zone copy
