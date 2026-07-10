@@ -824,7 +824,8 @@ Please cite:
             Akcv = Exciton_coeffs_A[excitons_A_to_load.index(exc_pair[0])]
             Bkcv = Exciton_coeffs_B[excitons_B_to_load.index(exc_pair[1])]
         else:
-            Akcv, Bkcv = Exciton_coeffs[exc_pair[0]-1], Exciton_coeffs[exc_pair[1]-1]
+            Akcv = Exciton_coeffs[excitons_to_be_loaded.index(exc_pair[0])]
+            Bkcv = Exciton_coeffs[excitons_to_be_loaded.index(exc_pair[1])]
 
         # ── phonon-mode basis: keep raw mode forces (Nmodes,) in eV/ang ──
         f_ph_rpa = f_ph_rpa_diag = None
