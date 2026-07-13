@@ -334,7 +334,7 @@ def calculate_tensor_first_order_vectorized_over_modes_and_kcv(ialpha, ibeta):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--elph_fine_file', default='elph_fine.h5',
-                    help='HDF5 file from interpolate_elph_bgw.py (default: elph_fine.h5)')
+                    help='HDF5 file from elph_xml_to_h5.py (default: elph_fine.h5)')
 parser.add_argument('--eqp_file', default='eqp.dat',
                     help='Fallback eqp.dat for QP energies when not stored in --elph_fine_file '
                          '(default: eqp.dat)')
@@ -426,7 +426,7 @@ Ex = np.arange(Emin, Emax, dE)  # eV
 Nfreq = Ex.shape[0]
 
 # ---------------------------------------------------------------------------
-# 1-3. Load from elph_fine.h5 (interpolate_elph_bgw.py output)
+# 1-3. Load from elph_fine.h5 (elph_xml_to_h5.py output)
 # ---------------------------------------------------------------------------
 _TOL_Q = 1e-5
 Eqp_cond = Eqp_val = Edft_cond = Edft_val = None
@@ -444,8 +444,8 @@ with h5py.File(elph_fine_file, 'r') as hf:
         sys.exit(f'ERROR: q=0 (Gamma) not found in {elph_fine_file} qpoints_crystal.')
     print(f'  q=0 (Gamma): index iq={iq0}  (q_crystal = {qpoints_crystal[iq0]})')
 
-    g_cond = hf['elph_fine_cond_mode'][iq0].astype(complex)  # (Nmodes, Nk, Nc, Nc)
-    g_val  = hf['elph_fine_val_mode'][iq0].astype(complex)   # (Nmodes, Nk, Nv, Nv)
+    g_cond = hf['elph_cond_mode'][iq0].astype(complex)  # (Nmodes, Nk, Nc, Nc)
+    g_val  = hf['elph_val_mode'][iq0].astype(complex)   # (Nmodes, Nk, Nv, Nv)
 
     # Phonon frequencies from phonon_modes group (same q ordering as elph arrays)
     if 'phonon_modes/frequencies' in hf:
@@ -670,8 +670,8 @@ if compute_second_order:
         q_crystal = _qpts_cryst[iq_second_order]
         print(f'  q-point iq={iq_second_order}: q_crystal = {q_crystal}')
 
-        g_cond_q = hf_q['elph_fine_cond_mode'][iq_second_order].astype(complex)
-        g_val_q  = hf_q['elph_fine_val_mode'][iq_second_order].astype(complex)
+        g_cond_q = hf_q['elph_cond_mode'][iq_second_order].astype(complex)
+        g_val_q  = hf_q['elph_val_mode'][iq_second_order].astype(complex)
 
     # Apply QP renormalization
     if not no_renorm_elph:

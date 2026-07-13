@@ -1,5 +1,5 @@
 """
-Tests for elph/assemble_elph_h5.py:
+Tests for elph/elph_xml_to_h5.py (assembly stage):
   cart_to_crystal, wrap_to_bz, find_kpt_index,
   apply_acoustic_sum_rule, read_qpoints_control_ph,
   read_patterns_xml, parse_matdyn_modes
@@ -7,7 +7,7 @@ Tests for elph/assemble_elph_h5.py:
 import re
 import pytest
 import numpy as np
-from assemble_elph_h5 import (
+from elph_xml_to_h5 import (
     cart_to_crystal,
     wrap_to_bz,
     find_kpt_index,

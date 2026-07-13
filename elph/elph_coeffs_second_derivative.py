@@ -2,7 +2,7 @@
 elph_coeffs_second_derivative.py
 =================================
 Compute second-order electron-phonon coupling coefficients from the
-fine-grid el-ph file produced by interpolate_elph_bgw.py.
+fine-grid el-ph file produced by elph_xml_to_h5.py.
 
 Theory
 ------
@@ -17,8 +17,8 @@ where:
   n, m  : band indices (conduction-conduction or valence-valence block)
   E_n   : quasiparticle energy of band n at k  (units must match g: Ry)
 
-The input Cartesian el-ph from interpolate_elph_bgw.py (elph_fine_cond_cart /
-elph_fine_val_cart, units Ry/bohr) is used directly — no displacement-pattern
+The input Cartesian el-ph from elph_xml_to_h5.py (elph_cond_cart /
+elph_val_cart, units Ry/bohr) is used directly — no displacement-pattern
 rotation is needed.  The result g2 has units Ry/bohr^2.
 
 The output is saved in the same HDF5 format as elph_fine.h5, so it can be
@@ -151,7 +151,7 @@ if __name__ == '__main__':
     cli = argparse.ArgumentParser(
         description='Compute second-order el-ph from elph_fine.h5 (Cartesian basis).')
     cli.add_argument('--elph_fine', default='elph_fine.h5',
-                     help='Input from interpolate_elph_bgw.py (default: elph_fine.h5)')
+                     help='Input from elph_xml_to_h5.py (default: elph_fine.h5)')
     cli.add_argument('--eqp',       default='eqp1.dat',
                      help='Fine-grid QP energy file from absorption step (default: eqp1.dat)')
     cli.add_argument('--Nval',      required=True, type=int,
@@ -163,8 +163,8 @@ if __name__ == '__main__':
     # ── 1. Load fine-grid el-ph ───────────────────────────────────────────────
     print(f'\nLoading {args.elph_fine} ...')
     _required = (
-        'elph_fine_cond_cart', 'elph_fine_val_cart',
-        'elph_fine_cond_mode', 'elph_fine_val_mode',
+        'elph_cond_cart', 'elph_val_cart',
+        'elph_cond_mode', 'elph_val_mode',
         'Kpoints_in_elph_file',
         'phonon_modes/eigenvectors', 'phonon_modes/frequencies', 'phonon_modes/qpoints',
     )
@@ -173,10 +173,10 @@ if __name__ == '__main__':
             if key not in fh:
                 raise KeyError(
                     f"'{key}' not found in {args.elph_fine}. "
-                    f"Re-run interpolate_elph_bgw.py to regenerate.")
+                    f"Re-run elph_xml_to_h5.py to regenerate.")
 
-        g_cond_cart = fh['elph_fine_cond_cart'][:]   # (Nq, Npert, Nk, Nc, Nc)
-        g_val_cart  = fh['elph_fine_val_cart'][:]    # (Nq, Npert, Nk, Nv, Nv)
+        g_cond_cart = fh['elph_cond_cart'][:]   # (Nq, Npert, Nk, Nc, Nc)
+        g_val_cart  = fh['elph_val_cart'][:]    # (Nq, Npert, Nk, Nv, Nv)
         Kpoints     = fh['Kpoints_in_elph_file'][:]  # (Nk, 3) crystal coords
         evecs       = fh['phonon_modes/eigenvectors'][:]  # (Nq_md, Nmodes, Nat, 3)
         freqs       = fh['phonon_modes/frequencies'][:]   # (Nq_md, Nmodes) cm^-1
@@ -259,23 +259,23 @@ if __name__ == '__main__':
     print(f'\nSaving to {args.out} ...')
     kw = dict(compression='gzip', compression_opts=4)
     with h5py.File(args.out, 'w') as out:
-        ds = out.create_dataset('elph_fine_cond_mode', data=g2_cond_mode, **kw)
-        ds.attrs['axes']  = 'elph_fine_cond_mode[iq, nu, ik_fi, ic_fi, ic_fi_prime]'
+        ds = out.create_dataset('elph_cond_mode', data=g2_cond_mode, **kw)
+        ds.attrs['axes']  = 'elph_cond_mode[iq, nu, ik_fi, ic_fi, ic_fi_prime]'
         ds.attrs['units'] = 'Ry/bohr^2'
         ds.attrs['note']  = 'Second-order e-ph, phonon-mode basis, ic=0 → LUMO'
 
-        ds = out.create_dataset('elph_fine_val_mode', data=g2_val_mode, **kw)
-        ds.attrs['axes']  = 'elph_fine_val_mode[iq, nu, ik_fi, iv_fi, iv_fi_prime]'
+        ds = out.create_dataset('elph_val_mode', data=g2_val_mode, **kw)
+        ds.attrs['axes']  = 'elph_val_mode[iq, nu, ik_fi, iv_fi, iv_fi_prime]'
         ds.attrs['units'] = 'Ry/bohr^2'
         ds.attrs['note']  = 'Second-order e-ph, phonon-mode basis, iv=0 → HOMO'
 
-        ds = out.create_dataset('elph_fine_cond_cart', data=g2_cond_cart, **kw)
-        ds.attrs['axes']  = 'elph_fine_cond_cart[iq, alpha, ik_fi, ic_fi, ic_fi_prime]'
+        ds = out.create_dataset('elph_cond_cart', data=g2_cond_cart, **kw)
+        ds.attrs['axes']  = 'elph_cond_cart[iq, alpha, ik_fi, ic_fi, ic_fi_prime]'
         ds.attrs['units'] = 'Ry/bohr^2'
         ds.attrs['note']  = 'Second-order e-ph, Cartesian basis, alpha=3*iatom+idir'
 
-        ds = out.create_dataset('elph_fine_val_cart', data=g2_val_cart, **kw)
-        ds.attrs['axes']  = 'elph_fine_val_cart[iq, alpha, ik_fi, iv_fi, iv_fi_prime]'
+        ds = out.create_dataset('elph_val_cart', data=g2_val_cart, **kw)
+        ds.attrs['axes']  = 'elph_val_cart[iq, alpha, ik_fi, iv_fi, iv_fi_prime]'
         ds.attrs['units'] = 'Ry/bohr^2'
         ds.attrs['note']  = 'Second-order e-ph, Cartesian basis, alpha=3*iatom+idir'
 

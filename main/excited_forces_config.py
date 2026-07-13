@@ -70,7 +70,7 @@ config = {
     "read_exciton_pairs_file": False,
     "exciton_pairs": [],
 
-    'elph_fine_h5_file': 'elph_fine.h5',  # pre-interpolated fine-grid el-ph (from interpolate_elph_bgw.py)
+    'elph_fine_h5_file': 'elph_fine.h5',  # pre-interpolated fine-grid el-ph (from elph_xml_to_h5.py)
     'use_second_derivatives_elph_coeffs': False, # if true, use the second derivatives of elph coefficients
                                                 # (g2_cond and g2_val) instead of the first derivatives to calculate the forces.
                                                 # The unit here in this case is ry / bohr**2

@@ -425,13 +425,13 @@ Please cite:
     Edft_cond         = None
     Edft_val          = None
 
-    # load pre-interpolated fine-grid el-ph from HDF5 (produced by interpolate_elph_bgw.py)
-    # elph_fine_cond shape: (Nq, Nmodes, Nk_fi, Nc_fi, Nc_fi)
-    # elph_fine_val  shape: (Nq, Nmodes, Nk_fi, Nv_fi, Nv_fi)
+    # load pre-interpolated fine-grid el-ph from HDF5 (produced by elph_xml_to_h5.py)
+    # elph_cond shape: (Nq, Nmodes, Nk_fi, Nc_fi, Nc_fi)
+    # elph_val  shape: (Nq, Nmodes, Nk_fi, Nv_fi, Nv_fi)
     time0 = time.clock_gettime(0)
     print(f'\nLoading fine-grid el-ph from {elph_fine_h5_file}')
     print(  '  This file contains interpolated electron-phonon matrix elements')
-    print(  '  <n,k+q|dV(q)|m,k> on the fine k-grid (produced by interpolate_elph_bgw.py).')
+    print(  '  <n,k+q|dV(q)|m,k> on the fine k-grid (produced by elph_xml_to_h5.py).')
     
     with h5py.File(elph_fine_h5_file, 'r') as fh:
         # print file-level metadata if available
@@ -440,16 +440,16 @@ Please cite:
             print('  File attributes:')
             for _k, _v in _attrs.items():
                 print(f'    {_k} = {_v}')
-        _required = ('elph_fine_cond_cart', 'elph_fine_val_cart', 'Kpoints_in_elph_file')
+        _required = ('elph_cond_cart', 'elph_val_cart', 'Kpoints_in_elph_file')
         if finite_q_phonon:
             _required = _required + ('qpoints_crystal',)
         for _key in _required:
             if _key not in fh:
                 raise KeyError(
                     f"'{_key}' not found in {elph_fine_h5_file}. "
-                    f"Re-run interpolate_elph_bgw.py to regenerate the file.")
+                    f"Re-run elph_xml_to_h5.py to regenerate the file.")
 
-        has_g_mode = ('elph_fine_cond_mode' in fh and 'elph_fine_val_mode' in fh
+        has_g_mode = ('elph_cond_mode' in fh and 'elph_val_mode' in fh
                       and 'phonon_modes/eigenvectors' in fh
                       and 'phonon_modes/frequencies' in fh)
         if not has_g_mode:
@@ -477,7 +477,7 @@ Please cite:
                 print('Q-points found in the file:')
                 for _iq, _q in enumerate(qpoints_crystal):
                     print(f'  iq={_iq}: {_q}')
-                print('Please re-run interpolate_elph_bgw.py including this q-point.')
+                print('Please re-run elph_xml_to_h5.py including this q-point.')
                 import sys; sys.exit(1)
             if not _used_minus_q:
                 print(f'  Found phonon q at index iq = {iq_phonon} in elph_fine.h5')
@@ -485,12 +485,12 @@ Please cite:
             iq_phonon = 0
 
         if has_g_mode:
-            elph_cond_mode = fh['elph_fine_cond_mode'][iq_phonon].astype(np.complex64)  # (Nmodes, Nk_fi, Nc_fi, Nc_fi)
-            elph_val_mode  = fh['elph_fine_val_mode'][iq_phonon].astype(np.complex64)   # (Nmodes, Nk_fi, Nv_fi, Nv_fi)
+            elph_cond_mode = fh['elph_cond_mode'][iq_phonon].astype(np.complex64)  # (Nmodes, Nk_fi, Nc_fi, Nc_fi)
+            elph_val_mode  = fh['elph_val_mode'][iq_phonon].astype(np.complex64)   # (Nmodes, Nk_fi, Nv_fi, Nv_fi)
         else:
             elph_cond_mode = elph_val_mode = None
-        elph_cond_cart   = fh['elph_fine_cond_cart'][iq_phonon].astype(np.complex64)  # (Npert,  Nk_fi, Nc_fi, Nc_fi)
-        elph_val_cart    = fh['elph_fine_val_cart'][iq_phonon].astype(np.complex64)   # (Npert,  Nk_fi, Nv_fi, Nv_fi)
+        elph_cond_cart   = fh['elph_cond_cart'][iq_phonon].astype(np.complex64)  # (Npert,  Nk_fi, Nc_fi, Nc_fi)
+        elph_val_cart    = fh['elph_val_cart'][iq_phonon].astype(np.complex64)   # (Npert,  Nk_fi, Nv_fi, Nv_fi)
 
         if _used_minus_q:
             # g(-q)_{nm} = conj(g(q)_{mn}) — conjugate and swap band indices.
@@ -558,7 +558,7 @@ Please cite:
         print(f'    phonon freqs   : {phonon_frequencies.shape}  min={phonon_frequencies.min():.2f}'
               f'  max={phonon_frequencies.max():.2f} cm⁻\xb9')
     time1 = time.clock_gettime(0)
-    TASKS.append(['Loading fine-grid ELPH from h5 (interpolate_elph_bgw output)', time1 - time0])
+    TASKS.append(['Loading fine-grid ELPH from h5 (elph_xml_to_h5 output)', time1 - time0])
 
     # QP energies: use data from elph.h5 if present, else read eqp.dat
     time0 = time.clock_gettime(0)

@@ -1,11 +1,11 @@
 """
-Tests for elph/interpolate_elph_bgw.py:
-  _wrap_bz, _build_kpt_map
+Tests for elph/elph_xml_to_h5.py (interpolation stage):
+  wrap_to_bz, _build_kpt_map
   (interpolate_elph requires HDF5 + dtmat binary files and is not unit-tested here)
 """
 import pytest
 import numpy as np
-from interpolate_elph_bgw import _wrap_bz, _build_kpt_map
+from elph_xml_to_h5 import wrap_to_bz as _wrap_bz, _build_kpt_map
 
 
 # ─────────────────────────────────────────────────────────────
