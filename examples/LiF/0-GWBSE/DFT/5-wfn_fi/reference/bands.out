@@ -1,0 +1,300 @@
+Ignoring PCI device with non-16bit domain
+[hmnode006.cluster:mpi_rank_0][MPID_Init] [Performance Suggestion]: Application has requested for multi-thread capability. If allocating memory from different pthreads/OpenMP threads, please consider setting MV2_USE_ALIGNED_ALLOC=1 for improved performance.
+Use MV2_USE_THREAD_WARNING=0 to suppress this error message.
+
+     Program PWSCF v.7.5 starts on  5Jul2026 at 23:31: 9 
+
+     This program is part of the open-source Quantum ESPRESSO suite
+     for quantum simulation of materials; please cite
+         "P. Giannozzi et al., J. Phys.:Condens. Matter 21 395502 (2009);
+         "P. Giannozzi et al., J. Phys.:Condens. Matter 29 465901 (2017);
+         "P. Giannozzi et al., J. Chem. Phys. 152 154105 (2020);
+          URL http://www.quantum-espresso.org", 
+     in publications or presentations arising from this work. More details at
+     http://www.quantum-espresso.org/quote
+
+     Parallel version (MPI & OpenMP), running on      56 processor cores
+     Number of MPI processes:                56
+     Threads/MPI process:                     1
+
+     MPI processes distributed on     1 nodes
+     902778 MiB available memory on the printing compute node when the environment starts
+ 
+     Waiting for input...
+     Reading input from standard input
+
+     Current dimensions of program PWSCF are:
+     Max number of different atomic species (ntypx) = 10
+     Max number of k-points (npk) =  40000
+     Max angular momentum in pseudopotentials (lmaxx) =  4
+
+     Atomic positions and unit cell read from directory:
+     ./LiF.save/
+ 
+ 
+     K-points division:     npool     =       4
+     R & G space division:  proc/nbgrp/npool/nimage =      14
+     Subspace diagonalization in iterative solution of the eigenvalue problem:
+     a serial algorithm will be used
+
+ 
+     Parallelization info
+     --------------------
+     sticks:   dense  smooth     PW     G-vecs:    dense   smooth      PW
+     Min          35      35     11                  507      507     102
+     Max          36      36     12                  509      509     106
+     Sum         499     499    163                 7119     7119    1459
+ 
+     Using Slab Decomposition
+ 
+
+
+     bravais-lattice index     =            0
+     lattice parameter (alat)  =       5.4237  a.u.
+     unit-cell volume          =     112.8194 (a.u.)^3
+     number of atoms/cell      =            2
+     number of atomic types    =            2
+     number of electrons       =        10.00
+     number of Kohn-Sham states=           20
+     kinetic-energy cutoff     =      60.0000  Ry
+     charge density cutoff     =     240.0000  Ry
+     Exchange-correlation= SLA  PW   NOGX NOGC
+                           (   1   4   0   0   0   0   0)
+
+     celldm(1)=   5.423749  celldm(2)=   0.000000  celldm(3)=   0.000000
+     celldm(4)=   0.000000  celldm(5)=   0.000000  celldm(6)=   0.000000
+
+     crystal axes: (cart. coord. in units of alat)
+               a(1) = (  -0.707107   0.000000   0.707107 )  
+               a(2) = (   0.000000   0.707107   0.707107 )  
+               a(3) = (  -0.707107   0.707107   0.000000 )  
+
+     reciprocal axes: (cart. coord. in units 2 pi/alat)
+               b(1) = ( -0.707107 -0.707107  0.707107 )  
+               b(2) = (  0.707107  0.707107  0.707107 )  
+               b(3) = ( -0.707107  0.707107 -0.707107 )  
+
+
+     PseudoPot. # 1 for Li read from file:
+     ../Li.upf
+     MD5 check sum: cbd9518a540ce8f7f4a0218f2f072fdd
+     Pseudo is Norm-conserving, Zval =  3.0
+     Generated using ONCVPSP code by D. R. Hamann
+     Using radial grid of 1944 points,  4 beta functions with: 
+                l(1) =   0
+                l(2) =   0
+                l(3) =   1
+                l(4) =   1
+
+     PseudoPot. # 2 for F  read from file:
+     ../F.upf
+     MD5 check sum: 3dea638f9c9153f3282cad43c3474f58
+     Pseudo is Norm-conserving + core correction, Zval =  7.0
+     Generated using ONCVPSP code by D. R. Hamann
+     Using radial grid of  824 points,  5 beta functions with: 
+                l(1) =   0
+                l(2) =   0
+                l(3) =   1
+                l(4) =   1
+                l(5) =   2
+
+     atomic species   valence    mass     pseudopotential
+     Li                3.00     6.94100     Li( 1.00)
+     F                 7.00    18.99840     F ( 1.00)
+
+     No symmetry found
+
+
+
+   Cartesian axes
+
+     site n.     atom                  positions (alat units)
+         1        Li     tau(   1) = (   0.0000000   0.0000000   0.0000000  )
+         2        F      tau(   2) = (  -0.7071068   0.7071068   0.7071068  )
+
+     number of k points=   512  Gaussian smearing, width (Ry)=  0.0010
+
+     Number of k-points >= 100: set verbosity='high' to print them.
+
+     Dense  grid:     7119 G-vectors     FFT dimensions: (  27,  27,  27)
+
+     Estimated max dynamical RAM per process >       2.45 MB
+
+     Estimated total dynamical RAM >     137.41 MB
+
+     Check: negative core charge=   -0.000008
+
+     The potential is recalculated from file :
+     ./LiF.save/charge-density
+
+     Starting wfcs are    6 randomized atomic wfcs +   14 random wfcs
+
+     Band Structure Calculation
+     Davidson diagonalization with overlap
+
+     ethr =  1.00E-08,  avg # of iterations = 13.0
+
+     total cpu time spent up to now is        2.9 secs
+
+     End of band structure calculation
+
+     Number of k-points >= 100: set verbosity='high' to print the bands.
+
+     Writing all to output data dir ./LiF.save/ :
+     XML data file, pseudopotentials, collected wavefunctions
+ 
+     init_run     :      0.14s CPU      0.15s WALL (       1 calls)
+     electrons    :      2.45s CPU      2.55s WALL (       1 calls)
+
+     Called by init_run:
+     wfcinit      :      0.00s CPU      0.00s WALL (       1 calls)
+     potinit      :      0.13s CPU      0.14s WALL (       1 calls)
+     hinit0       :      0.00s CPU      0.01s WALL (       1 calls)
+
+     Called by electrons:
+     c_bands      :      2.45s CPU      2.55s WALL (       1 calls)
+     v_of_rho     :      0.00s CPU      0.00s WALL (       1 calls)
+
+     Called by c_bands:
+     init_us_2    :      0.00s CPU      0.00s WALL (     128 calls)
+     cegterg      :      2.03s CPU      2.12s WALL (     131 calls)
+
+     Called by *egterg:
+     cdiaghg      :      1.03s CPU      1.06s WALL (    1795 calls)
+     h_psi        :      0.97s CPU      1.02s WALL (    1926 calls)
+     g_psi        :      0.00s CPU      0.00s WALL (    1667 calls)
+
+     Called by h_psi:
+     h_psi:calbec :      0.04s CPU      0.04s WALL (    1926 calls)
+     vloc_psi     :      0.91s CPU      0.96s WALL (    1926 calls)
+                                        0.00s GPU  (    1926 calls)
+     add_vuspsi   :      0.01s CPU      0.01s WALL (    1926 calls)
+
+     General routines
+     calbec       :      0.03s CPU      0.04s WALL (    1926 calls)
+     fft          :      0.00s CPU      0.00s WALL (       4 calls)
+     fftw         :      0.84s CPU      0.88s WALL (   45242 calls)
+     davcio       :      0.00s CPU      0.00s WALL (     256 calls)
+ 
+     Parallel routines
+ 
+     PWSCF        :      2.88s CPU      3.25s WALL
+
+ 
+   This run was terminated on:  23:31:13   5Jul2026            
+
+=------------------------------------------------------------------------------=
+   JOB DONE.
+=------------------------------------------------------------------------------=
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242

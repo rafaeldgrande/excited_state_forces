@@ -1,0 +1,115 @@
+
+Reading structure/Nval from WFN.h5: ../0-GWBSE/DFT/4-wfn_co/WFN.h5
+  found 1 atoms Li, 1 atoms F
+  Read highest occupied band index directly from WFN.h5 ifmax: Nval = 5.
+  If wrong reexecute the code with --Nval Nv with the correct index of the highest occupied band to overwrite it.
+  nat    = 2
+  NPERT  = 6  (3 x nat, nosym=.true.)
+  NBNDS  = 20
+  NK     = 64  k-points
+  Nval   = 5
+  Reciprocal lattice vectors (2pi/alat, rows = b1,b2,b3):
+    b1 = [-0.7071068  -0.7071068   0.7071068]
+    b2 = [ 0.7071068   0.7071068   0.7071068]
+    b3 = [-0.7071068   0.7071068  -0.7071068]
+
+All parsed command-line variables:
+  elph_dir               = ../0-GWBSE/DFT/4-wfn_co/_ph0/LiF.phsave/
+  modes_file             = matdyn.modes
+  elph_coarse            = elph_coarse.h5
+  elph_fine              = elph_fine.h5
+  dtmat                  = ../0-GWBSE/GWBSE/4-absorption/dtmat
+  wfn_fi                 = ../0-GWBSE/DFT/5-wfn_fi/WFN.h5
+  eqp                    = eqp.dat
+  wfn_co                 = ../0-GWBSE/DFT/4-wfn_co/WFN.h5
+  qe_input               = scf.in
+  Nval                   = missing
+  wfn_fi_same_wfn_co     = False
+  skip_interpolation     = False
+  asr                    = True
+  real                   = False
+
+Reading q-points from ../0-GWBSE/DFT/4-wfn_co/_ph0/LiF.phsave/control_ph.xml ...
+  Found 1 q-points (Cartesian, 2pi/a):
+    iq= 1:  [ 0.0000000   0.0000000   0.0000000]
+
+==============================================================
+iq =  1  q = [ 0.000000   0.000000   0.000000]
+==============================================================
+  patterns.1.xml: NPERT x NPERT = (6, 6), max|U - I| = 0.00e+00 (~ Cartesian)
+  ipert= 1  elph.1.1.xml ... 
+  k-map: 64/64 matched  (XML has 64 k-pts)
+  [BZ-copy check]  64/64 matched to 1st-BZ copy -> OK
+  [|g| consistency] no extended-zone copies found (lgamma or all unique)
+  done in 0.1 s
+  ipert= 2  elph.1.2.xml ...   done in 0.0 s
+  ipert= 3  elph.1.3.xml ...   done in 0.0 s
+  ipert= 4  elph.1.4.xml ...   done in 0.0 s
+  ipert= 5  elph.1.5.xml ...   done in 0.0 s
+  ipert= 6  elph.1.6.xml ...   done in 0.0 s
+  -> transformed to Cartesian basis  (max|delta| from raw pattern values: 0.00e+00)
+
+==============================================================
+Summary: 1 q-points complete, 0 skipped (g=0).
+
+Applying acoustic sum rule (default; pass --no-ASR to disable).
+  max |sum_atoms g_d|  before ASR = 4.0987e+00 Ry/bohr
+  max |sum_atoms g_d|  after  ASR = 4.4755e-16 Ry/bohr (OK)
+
+matdyn.modes not found — skipping phonon eigenvectors.
+  g_mode not available — skipping phonon-mode basis datasets.
+
+Saved el-ph to: elph_coarse.h5
+Written: /scratch/rrodriguesdelgrand/examples_ESF/LiF/1-COLLECT_ELPH_COEFFS/qpoints_cart_co.dat
+Written: /scratch/rrodriguesdelgrand/examples_ESF/LiF/1-COLLECT_ELPH_COEFFS/qpoints_crystal_co.dat
+
+Reading fine k-points from ../0-GWBSE/DFT/5-wfn_fi/WFN.h5 ...
+  512 fine k-points loaded, shape (512, 3)
+
+WARNING: phonon-mode basis not available in the coarse el-ph — skipping. Only Cartesian basis (g) will be saved.
+
+================================================================
+Interpolating Cartesian basis (g) ...
+
+================================================================
+Interpolating coarse -> fine el-ph
+================================================================
+  g_co_cond shape : (1, 6, 64, 15, 15)  (1 q, 6 modes, 64 k_co, 15 cond bands)
+  g_co_val  shape : (1, 6, 64, 5, 5)  (5 val bands)
+
+Loading dtmat from: dtmat
+  nkpt_co      : 64    nkpt_fi  : 512
+  nc_co        : 7       nc_fi    : 7
+  nv_co        : 5       nv_fi    : 5
+  nspin        : 1       npts_intp: 1
+  NOTE: coarse el-ph has 15 conduction bands but dtmat only uses 7 — truncating to the lowest 7 cond bands (closest to LUMO).
+
+  Coarse k-point matching: 64/64 matched
+
+  q = Gamma (all q-points are 0,0,0) — no k-shift needed.
+  dtmat->elph coarse k-map: 64/64 matched
+
+  Output shapes:
+    elph_fine_cond : (1, 6, 512, 7, 7)  (Nq, Nmodes, Nk_fi, nc_fi, nc_fi)
+    elph_fine_val  : (1, 6, 512, 5, 5)  (Nq, Nmodes, Nk_fi, nv_fi, nv_fi)
+
+Interpolating ... (512 fine k-points, 1 q-points, 6 modes)
+
+Done.
+  elph_fine_cond : (1, 6, 512, 7, 7)
+    max|Re| = 5.0188e-01 Ry/bohr
+    max|Im| = 5.4175e-01 Ry/bohr
+  elph_fine_val  : (1, 6, 512, 5, 5)
+    max|Re| = 5.0084e-01 Ry/bohr
+    max|Im| = 5.1867e-01 Ry/bohr
+
+NOTE: file not found for --eqp: 'eqp.dat' — skipping QP rescaling. Run 'python elph_xml_to_h5.py -h' to see all options.
+  g_mode not available — skipping phonon-mode basis datasets.
+
+Saved el-ph to: elph_fine.h5
+Written: /scratch/rrodriguesdelgrand/examples_ESF/LiF/1-COLLECT_ELPH_COEFFS/qpoints_cart_fi.dat
+Written: /scratch/rrodriguesdelgrand/examples_ESF/LiF/1-COLLECT_ELPH_COEFFS/qpoints_crystal_fi.dat
+
+Done in 1.3 s.
+  elph_cond_cart : (1, 6, 512, 7, 7)
+  elph_val_cart  : (1, 6, 512, 5, 5)

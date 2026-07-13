@@ -1,0 +1,3 @@
+slurmstepd: error: execve(): pwbgw.x: No such file or directory
+srun: error: hmnode006: task 0: Exited with exit code 2
+srun: Terminating StepId=173420.10

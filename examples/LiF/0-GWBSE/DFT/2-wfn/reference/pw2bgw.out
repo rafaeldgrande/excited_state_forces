@@ -1,0 +1,82 @@
+Ignoring PCI device with non-16bit domain
+[hmnode006.cluster:mpi_rank_0][MPID_Init] [Performance Suggestion]: Application has requested for multi-thread capability. If allocating memory from different pthreads/OpenMP threads, please consider setting MV2_USE_ALIGNED_ALLOC=1 for improved performance.
+Use MV2_USE_THREAD_WARNING=0 to suppress this error message.
+
+     Program PW2BGW v.7.5 starts on  3Jul2026 at 22:14:50 
+
+     This program is part of the open-source Quantum ESPRESSO suite
+     for quantum simulation of materials; please cite
+         "P. Giannozzi et al., J. Phys.:Condens. Matter 21 395502 (2009);
+         "P. Giannozzi et al., J. Phys.:Condens. Matter 29 465901 (2017);
+         "P. Giannozzi et al., J. Chem. Phys. 152 154105 (2020);
+          URL http://www.quantum-espresso.org", 
+     in publications or presentations arising from this work. More details at
+     http://www.quantum-espresso.org/quote
+
+     Parallel version (MPI & OpenMP), running on       2 processor cores
+     Number of MPI processes:                 2
+     Threads/MPI process:                     1
+
+     MPI processes distributed on     1 nodes
+     R & G space division:  proc/nbgrp/npool/nimage =       2
+     918993 MiB available memory on the printing compute node when the environment starts
+ 
+
+     Reading xml data from directory:
+
+     ./LiF.save/
+
+     IMPORTANT: XC functional enforced from input :
+     Exchange-correlation= PW
+                           (   1   4   0   0   0   0   0)
+     Any further DFT definition will be discarded
+     Please, verify this is what you really want
+
+ 
+     Parallelization info
+     --------------------
+     sticks:   dense  smooth     PW     G-vecs:    dense   smooth      PW
+     Min         249     249     81                 3559     3559     705
+     Max         250     250     82                 3560     3560     706
+     Sum         499     499    163                 7119     7119    1411
+ 
+     Using Slab Decomposition
+ 
+
+     Check: negative core charge=   -0.000008
+     Reading collected, re-writing distributed wavefunctions
+
+     NLCC is present
+
+     Check: negative core charge=   -0.000008
+
+     call write_wfng
+     done write_wfng
+
+     call write_vxcg
+     done write_vxcg
+
+     call write_vxc_g
+     done write_vxc_g
+
+     call write_rhog
+     done write_rhog
+
+ 
+     write_wfng   :      0.03s CPU      0.11s WALL (       1 calls)
+     write_rhog   :      0.00s CPU      0.00s WALL (       1 calls)
+     write_vxcg   :      0.00s CPU      0.00s WALL (       1 calls)
+     write_vxc_g  :      0.28s CPU      0.29s WALL (       1 calls)
+ 
+     PW2BGW       :      0.43s CPU      0.67s WALL
+
+ 
+   This run was terminated on:  22:14:51   3Jul2026            
+
+=------------------------------------------------------------------------------=
+   JOB DONE.
+=------------------------------------------------------------------------------=
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242
+Error in system call pthread_mutex_destroy: Device or resource busy
+    src/mpi/init/initthread.c:242

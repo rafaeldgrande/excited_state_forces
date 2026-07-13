@@ -1,0 +1,162 @@
+Reading input file forces.inp
+
+
+Execution date:  12/07/2026 17:47:32
+Code version: 42d095e from (2026-07-12)
+
+This code calcultes excited state forces based on Hellman-Feynman theorem 
+within the Bethe-Salpeter Hamiltonian. F = - <S|dH/dR|S> where |S> is the excitonic state and H is the BSE Hamiltonian.
+The code report forces with the minus sign, so if you want to use 
+exciton-phonon matrix elements multiply the results by -1.
+
+More details can be found at: https://github.com/rafaeldgrande/excited_state_forces
+and in our paper below:
+          
+
+        
+####################################################################
+
+Excited state forces calculation
+Developers: Rafael Del Grande, David Strubbe
+
+Please cite: 
+
+@misc{arxivdelgrande2025,
+    title={Revisiting ab-initio excited state forces from many-body Green's function formalism: approximations and benchmark}, 
+    author={Rafael R. Del Grande and David A. Strubbe},
+    year={2025},
+    eprint={2502.05144},
+    archivePrefix={arXiv},
+    primaryClass={cond-mat.mtrl-sci},
+    url={https://arxiv.org/abs/2502.05144}, 
+}
+
+####################################################################
+
+
+Reading parameters info from file ../0-GWBSE/GWBSE/4-absorption/eigenvectors.h5
+ ifmax through k points is just one value (5)
+ so we are dealing probably with a semiconductor. No warning regarging this.
+
+Parameters from ../0-GWBSE/GWBSE/4-absorption/eigenvectors.h5 :
+    Total of atoms             = 2
+    Total of modes vib (3*Nat) = 6
+    Nkpoints                   = 512
+    Number of cond bands       = 7
+    Number of val bands        = 5
+    Valence band index         = 5
+    Number of Q points         = 1
+    Q point shift              = [[0. 0. 0.]]
+    Lattice parameter (a.u.)   = 5.42374939
+    Lattice vectors (in lattice parameter units): 
+          a1 = (-0.70710678, 0.00000000, 0.70710678)
+          a2 = (0.00000000, 0.70710678, 0.70710678)
+          a3 = (-0.70710678, 0.70710678, 0.00000000)
+    Reciprocal lattice vectors (2 * pi / lattice parameter):
+          b1 = (-0.70710678, -0.70710678, 0.70710678)
+          b2 = (0.70710678, 0.70710678, 0.70710678)
+          b3 = (-0.70710678, 0.70710678, -0.70710678)
+
+
+
+Total exciton-ph matrix elements to be computed: 1
+ <1 | dH | 1>
+Loading exciton coefficients from file ../0-GWBSE/GWBSE/4-absorption/eigenvectors.h5
+Exciton energy (eV): 12.138239897736256
+Finished loading exciton coefficients
+
+Loading fine-grid el-ph from ../1-COLLECT_ELPH_COEFFS/elph_fine.h5
+  This file contains interpolated electron-phonon matrix elements
+  <n,k+q|dV(q)|m,k> on the fine k-grid (produced by elph_xml_to_h5.py).
+  File attributes:
+    Nc = 7
+    Nk = 512
+    Npert = 6
+    Nq = 1
+    Nv = 5
+    Nval = 5
+    grid = fine
+    interpolation = BerkeleyGW dtmat coarse-to-fine
+    source_dtmat = ../0-GWBSE/GWBSE/4-absorption/dtmat
+    source_elph_coarse = elph_coarse.h5
+  WARNING: phonon-mode basis datasets not found in elph_fine.h5 (matdyn.modes was not provided). Only Cartesian-basis forces will be computed.
+
+  Loaded arrays (iq = 0):
+    Nk_fi = 512   Nc_fi = 7   Nv_fi = 5   Npert = 6
+    elph_cond_cart : (6, 512, 7, 7)  (Npert,  Nk_fi, Nc_fi, Nc_fi)
+    elph_val_cart  : (6, 512, 5, 5)  (Npert,  Nk_fi, Nv_fi, Nv_fi)
+
+
+Reading DFT and QP energies from file ../0-GWBSE/GWBSE/4-absorption/eqp.dat
+Finished reading energies from file ../0-GWBSE/GWBSE/4-absorption/eqp.dat
+QP and DFT energy levels for cond bands have shape:  (512, 7)  = (Nkpoints, Ncbnds)
+QP and DFT energy levels for val bands have shape:  (512, 5)  = (Nkpoints, Nvbnds)
+
+
+
+
+Fine-grid ELPH k-points: 512 k-points (crystal coords)
+Matching BSE k-points (512) to fine ELPH k-points (512) ...
+  Matched 512/512 BSE k-points — all matched
+Renormalizing ELPH coefficients using QP and DFT energy levels
+
+Expanding ELPH matrices for vectorized multiplication
+  Cartesian: cond (6, 512, 7, 7) → (6, 512, 7, 5, 7, 5), val (6, 512, 5, 5) → (6, 512, 7, 5, 7, 5)
+
+
+################################# Running in serial ################################
+Total exciton-phonon matrix elements to be calculated:  1
+# RPA_diag is equation (1) of arxiv:2502.05144, with d/dr <kcv|K^eh|k'c'v'> = 0
+# RPA is equation (3) of arxiv:2502.05144, with  <kcv|d K^eh / dr|k'c'v'> = 0
+# RPA_diag_plus_Kernel is equation (1) of arxiv:2502.05144 with  <kcv|d K^eh / dr|k'c'v'> = 0
+# Forces units are (eV/ang)
+
+# Atom  dir       RPA_diag                        RPA_diag_offdiag               RPA_diag_plus_Kernel     
+1     x         0.09686352+0.00000000j          0.15276736+0.00000000j         0.09686352+0.00000000j   
+1     y         0.00236672+0.00000000j          0.07799812+0.00000000j         0.00236672+0.00000000j   
+1     z         0.07745530+0.00000000j          0.11194574-0.00000000j         0.07745530+0.00000000j   
+2     x         -0.09686352-0.00000000j         -0.15276736-0.00000000j        -0.09686352-0.00000000j  
+2     y         -0.00236672-0.00000000j         -0.07799812-0.00000000j        -0.00236672-0.00000000j  
+2     z         -0.07745530-0.00000000j         -0.11194574+0.00000000j        -0.07745530-0.00000000j  
+
+
+Finished calculations at:  12/07/2026 17:47:36
+
+
+
+
+
+Task                                                        Time (seconds)
+----------------------------------------------------------------------
+Get parameters from DFT and GWBSE                                 0.01
+Loading exciton coefficients                                      0.01
+Loading fine-grid ELPH from h5 (elph_xml_to_h5 output)            0.04
+Reading QP and DFT energy levels                                  0.15
+Renormalizing ELPH coefficients using QP and DFT energy levels      0.00
+ELPH matrices expansion (for vectorized multiplication)           0.02
+Calculating forces with RPA_diag                                  0.01
+Calculating forces with RPA                                       0.00
+Calculating forces with Kernel part                               0.00
+----------------------------------------------------------------------
+Total                                                             0.25
+
+####################################################################
+
+Excited state forces calculation
+Developers: Rafael Del Grande, David Strubbe
+
+Please cite: 
+
+@misc{arxivdelgrande2025,
+    title={Revisiting ab-initio excited state forces from many-body Green's function formalism: approximations and benchmark}, 
+    author={Rafael R. Del Grande and David A. Strubbe},
+    year={2025},
+    eprint={2502.05144},
+    archivePrefix={arXiv},
+    primaryClass={cond-mat.mtrl-sci},
+    url={https://arxiv.org/abs/2502.05144}, 
+}
+
+####################################################################
+
+

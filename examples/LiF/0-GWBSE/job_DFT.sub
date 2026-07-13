@@ -1,0 +1,54 @@
+#!/bin/bash
+
+#SBATCH --nodes=1                    
+#SBATCH --ntasks-per-node=56
+#SBATCH --partition test # short
+#SBATCH --time=0:30:00
+#SBATCH --job-name=LiFDFT
+#SBATCH --export=ALL
+#SBATCH --output=myjob_%j.stdout
+
+export OMP_NUM_THREADS=1
+
+module load quantum-espresso
+
+cd DFT/
+
+cd 1-scf/
+srun  pw.x < scf.in &> scf.out
+srun -n 1 pw2bgw.x < pw2bgw.in &> pw2bgw.out
+cd ../
+
+cd 2-wfn/
+mkdir -p LiF.save/
+cp ../1-scf_fi/LiF.save/charge-density.hdf5 LiF.save/
+cp ../1-scf_fi/LiF.save/data-file-schema.xml LiF.save/
+srun pw.x < bands.in &> bands.out
+srun -n 1 pw2bgw.x < pw2bgw.in &> pw2bgw.out 
+cd ../
+
+cd 3-wfnq/
+mkdir -p LiF.save/
+cp ../1-scf_fi/LiF.save/charge-density.hdf5 LiF.save/
+cp ../1-scf_fi/LiF.save/data-file-schema.xml LiF.save/
+srun pw.x < bands.in &> bands.out
+srun -n 1 pw2bgw.x < pw2bgw.in &> pw2bgw.out
+cd ../
+
+cd 4-wfn_co/
+mkdir -p LiF.save/
+cp ../1-scf_fi/LiF.save/charge-density.hdf5 LiF.save/
+cp ../1-scf_fi/LiF.save/data-file-schema.xml LiF.save/
+srun pw.x < bands.in &> bands.out
+srun -n 1 pw2bgw.x < pw2bgw.in &> pw2bgw.out
+srun ph.x < ph.in &> ph.out
+cd ../
+
+cd 5-wfn_fi/
+mkdir -p LiF.save/
+cp ../1-scf/LiF.save/data-file-schema.xml LiF.save/
+cp ../1-scf/LiF.save/charge-density.hdf5 LiF.save/
+srun pw.x < bands.in &> bands.out
+srun -n 1 pw2bgw.x < pw2bgw.in &> pw2bgw.out
+cd ../
+
