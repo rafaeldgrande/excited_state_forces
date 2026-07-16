@@ -429,12 +429,12 @@ Please cite:
     # elph_cond shape: (Nq, Nmodes, Nk_fi, Nc_fi, Nc_fi)
     # elph_val  shape: (Nq, Nmodes, Nk_fi, Nv_fi, Nv_fi)
     def _match_band_count(arr, n_target, label):
-        # elph_xml_to_h5.py --skip-interpolation or --wfn_fi_same_wfn_co (elph
-        # computed directly on the fine grid) does not truncate cond/val blocks
-        # to the band range actually used by the BSE calculation (Ncbnds/Nvbnds
-        # from eigenvectors.h5) — only the dtmat-interpolation path does that.
-        # So the array read from the h5 file may carry more (or fewer) bands
-        # than the BSE Hamiltonian uses; match it here, keeping the bands
+        # elph_xml_to_h5.py --skip-interpolation (el-ph computed directly on the
+        # fine grid) only truncates cond/val blocks to the BSE calculation's band
+        # range (Ncbnds/Nvbnds from eigenvectors.h5) when --eqp was also given at
+        # collection time; otherwise (or for older/manually-built h5 files) the
+        # array read from the h5 file may carry more (or fewer) bands than the
+        # BSE Hamiltonian uses. This is a safety net: match it here, keeping the bands
         # closest to the band edge (index 0 = LUMO for cond, HOMO for val).
         n_avail = arr.shape[-1]
         if n_avail == n_target:

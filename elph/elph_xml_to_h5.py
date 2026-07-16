@@ -19,9 +19,12 @@ Usage
 python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \\
     --dtmat dtmat --wfn_to_interpolate WFN_fi.h5 --eqp eqp.dat
 
-# Coarse only (no interpolation)
+# El-ph computed directly on the fine grid (DFPT run on the fine k/q-grid
+# itself, no coarse-to-fine transformation needed). --eqp band-matches and
+# QP-rescales the result and writes elph_interpolated_kgrid.h5, ready to use
+# as elph_fine_h5_file in forces.inp, exactly like the interpolation stage would.
 python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \\
-    --skip-interpolation
+    --skip-interpolation --eqp eqp.dat
 
 # Resume: interpolate from a previously-written elph_orig_kgrid.h5
 python elph_xml_to_h5.py --elph_coarse elph_orig_kgrid.h5 --wfn_origin WFN_co.h5 \\
@@ -945,17 +948,19 @@ def interpolate_elph(
     g_co_val:     np.ndarray,
     kpts_co:      np.ndarray,
     qpts_co:      np.ndarray,
-    dtmat_file:   str | None,
+    dtmat_file:   str,
     kpts_fi_crys: np.ndarray | None = None,
     tol_k:        float = 1e-5,
     complex_flavor: bool = True,
-    wfn_fi_same_wfn_co: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Interpolate el-ph matrix elements from coarse to fine k-grid.
 
     See module docstring for the interpolation formula and BGW valence-band
-    ordering convention.
+    ordering convention. If the el-ph coefficients were computed directly on
+    the fine grid (WFN_fi == WFN_co, no coarse-to-fine transformation needed),
+    use --skip-interpolation instead of this stage (see main() below) — it
+    handles that case without requiring a dtmat file at all.
 
     g_co_cond, g_co_val : (Nq, Nb, Nk_co, nc_avail, nc_avail) / (..., nv_avail,
         nv_avail) complex128 — already split into cond/val blocks (BGW
@@ -963,18 +968,11 @@ def interpolate_elph(
         or Npert depending on which basis is being interpolated.
     kpts_co, qpts_co : coarse-grid k-points (crystal) and q-points (crystal),
         matching the first/third axis of g_co_cond/g_co_val.
-    dtmat_file : path to the BerkeleyGW dtmat binary, or None if
-        wfn_fi_same_wfn_co=True.
+    dtmat_file : path to the BerkeleyGW dtmat binary.
     kpts_fi_crys : (Nk_fi, 3) array, optional
         Fine k-point coordinates in crystal (fractional) coordinates.
         Required only for finite-q interpolation (q != 0).
         Can be read from WFN_fi.h5 -> mf_header/kpoints/rk.
-    wfn_fi_same_wfn_co : bool, optional
-        Set when WFN_fi == WFN_co, i.e. the el-ph coefficients were computed
-        directly on the fine grid and no coarse-to-fine interpolation is
-        needed. The coarse-to-fine wavefunction overlaps (normally read from
-        dtmat) are replaced by identity matrices, and dtmat_file is ignored
-        (may be None). kpts_fi_crys defaults to kpts_co when not given.
 
     Returns
     -------
@@ -990,76 +988,32 @@ def interpolate_elph(
           f"{Nk_co} k_co, {nc_co_avail} cond bands)")
     print(f"  g_co_val  shape : {g_co_val.shape}  ({nv_co_avail} val bands)")
 
-    # ── Load dtmat, or build an identity coarse-to-fine transformation ───
-    if wfn_fi_same_wfn_co:
-        print(f"\nwfn_fi_same_wfn_co=True: WFN_fi == WFN_co, using identity "
-              f"coarse-to-fine transformation (dtmat not read).")
-        if dtmat_file is not None:
-            print(f"  (ignoring dtmat_file={dtmat_file})")
+    # ── Load dtmat (coarse-to-fine wavefunction overlaps) ────────────────
+    _require_file(dtmat_file, 'dtmat',
+                  'BerkeleyGW dtmat binary from absorption.<flavour>.x; '
+                  'or pass --skip-interpolation if the el-ph was computed '
+                  'directly on the fine grid (no interpolation needed)')
+    print(f"\nLoading dtmat from: {os.path.basename(dtmat_file)}")
+    d = read_dtmat(dtmat_file, complex_flavor=complex_flavor)
 
-        nk_co_dt  = Nk_co
-        nk_fi     = Nk_co
-        nc_co     = nc_co_avail
-        nv_co     = nv_co_avail
-        nc_fi     = nc_co
-        nv_fi     = nv_co
-        nspin     = 1
-        npts      = 1
-        kco_dt    = kpts_co             # (Nk_co, 3), same ordering as g_co_cond/val
+    nk_co_dt  = d['nkpt_co']
+    nk_fi     = d['nkpt_fi']
+    nc_fi     = d['ncb_fi']
+    nv_fi     = d['nvb_fi']
+    nc_co     = d['n2b_co']
+    nv_co     = d['n1b_co']
+    nspin     = d['nspin']
+    npts      = d['npts_intp_kernel']
+    dcn       = d['dcn']          # (nc_fi, nc_co, nspin, nk_fi, npts)
+    dvn       = d['dvn']          # (nv_fi, nv_co, nspin, nk_fi, npts)
+    fi2co     = d['fi2co_wfn']    # (npts, nk_fi) — 1-indexed coarse k
+    intp_coefs= d['intp_coefs']   # (npts, nk_fi)
+    kco_dt    = d['kco']          # (nk_co_dt, 3) — coarse k in crystal
 
-        if kpts_fi_crys is None:
-            # Fine k-points are the coarse k-points themselves.
-            kpts_fi_crys = kpts_co
-            fine_to_co_base = np.arange(Nk_co, dtype=int)
-        else:
-            fine_to_co_base = _build_kpt_map(kpts_fi_crys, kpts_co, tol=tol_k)
-            if not np.all(fine_to_co_base >= 0):
-                n_bad = int(np.sum(fine_to_co_base < 0))
-                raise ValueError(
-                    f"wfn_fi_same_wfn_co=True but {n_bad}/{len(kpts_fi_crys)} "
-                    f"fine k-points could not be matched to the coarse grid. "
-                    f"WFN_fi and WFN_co must share the same k-grid.")
-
-        # dcn/dvn: identity overlap for every fine k-point (broadcast, no copy)
-        dcn = np.broadcast_to(
-            np.eye(nc_fi, dtype=complex)[:, :, None, None, None],
-            (nc_fi, nc_co, nspin, nk_fi, npts))
-        dvn = np.broadcast_to(
-            np.eye(nv_fi, dtype=complex)[:, :, None, None, None],
-            (nv_fi, nv_co, nspin, nk_fi, npts))
-        fi2co      = (fine_to_co_base + 1)[None, :]   # 1-indexed, (npts=1, nk_fi)
-        intp_coefs = np.ones((npts, nk_fi))
-
-        print(f"  nk_fi = nk_co = {nk_fi}    "
-              f"nc_fi = nc_co = {nc_fi}    nv_fi = nv_co = {nv_fi}")
-    else:
-        if dtmat_file is None:
-            raise ValueError(
-                "dtmat_file is required unless wfn_fi_same_wfn_co=True.")
-        _require_file(dtmat_file, 'dtmat',
-                      'BerkeleyGW dtmat binary from absorption.<flavour>.x; '
-                      'or pass --wfn_fi_same_wfn_co if no interpolation is needed')
-        print(f"\nLoading dtmat from: {os.path.basename(dtmat_file)}")
-        d = read_dtmat(dtmat_file, complex_flavor=complex_flavor)
-
-        nk_co_dt  = d['nkpt_co']
-        nk_fi     = d['nkpt_fi']
-        nc_fi     = d['ncb_fi']
-        nv_fi     = d['nvb_fi']
-        nc_co     = d['n2b_co']
-        nv_co     = d['n1b_co']
-        nspin     = d['nspin']
-        npts      = d['npts_intp_kernel']
-        dcn       = d['dcn']          # (nc_fi, nc_co, nspin, nk_fi, npts)
-        dvn       = d['dvn']          # (nv_fi, nv_co, nspin, nk_fi, npts)
-        fi2co     = d['fi2co_wfn']    # (npts, nk_fi) — 1-indexed coarse k
-        intp_coefs= d['intp_coefs']   # (npts, nk_fi)
-        kco_dt    = d['kco']          # (nk_co_dt, 3) — coarse k in crystal
-
-        print(f"  nkpt_co      : {nk_co_dt}    nkpt_fi  : {nk_fi}")
-        print(f"  nc_co        : {nc_co}       nc_fi    : {nc_fi}")
-        print(f"  nv_co        : {nv_co}       nv_fi    : {nv_fi}")
-        print(f"  nspin        : {nspin}       npts_intp: {npts}")
+    print(f"  nkpt_co      : {nk_co_dt}    nkpt_fi  : {nk_fi}")
+    print(f"  nc_co        : {nc_co}       nc_fi    : {nc_fi}")
+    print(f"  nv_co        : {nv_co}       nv_fi    : {nv_fi}")
+    print(f"  nspin        : {nspin}       npts_intp: {npts}")
 
     # ── Consistency checks / warnings ────────────────────────────────────
     if nk_co_dt != Nk_co:
@@ -1313,6 +1267,89 @@ def _read_eqp_and_build_rescaling(
           f'QP_rescaling_val shape {QP_rescaling_val.shape}')
 
     return QP_rescaling_cond, QP_rescaling_val, Eqp_cond, Eqp_val, Edft_cond, Edft_val
+
+
+def _get_band_window_from_eqp(eqp_file: str, Nval: int) -> tuple[int, int]:
+    """
+    Scan the first k-point block of a BGW eqp.dat to find how many conduction
+    and valence bands it reports, relative to Nval (QE nbnd convention).
+
+    Uses the same "first column == '1'" heuristic as _read_eqp_and_build_rescaling
+    to tell band lines (spin_index=1, so parts[0]=='1') apart from the k-point
+    header line (kx ky kz nbnd), and stops at the second header (only the first
+    k-point's band list is needed — every k-point in eqp.dat reports the same set).
+
+    Returns
+    -------
+    nc, nv : int
+        Number of conduction bands (ic=0 -> LUMO) and valence bands (iv=0 -> HOMO)
+        implied by the band indices found, i.e. nc = max(iband) - Nval and
+        nv = Nval - min(iband) + 1.
+    """
+    iband_list = []
+    started = False
+    with open(eqp_file) as fh:
+        for line in fh:
+            parts = line.split()
+            if not parts:
+                continue
+            if parts[0] != '1':
+                if started:
+                    break   # second k-point header reached; first block is enough
+                started = True
+                continue
+            iband_list.append(int(parts[1]))
+    if not iband_list:
+        raise ValueError(f"Could not parse any bands from {eqp_file}")
+    nc = max(iband_list) - Nval
+    nv = Nval - min(iband_list) + 1
+    return nc, nv
+
+
+def _truncate_or_pad_bands(
+    g_cond: np.ndarray,
+    g_val:  np.ndarray,
+    nc_target: int,
+    nv_target: int,
+    label: str = "",
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Truncate (keeping the bands closest to the band edge) or zero-pad the last
+    two axes of g_cond/g_val to (nc_target, nc_target) / (nv_target, nv_target).
+
+    Same band-matching convention used by the dtmat-interpolation path's own
+    consistency checks (see interpolate_elph): ic=0 -> LUMO, iv=0 -> HOMO, so
+    slicing [:n] keeps the n bands nearest the gap.
+    """
+    nc_avail = g_cond.shape[-1]
+    nv_avail = g_val.shape[-1]
+    tag = f"{label} " if label else ""
+
+    if nc_avail > nc_target:
+        print(f"  NOTE: {tag}el-ph has {nc_avail} conduction bands but only "
+              f"{nc_target} are needed — truncating to the lowest {nc_target} "
+              f"cond bands (closest to LUMO).")
+        g_cond = g_cond[..., :nc_target, :nc_target]
+    elif nc_avail < nc_target:
+        warnings.warn(f"{tag}el-ph only has {nc_avail} conduction bands but "
+                       f"{nc_target} are needed — missing higher bands zero-padded.")
+        pad = np.zeros((*g_cond.shape[:-2], nc_target, nc_target), dtype=g_cond.dtype)
+        pad[..., :nc_avail, :nc_avail] = g_cond
+        g_cond = pad
+
+    if nv_avail > nv_target:
+        print(f"  NOTE: {tag}el-ph has {nv_avail} valence bands but only "
+              f"{nv_target} are needed — truncating to the highest {nv_target} "
+              f"val bands (closest to HOMO).")
+        g_val = g_val[..., :nv_target, :nv_target]
+    elif nv_avail < nv_target:
+        warnings.warn(f"{tag}el-ph only has {nv_avail} valence bands but "
+                       f"{nv_target} are needed — missing lower bands zero-padded.")
+        pad = np.zeros((*g_val.shape[:-2], nv_target, nv_target), dtype=g_val.dtype)
+        pad[..., :nv_avail, :nv_avail] = g_val
+        g_val = pad
+
+    return g_cond, g_val
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1594,17 +1631,21 @@ if __name__ == '__main__':
                       help="Manual override for Nval (highest occupied band index, QE nbnd "
                            "convention), bypassing both --wfn_origin and --qe_input.")
 
-    # Alternative interpolation mode (replaces the need for --dtmat)
-    g_alt.add_argument('--wfn_fi_same_wfn_co', action='store_true',
-                      help="Set when WFN_fi == WFN_co, i.e. el-ph coefficients were "
-                           "computed directly on the fine grid. The coarse-to-fine "
-                           "transformation is taken to be the identity and --dtmat "
-                           "is ignored (no dtmat file needed).")
-
-    # Alternative run mode (stop after the coarse stage)
+    # Alternative run mode: el-ph computed directly on the fine grid, no
+    # coarse-to-fine transformation needed (no --dtmat/--wfn_to_interpolate
+    # required). If --eqp is a valid file, the assembled el-ph is still
+    # band-matched to the BSE calculation's Nc/Nv window and QP-rescaled
+    # (exactly like the interpolation stage would do), and written to
+    # --elph_fine so it can be used directly as elph_fine_h5_file in
+    # forces.inp. If --eqp is not given/found, only the raw --elph_coarse
+    # file is written (no band-matching/QP-rescaling).
     g_alt.add_argument('--skip-interpolation', dest='skip_interpolation', action='store_true',
-                      help="Stop after writing --elph_coarse. --dtmat/--wfn_to_interpolate/--eqp are "
-                           "ignored and --elph_fine is NOT written.")
+                      help="El-ph coefficients were computed directly on the fine grid "
+                           "(no coarse-to-fine transformation needed). --dtmat/"
+                           "--wfn_to_interpolate are ignored. If --eqp is found, the "
+                           "assembled el-ph is band-matched to it and QP-rescaled, then "
+                           "written to --elph_fine (ready for forces.inp); otherwise only "
+                           "--elph_coarse (raw, unmatched) is written.")
 
     # Optional toggles
     g_alt.add_argument('--no-ASR', dest='asr', action='store_false', default=True,
@@ -1906,8 +1947,47 @@ if __name__ == '__main__':
     _write_qpoints_dat(qpts_cart_for_interp, qpts_co_for_interp, 'co', HERE)
 
     if args.skip_interpolation:
-        print(f"\n--skip-interpolation set: stopping after coarse el-ph. "
-              f"{args.elph_fine} NOT written.")
+        print(f"\n--skip-interpolation set: el-ph was computed directly on the "
+              f"fine grid (no coarse-to-fine transformation needed).")
+
+        if args.eqp is not None and os.path.isfile(args.eqp):
+            nc_target, nv_target = _get_band_window_from_eqp(args.eqp, Nval)
+            print(f"  Matching band window from {args.eqp}: "
+                  f"{nc_target} cond, {nv_target} val bands.")
+
+            g_cond_cart, g_val_cart = _truncate_or_pad_bands(
+                g_cond_cart, g_val_cart, nc_target, nv_target,
+                label="direct-fine-grid")
+            if has_g_mode:
+                g_cond_mode, g_val_mode = _truncate_or_pad_bands(
+                    g_cond_mode, g_val_mode, nc_target, nv_target,
+                    label="direct-fine-grid")
+
+            nk_here = len(kpts_co_for_interp)
+            qp_ratio_c, qp_ratio_v, Eqp_c, Eqp_v, Edft_c, Edft_v = \
+                _read_eqp_and_build_rescaling(args.eqp, nk_here, nc_target, nv_target, Nval)
+            qp_rescaling = dict(cond=qp_ratio_c, val=qp_ratio_v,
+                                 Eqp_cond=Eqp_c, Eqp_val=Eqp_v,
+                                 Edft_cond=Edft_c, Edft_val=Edft_v)
+
+            save_elph_h5(
+                args.elph_fine, g_cond_cart, g_val_cart, g_cond_mode, g_val_mode,
+                kpoints_crystal=kpts_co_for_interp, qpoints_crystal=qpts_co_for_interp,
+                qpoints_cart=qpts_cart_for_interp, phonon_modes=phonon_modes_dict,
+                structure=structure, qp_rescaling=qp_rescaling,
+                extra_attrs={'grid': 'fine', 'Nval': Nval,
+                             'interpolation': 'identity (el-ph computed directly on '
+                                               'the fine grid, --skip-interpolation)',
+                             'source_elph_coarse': args.elph_coarse},
+            )
+            print(f"\n{args.elph_fine} written: band-matched, QP-rescaled el-ph, "
+                  f"ready to use as elph_fine_h5_file in forces.inp.")
+        else:
+            print(f"  No usable --eqp file found ('{args.eqp}') — skipping band-matching "
+                  f"and QP rescaling. Only the raw {args.elph_coarse} is available. Pass "
+                  f"--eqp pointing at the fine-grid eqp.dat to also get a band-matched, "
+                  f"QP-rescaled {args.elph_fine}.")
+
         sys.exit(0)
 
     # ══════════════════════════════════════════════════════════════════════
@@ -1928,10 +2008,6 @@ if __name__ == '__main__':
             rk = fh['mf_header/kpoints/rk'][:]  # h5py reads Fortran rk(3,nrk) as (nrk, 3)
             kpts_fi = rk if rk.shape[-1] == 3 else rk.T
         print(f"  {len(kpts_fi)} fine k-points loaded, shape {kpts_fi.shape}")
-    elif args.wfn_fi_same_wfn_co:
-        print(f"File not found for --wfn_to_interpolate: '{wfn_to_interpolate_path}' — fine k-points "
-              f"will default to the coarse grid (--wfn_fi_same_wfn_co).")
-        kpts_fi = kpts_co_for_interp
     else:
         print(f"WARNING: file not found for --wfn_to_interpolate: '{wfn_to_interpolate_path}'. "
               f"'Kpoints_in_elph_file' will NOT be saved in the output, and "
@@ -1941,10 +2017,9 @@ if __name__ == '__main__':
     _common = dict(
         kpts_co=kpts_co_for_interp,
         qpts_co=qpts_co_for_interp,
-        dtmat_file=None if args.wfn_fi_same_wfn_co else args.dtmat,
+        dtmat_file=args.dtmat,
         kpts_fi_crys=kpts_fi,
         complex_flavor=not args.real,
-        wfn_fi_same_wfn_co=args.wfn_fi_same_wfn_co,
     )
 
     elph_cond_mode_fi = elph_val_mode_fi = None
@@ -1985,8 +2060,7 @@ if __name__ == '__main__':
         extra_attrs={'grid': 'fine', 'Nval': Nval,
                      'interpolation': 'BerkeleyGW dtmat coarse-to-fine',
                      'source_elph_coarse': args.elph_coarse,
-                     'source_dtmat': ('identity (wfn_fi_same_wfn_co)'
-                                       if args.wfn_fi_same_wfn_co else args.dtmat)},
+                     'source_dtmat': args.dtmat},
     )
 
     _write_qpoints_dat(qpts_cart_for_interp, qpts_co_for_interp, 'fi', HERE)

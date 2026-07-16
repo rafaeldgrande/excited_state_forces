@@ -66,11 +66,20 @@ where $\mathbf{k}_{\rm co}$ is the nearest coarse k-point to $\mathbf{k}_{\rm fi
 - `matdyn.modes` (optional — produced by `matdyn.x`; enables phonon-mode projection)
 
 **Prerequisites (interpolation, i.e. unless `--skip-interpolation`):**
-- `dtmat`, produced by BerkeleyGW's `absorption.<flavour>.x` (or
-  `--wfn_fi_same_wfn_co` if el-ph was computed directly on the fine grid, in
-  which case no `dtmat` is needed)
+- `dtmat`, produced by BerkeleyGW's `absorption.<flavour>.x`. Not needed at all
+  if el-ph was computed directly on the fine grid (DFPT run on the fine k/q-grid
+  itself) — use `--skip-interpolation` instead, see below.
 - `WFN_fi.h5` (`--wfn_to_interpolate`) for finite-q interpolation (auto-discovered next to `--dtmat` if not given)
 - `eqp.dat` (`--eqp`, optional) — fine-grid QP energies from `inteqp.x`, for QP rescaling
+
+**`--skip-interpolation`** (el-ph computed directly on the fine grid, e.g. DFPT
+run on the same k/q-grid the BSE calculation uses — no coarse-to-fine
+transformation needed, so `--dtmat`/`--wfn_to_interpolate` are irrelevant): if
+`--eqp` points to a valid fine-grid `eqp.dat`, the assembled el-ph is still
+band-matched to its Nc/Nv window and QP-rescaled — exactly like the
+interpolation stage would do — and written to `--elph_fine`, ready to use
+directly as `elph_fine_h5_file` in `forces.inp`. Without `--eqp`, only the raw,
+unmatched `--elph_coarse` is written.
 
 **Usage:**
 
@@ -79,7 +88,13 @@ where $\mathbf{k}_{\rm co}$ is the nearest coarse k-point to $\mathbf{k}_{\rm fi
 python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \
     --dtmat dtmat --wfn_to_interpolate WFN_fi.h5 --eqp eqp.dat
 
-# Coarse only (no interpolation)
+# El-ph computed directly on the fine grid (DFPT run on the fine k/q-grid
+# itself): no dtmat needed. --eqp band-matches + QP-rescales the result and
+# writes elph_interpolated_kgrid.h5, ready to use as elph_fine_h5_file.
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \
+    --skip-interpolation --eqp eqp.dat
+
+# Same, but without --eqp: only the raw, unmatched elph_orig_kgrid.h5 is written
 python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \
     --skip-interpolation
 
@@ -90,11 +105,6 @@ python elph_xml_to_h5.py --elph_coarse elph_orig_kgrid.h5 --wfn_origin WFN_co.h5
 # No WFN_co.h5 available: fall back to scf.in / scf.out / pseudopotentials
 python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --qe_input scf.in \
     --dtmat dtmat --wfn_to_interpolate WFN_fi.h5
-
-# WFN_fi == WFN_co (el-ph computed directly on the fine grid): no dtmat needed,
-# coarse-to-fine transformation is the identity
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \
-    --wfn_fi_same_wfn_co
 
 # Manual Nval override (takes precedence over WFN_co.h5 / scf.in either way)
 python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 --Nval 13
@@ -114,13 +124,12 @@ python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 --no
 | `--qe_input` | `scf.in` | QE pw.x input file used for cell/k-points/`nbnd`/Nval when `--wfn_origin` is not given or not found |
 | `--Nval` | `None` | Manual override for Nval (highest occupied band index, QE `nbnd` convention). Takes precedence over `--wfn_origin`/`--qe_input` either way |
 | `--elph_coarse` | `elph_orig_kgrid.h5` | Output path when `--elph_dir` is given; required input path (must exist) when `--elph_dir` is omitted |
-| `--elph_fine` | `elph_interpolated_kgrid.h5` | Output HDF5 filename for the fine-grid (interpolated) el-ph file |
-| `--skip-interpolation` | off | Stop after writing `--elph_coarse`. `--dtmat`/`--wfn_to_interpolate`/`--eqp` are ignored and `--elph_fine` is NOT written |
+| `--elph_fine` | `elph_interpolated_kgrid.h5` | Output HDF5 filename for the fine-grid el-ph file (interpolated, or band-matched/QP-rescaled directly, see `--skip-interpolation`) |
+| `--skip-interpolation` | off | El-ph computed directly on the fine grid; `--dtmat`/`--wfn_to_interpolate` ignored. If `--eqp` is found, band-matches + QP-rescales and writes `--elph_fine`; otherwise only the raw `--elph_coarse` is written |
 | `--dtmat` | `dtmat` | Path to BerkeleyGW `dtmat` binary |
 | `--wfn_to_interpolate` | `WFN_fi.h5` | Path to `WFN_fi.h5` (required for finite-q interpolation; auto-discovered next to `--dtmat` if not found) |
 | `--real` | off | Use real-flavor `dtmat` (default: complex) |
-| `--wfn_fi_same_wfn_co` | off | Set when `WFN_fi == WFN_co` (el-ph coefficients computed directly on the fine grid). Skips reading `dtmat` and uses the identity matrix for the coarse-to-fine wavefunction overlaps; fine k-points default to the coarse grid if `--wfn_to_interpolate` is not found |
-| `--eqp` | `eqp.dat` | Path to fine-grid `eqp.dat` (output of `inteqp.x`). When found, saves QP rescaling matrices and Eqp/Edft energies into `--elph_fine` |
+| `--eqp` | `eqp.dat` | Path to fine-grid `eqp.dat` (output of `inteqp.x`). When found, saves QP rescaling matrices and Eqp/Edft energies into `--elph_fine` (interpolation stage, or `--skip-interpolation` band-matching) |
 
 **Output HDF5 layout** (`elph_orig_kgrid.h5` and `elph_interpolated_kgrid.h5` share the exact
 same dataset schema — only the numeric coefficients and k-points differ,
