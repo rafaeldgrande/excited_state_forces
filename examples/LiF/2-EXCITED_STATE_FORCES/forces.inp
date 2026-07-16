@@ -1,4 +1,4 @@
 iexc 1
 eqp_file         ../0-GWBSE/GWBSE/4-absorption/eqp.dat
 exciton_file     ../0-GWBSE/GWBSE/4-absorption/eigenvectors.h5
-elph_fine_h5_file ../1-COLLECT_ELPH_COEFFS/elph_fine.h5 
+elph_fine_h5_file ../1-COLLECT_ELPH_COEFFS/elph_interpolated_kgrid.h5 

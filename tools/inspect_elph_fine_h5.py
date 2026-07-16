@@ -1,9 +1,9 @@
-"""Print all groups, datasets, and attributes in an elph_fine.h5 file."""
+"""Print all groups, datasets, and attributes in an elph_interpolated_kgrid.h5 file."""
 import sys
 import numpy as np
 import h5py
 
-fname = sys.argv[1] if len(sys.argv) > 1 else 'elph_fine.h5'
+fname = sys.argv[1] if len(sys.argv) > 1 else 'elph_interpolated_kgrid.h5'
 
 def print_item(name, obj):
     if isinstance(obj, h5py.Dataset):

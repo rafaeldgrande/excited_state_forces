@@ -57,7 +57,7 @@ This renormalization is applied by default (set `no_renorm_elph True` to skip it
 | File | Source | Description |
 |------|--------|-------------|
 | `forces.inp` | user | Configuration file (see parameters table below) |
-| `elph_fine.h5` | `interpolate_elph_bgw.py` | Pre-interpolated el-ph matrix elements on the fine BSE k-grid |
+| `elph_interpolated_kgrid.h5` | `interpolate_elph_bgw.py` | Pre-interpolated el-ph matrix elements on the fine BSE k-grid |
 | `eigenvectors.h5` | BerkeleyGW `absorption` | BSE exciton eigenvectors and system parameters |
 | `eqp1.dat` (or `eqp.dat`) | BerkeleyGW `sigma` | Quasiparticle energy levels |
 | `exciton_pairs.dat` | user (optional) | List of exciton pairs $(i,j)$ to compute; one pair per line |
@@ -72,7 +72,7 @@ This renormalization is applied by default (set `no_renorm_elph True` to skip it
 | `jexc` | int | same as `iexc` | Exciton index $j$ |
 | `eqp_file` | str | `eqp1.dat` | QP energies file |
 | `exciton_file` | str | `eigenvectors.h5` | BSE eigenvectors file |
-| `elph_fine_h5_file` | str | `elph_fine.h5` | Pre-interpolated el-ph HDF5 file |
+| `elph_fine_h5_file` | str | `elph_interpolated_kgrid.h5` | Pre-interpolated el-ph HDF5 file |
 | `ncbnds_sum` | int | all | Number of conduction bands to include in the sum |
 | `nvbnds_sum` | int | all | Number of valence bands to include in the sum |
 | `acoutic_sum_rule` | bool | True | Enforce acoustic sum rule (zero-sum over atoms) |
@@ -86,7 +86,7 @@ This renormalization is applied by default (set `no_renorm_elph True` to skip it
 | `just_RPA_diag` | bool | False | Skip off-diagonal el-ph; compute only the RPA_diag approximation |
 | `use_hermicity_F` | bool | True | Exploit $F_{cvc'v'} = F^*_{c'v'cv}$ to halve the number of computed terms |
 | `factor_head` | float | 1.0 | Multiplicative factor applied to the head of BSE matrix elements |
-| `dfpt_irreps_list` | list[int] | all | 1-based list of irreducible representations to load from `elph_fine.h5` |
+| `dfpt_irreps_list` | list[int] | all | 1-based list of irreducible representations to load from `elph_interpolated_kgrid.h5` |
 | `log_k_points` | bool | False | Write k-points used in BSE and DFPT calculations to stdout |
 | `read_Acvk_pos` | bool | False | Read $A_{cvk}$ from files produced by `summarize_eigenvectors.x` |
 | `Acvk_directory` | str | `./` | Directory containing the $A_{cvk}$ files |
@@ -192,7 +192,7 @@ python $ESF_DIR/elph_interpolation/interpolate_elph_bgw.py \
     --dtmat dtmat \
     --Nval <number_of_valence_bands>
 ```
-Produces `elph_fine.h5` (fine-grid el-ph, ready for `excited_forces.py`).
+Produces `elph_interpolated_kgrid.h5` (fine-grid el-ph, ready for `excited_forces.py`).
 
 **Step 3: Create `forces.inp`**
 
@@ -200,7 +200,7 @@ Produces `elph_fine.h5` (fine-grid el-ph, ready for `excited_forces.py`).
 iexc                1
 eqp_file            eqp1.dat
 exciton_file        eigenvectors.h5
-elph_fine_h5_file   elph_fine.h5
+elph_fine_h5_file   elph_interpolated_kgrid.h5
 ```
 
 Optionally enable multiprocessing and output options:
@@ -248,7 +248,7 @@ The el-ph file must include the phonon at $\mathbf{q} = \mathbf{Q}_B - \mathbf{Q
 finite_q_phonon       True
 exciton_A_file   eigenvectors_A.h5
 exciton_B_file   eigenvectors_B.h5
-elph_fine_h5_file     elph_fine.h5
+elph_fine_h5_file     elph_interpolated_kgrid.h5
 eqp_file              eqp1.dat
 read_exciton_pairs_file  True
 ```
@@ -268,7 +268,7 @@ python $ESF_DIR/main/excited_forces.py
 
 The code automatically:
 1. Reads $\mathbf{Q}_A$ from `eigenvectors_A.h5` and $\mathbf{Q}_B$ from `eigenvectors_B.h5`
-2. Computes $\mathbf{q} = \mathbf{Q}_B - \mathbf{Q}_A$ and locates it in `elph_fine.h5`
+2. Computes $\mathbf{q} = \mathbf{Q}_B - \mathbf{Q}_A$ and locates it in `elph_interpolated_kgrid.h5`
 3. Applies the Q-shift to valence-band el-ph matrix elements
 4. Computes the exciton-phonon matrix elements
 

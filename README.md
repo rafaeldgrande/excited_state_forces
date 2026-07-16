@@ -73,7 +73,7 @@ python $ESF_DIR/elph/interpolate_elph_bgw.py \
     --elph_coarse elph.h5 \
     --dtmat dtmat \
     --Nval <number_of_valence_bands>
-# → elph_fine.h5
+# → elph_interpolated_kgrid.h5
 ```
 
 ### Step 3: Create `forces.inp`
@@ -82,7 +82,7 @@ python $ESF_DIR/elph/interpolate_elph_bgw.py \
 iexc                1
 eqp_file            eqp1.dat
 exciton_file        eigenvectors.h5
-elph_fine_h5_file   elph_fine.h5
+elph_fine_h5_file   elph_interpolated_kgrid.h5
 ```
 
 See [`main/README.md`](main/README.md) for the full parameter reference.
@@ -114,20 +114,20 @@ python $ESF_DIR/resonant_raman/resonant_raman.py --flavor 0                  →
 
 ### 2nd Order Workflow
 
-Run from a `2nd_der_exc_ph/` directory. First compute 2nd-order el-ph coefficients from the same `elph_fine.h5`:
+Run from a `2nd_der_exc_ph/` directory. First compute 2nd-order el-ph coefficients from the same `elph_interpolated_kgrid.h5`:
 
 ```bash
 # Step 1: Compute 2nd-order el-ph coefficients via perturbation theory
 python $ESF_DIR/elph/elph_coeffs_second_derivative.py \
-    --elph_fine ../1st_der_exc_ph/elph_fine.h5 \
+    --elph_fine ../1st_der_exc_ph/elph_interpolated_kgrid.h5 \
     --eqp eqp1.dat \
     --Nval <number_of_valence_bands> \
-    --out 2nd_order_elph_fine.h5
+    --out 2nd_order_elph_interpolated_kgrid.h5
 ```
 
 In `forces.inp`, point to the 2nd-order file:
 ```
-elph_fine_h5_file              2nd_order_elph_fine.h5
+elph_fine_h5_file              2nd_order_elph_interpolated_kgrid.h5
 use_second_derivatives_elph_coeffs  True
 ```
 
@@ -154,8 +154,8 @@ Scripts for electron-phonon matrix elements. See [`elph/README.md`](elph/README.
 | Script | Description |
 |--------|-------------|
 | `assemble_elph_h5.py` | Reads QE DFPT XML files, rotates to Cartesian basis → `elph.h5` |
-| `interpolate_elph_bgw.py` | Interpolates coarse → fine k-grid via BGW `dtmat` → `elph_fine.h5` |
-| `elph_coeffs_second_derivative.py` | 2nd-order el-ph via perturbation theory → `2nd_order_elph_fine.h5` |
+| `interpolate_elph_bgw.py` | Interpolates coarse → fine k-grid via BGW `dtmat` → `elph_interpolated_kgrid.h5` |
+| `elph_coeffs_second_derivative.py` | 2nd-order el-ph via perturbation theory → `2nd_order_elph_interpolated_kgrid.h5` |
 | `bgw_binary_io.py` | Low-level reader for BerkeleyGW binary files (`dtmat`, `vmtxel`) |
 | `modify_WFN_header.py` | Replaces `/mf_header` in a `WFN.h5` file |
 
@@ -190,7 +190,7 @@ See [`resonant_raman/README.md`](resonant_raman/README.md).
 |--------|-------------|
 | `susceptibility_tensors_first_order.py` | 1st-order polarizability derivatives vs. excitation energy |
 | `susceptibility_tensors_second_order.py` | 2nd-order susceptibility tensors (triple + double resonance); `--finite-q` for finite-q phonons |
-| `susceptibility_tensors_IPA.py` | IPA susceptibility tensors (1st and 2nd order) from `elph_fine.h5` directly |
+| `susceptibility_tensors_IPA.py` | IPA susceptibility tensors (1st and 2nd order) from `elph_interpolated_kgrid.h5` directly |
 | `resonant_raman.py` | Raman intensity maps; flavors 0–8 covering 1st/2nd order BSE and IPA contributions |
 | `plotting/plot_raman_spectra.py` | Raman spectra at fixed excitation energies |
 | `plotting/plot_susceptibility_tensors.py` | Raw susceptibility tensor components vs. excitation energy |

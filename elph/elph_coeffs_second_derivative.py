@@ -21,16 +21,16 @@ The input Cartesian el-ph from elph_xml_to_h5.py (elph_cond_cart /
 elph_val_cart, units Ry/bohr) is used directly — no displacement-pattern
 rotation is needed.  The result g2 has units Ry/bohr^2.
 
-The output is saved in the same HDF5 format as elph_fine.h5, so it can be
+The output is saved in the same HDF5 format as elph_interpolated_kgrid.h5, so it can be
 used as elph_fine_h5_file in forces.inp with use_second_derivatives_elph_coeffs = True.
 
 Usage
 -----
 python elph_coeffs_second_derivative.py \\
-    --elph_fine elph_fine.h5 \\
+    --elph_fine elph_interpolated_kgrid.h5 \\
     --eqp eqp1.dat \\
     --Nval 13 \\
-    --out 2nd_order_elph_fine.h5
+    --out 2nd_order_elph_interpolated_kgrid.h5
 """
 
 import sys
@@ -149,15 +149,15 @@ def _build_q_map(qpts_elph_cart, ph_qpts_cart, tol=1e-5):
 
 if __name__ == '__main__':
     cli = argparse.ArgumentParser(
-        description='Compute second-order el-ph from elph_fine.h5 (Cartesian basis).')
-    cli.add_argument('--elph_fine', default='elph_fine.h5',
-                     help='Input from elph_xml_to_h5.py (default: elph_fine.h5)')
+        description='Compute second-order el-ph from elph_interpolated_kgrid.h5 (Cartesian basis).')
+    cli.add_argument('--elph_fine', default='elph_interpolated_kgrid.h5',
+                     help='Input from elph_xml_to_h5.py (default: elph_interpolated_kgrid.h5)')
     cli.add_argument('--eqp',       default='eqp1.dat',
                      help='Fine-grid QP energy file from absorption step (default: eqp1.dat)')
     cli.add_argument('--Nval',      required=True, type=int,
                      help='Number of valence bands in DFPT (QE nbnd convention)')
-    cli.add_argument('--out',       default='2nd_order_elph_fine.h5',
-                     help='Output HDF5 filename (default: 2nd_order_elph_fine.h5)')
+    cli.add_argument('--out',       default='2nd_order_elph_interpolated_kgrid.h5',
+                     help='Output HDF5 filename (default: 2nd_order_elph_interpolated_kgrid.h5)')
     args = cli.parse_args()
 
     # ── 1. Load fine-grid el-ph ───────────────────────────────────────────────
@@ -297,7 +297,7 @@ if __name__ == '__main__':
         out.attrs['Nv_fi']           = Nv
         out.attrs['Nval']            = args.Nval
         out.attrs['note']            = ('Second-order el-ph coefficients (Ry/bohr^2), '
-                                        'same format as elph_fine.h5')
+                                        'same format as elph_interpolated_kgrid.h5')
         out.attrs['source_elph_fine'] = args.elph_fine
         out.attrs['source_eqp']       = args.eqp
 

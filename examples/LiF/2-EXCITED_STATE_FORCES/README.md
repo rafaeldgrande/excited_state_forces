@@ -3,7 +3,7 @@ To execute the excited state forces code
 bash exc_forces.bash
 
 This is the minimum example of running the ESF code. 
-It needs the elph coefficients (elph_fine.h5), quasiparticle energy levels (eqp.dat) and exciton coefficients (eigenvectors.h5).
+It needs the elph coefficients (elph_interpolated_kgrid.h5), quasiparticle energy levels (eqp.dat) and exciton coefficients (eigenvectors.h5).
 iexc tells the exciton index to which the ESF will be computed.  
 
 The output exc_forces_1_1_cart.dat is exc_forces_1_1_cart.dat which are the excited state forces in cartesian basis.

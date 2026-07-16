@@ -89,12 +89,12 @@ Both workflows assume the el-ph preparation steps from [`elph/README.md`](../elp
 
 ```
 elph/assemble_elph_h5.py   → elph.h5
-elph/interpolate_elph_bgw.py → elph_fine.h5
+elph/interpolate_elph_bgw.py → elph_interpolated_kgrid.h5
 ```
 
 `forces.inp` must include:
 ```
-elph_fine_h5_file   elph_fine.h5
+elph_fine_h5_file   elph_interpolated_kgrid.h5
 save_forces_h5      True          # required — writes exc_forces.h5
 read_exciton_pairs_file  True     # required — reads exciton_pairs.dat
 ```
@@ -130,20 +130,20 @@ python $ESF_DIR/resonant_raman/resonant_raman.py --flavor 0
 
 ### 2nd Order Resonant Raman
 
-Run from the `2nd_der_exc_ph/` directory. Requires the 1st-order `elph_fine.h5` from the prior workflow.
+Run from the `2nd_der_exc_ph/` directory. Requires the 1st-order `elph_interpolated_kgrid.h5` from the prior workflow.
 
 ```bash
 # Step 1: Compute 2nd-order el-ph coefficients via perturbation theory
 python $ESF_DIR/elph/elph_coeffs_second_derivative.py \
-    --elph_fine ../1st_der_exc_ph/elph_fine.h5 \
+    --elph_fine ../1st_der_exc_ph/elph_interpolated_kgrid.h5 \
     --eqp eqp1.dat \
     --Nval <Nval> \
-    --out 2nd_order_elph_fine.h5
-# → 2nd_order_elph_fine.h5
+    --out 2nd_order_elph_interpolated_kgrid.h5
+# → 2nd_order_elph_interpolated_kgrid.h5
 
 # Step 2: Compute 2nd-order exciton-phonon matrix elements
 # forces.inp must have:
-#   elph_fine_h5_file              2nd_order_elph_fine.h5
+#   elph_fine_h5_file              2nd_order_elph_interpolated_kgrid.h5
 #   use_second_derivatives_elph_coeffs  True
 #   save_forces_h5  True
 #   read_exciton_pairs_file  True
@@ -186,7 +186,7 @@ The `--flavor` argument to `resonant_raman.py` selects which contributions to in
 | 7 | IPA second order | `--ipa-second-order-file` |
 | 8 | IPA first + second order | `--ipa-first-order-file` and `--ipa-second-order-file` |
 
-Flavors 0–5 use BSE exciton-phonon matrix elements from `excited_forces.py`. Flavors 6–8 use the Independent Particle Approximation (IPA) computed directly from the interpolated el-ph coefficients in `elph_fine.h5`.
+Flavors 0–5 use BSE exciton-phonon matrix elements from `excited_forces.py`. Flavors 6–8 use the Independent Particle Approximation (IPA) computed directly from the interpolated el-ph coefficients in `elph_interpolated_kgrid.h5`.
 
 ---
 
@@ -194,7 +194,7 @@ Flavors 0–5 use BSE exciton-phonon matrix elements from `excited_forces.py`. F
 
 ### IPA Workflow (flavors 6–8)
 
-The IPA susceptibility tensors are computed directly from `elph_fine.h5` (produced by `interpolate_elph_bgw.py` with `--eqp`), bypassing the BSE exciton-phonon step. This is faster but omits excitonic effects.
+The IPA susceptibility tensors are computed directly from `elph_interpolated_kgrid.h5` (produced by `interpolate_elph_bgw.py` with `--eqp`), bypassing the BSE exciton-phonon step. This is faster but omits excitonic effects.
 
 ```bash
 # First order (gamma point, default iq=0)
@@ -461,20 +461,20 @@ python plotting/interactive_vis_resonant_map_2D_materials.py \
 
 ### `susceptibility_tensors_IPA.py`
 
-Computes IPA susceptibility tensors for 1st and/or 2nd order resonant Raman using el-ph coefficients from `elph_fine.h5` directly (bypassing the BSE exciton-phonon step). QP renormalization of el-ph is applied automatically when `elph_fine.h5` contains `QP_rescaling_matrix_cond/val` datasets (produced by `interpolate_elph_bgw.py --eqp`).
+Computes IPA susceptibility tensors for 1st and/or 2nd order resonant Raman using el-ph coefficients from `elph_interpolated_kgrid.h5` directly (bypassing the BSE exciton-phonon step). QP renormalization of el-ph is applied automatically when `elph_interpolated_kgrid.h5` contains `QP_rescaling_matrix_cond/val` datasets (produced by `interpolate_elph_bgw.py --eqp`).
 
 **Key arguments:**
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--elph_fine_file` | `elph_fine.h5` | Input from `interpolate_elph_bgw.py` (must include `--eqp` datasets for QP renorm) |
+| `--elph_fine_file` | `elph_interpolated_kgrid.h5` | Input from `interpolate_elph_bgw.py` (must include `--eqp` datasets for QP renorm) |
 | `--dip_mom_noeh_file_b1/b2/b3` | `eigenvalues_b{1,2,3}_noeh.dat` | Dipole moment files (IPA, no electron-hole interaction) |
 | `--dE` | `0.001` | Excitation energy grid step (eV) |
 | `--gamma` | `0.01` | Broadening (eV) |
 | `--no_renorm_elph` | off | Skip QP renormalization of el-ph coefficients |
 | `--skip_first_order_calculation` | off | Skip first-order susceptibility (saves time when only second-order is needed) |
 | `--compute_second_order` | off | Compute and save the second-order susceptibility tensor |
-| `--iq` | `0` | q-point index in `elph_fine.h5` for the second-order calculation |
+| `--iq` | `0` | q-point index in `elph_interpolated_kgrid.h5` for the second-order calculation |
 | `--vectorized_flavor` | `2` | Vectorization level for first order |
 | `--vectorized_flavor_second_order` | `1` | Vectorization level for second order |
 

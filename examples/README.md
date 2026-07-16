@@ -141,7 +141,7 @@ python $ESF/elph/interpolate_elph_bgw.py \
     --elph_coarse ../3-wfn_bse/elph.h5 \
     --dtmat dtmat \
     --Nval 5
-# → produces elph_fine.h5
+# → produces elph_interpolated_kgrid.h5
 ```
 
 > **Note:** `dtmat` is produced by `absorption.cplx.x` and lives in `7-absorption/` (CO) or `8-absorption/` (LiF). Add a symlink: `ln -sf ../7-absorption/dtmat .`
@@ -158,7 +158,7 @@ python $ESF/main/excited_forces.py
 
 ## `forces.inp` — Current vs. Updated Format
 
-> **The `forces.inp` files in these examples use the old `el_ph_dir` parameter, which is no longer supported.** The code now reads a pre-interpolated `elph_fine.h5` file produced by `elph/interpolate_elph_bgw.py`.
+> **The `forces.inp` files in these examples use the old `el_ph_dir` parameter, which is no longer supported.** The code now reads a pre-interpolated `elph_interpolated_kgrid.h5` file produced by `elph/interpolate_elph_bgw.py`.
 
 Replace the old format:
 ```
@@ -169,7 +169,7 @@ el_ph_dir   CO.phsave/
 With the new format:
 ```
 # NEW
-elph_fine_h5_file   elph_fine.h5
+elph_fine_h5_file   elph_interpolated_kgrid.h5
 ```
 
 A minimal `forces.inp` for these examples:
@@ -178,7 +178,7 @@ A minimal `forces.inp` for these examples:
 iexc                1
 eqp_file            eqp.dat
 exciton_file        eigenvectors.h5
-elph_fine_h5_file   elph_fine.h5
+elph_fine_h5_file   elph_interpolated_kgrid.h5
 ```
 
 See [`main/README.md`](../main/README.md) for the full list of `forces.inp` parameters.

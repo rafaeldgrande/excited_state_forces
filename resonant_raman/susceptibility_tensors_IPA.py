@@ -333,8 +333,8 @@ def calculate_tensor_first_order_vectorized_over_modes_and_kcv(ialpha, ibeta):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--elph_fine_file', default='elph_fine.h5',
-                    help='HDF5 file from elph_xml_to_h5.py (default: elph_fine.h5)')
+parser.add_argument('--elph_fine_file', default='elph_interpolated_kgrid.h5',
+                    help='HDF5 file from elph_xml_to_h5.py (default: elph_interpolated_kgrid.h5)')
 parser.add_argument('--eqp_file', default='eqp.dat',
                     help='Fallback eqp.dat for QP energies when not stored in --elph_fine_file '
                          '(default: eqp.dat)')
@@ -418,7 +418,7 @@ print(f'  test_functions    : {test_functions}')
 print(f'  write_dummy       : {args.write_dummy}')
 print(f'  flavor_energy_levels : {flavor_energy_levels}. 1 = GW, 2 = DFT')
 print(f'  skip_first_order  : {skip_first_order_calculation}')
-print(f'  iq (second order) : {iq_second_order}  (q-point index in elph_fine.h5)')
+print(f'  iq (second order) : {iq_second_order}  (q-point index in elph_interpolated_kgrid.h5)')
 print('---------------\n')
 
 # Energy grid
@@ -426,7 +426,7 @@ Ex = np.arange(Emin, Emax, dE)  # eV
 Nfreq = Ex.shape[0]
 
 # ---------------------------------------------------------------------------
-# 1-3. Load from elph_fine.h5 (elph_xml_to_h5.py output)
+# 1-3. Load from elph_interpolated_kgrid.h5 (elph_xml_to_h5.py output)
 # ---------------------------------------------------------------------------
 _TOL_Q = 1e-5
 Eqp_cond = Eqp_val = Edft_cond = Edft_val = None
@@ -666,7 +666,7 @@ if compute_second_order:
         nq_avail = len(_qpts_cryst)
         if iq_second_order < 0 or iq_second_order >= nq_avail:
             sys.exit(f'ERROR: --iq {iq_second_order} out of range '
-                     f'(elph_fine.h5 has {nq_avail} q-points, indices 0..{nq_avail-1}).')
+                     f'(elph_interpolated_kgrid.h5 has {nq_avail} q-points, indices 0..{nq_avail-1}).')
         q_crystal = _qpts_cryst[iq_second_order]
         print(f'  q-point iq={iq_second_order}: q_crystal = {q_crystal}')
 
