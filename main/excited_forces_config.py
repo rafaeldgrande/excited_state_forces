@@ -70,7 +70,7 @@ config = {
     "read_exciton_pairs_file": False,
     "exciton_pairs": [],
 
-    'elph_fine_h5_file': 'elph_fine.h5',  # pre-interpolated fine-grid el-ph (from elph_xml_to_h5.py)
+    'elph_fine_h5_file': 'elph_interpolated_kgrid.h5',  # pre-interpolated fine-grid el-ph (from elph_xml_to_h5.py)
     'use_second_derivatives_elph_coeffs': False, # if true, use the second derivatives of elph coefficients
                                                 # (g2_cond and g2_val) instead of the first derivatives to calculate the forces.
                                                 # The unit here in this case is ry / bohr**2
@@ -86,7 +86,7 @@ config = {
     'exciton_A_file': 'eigenvectors_A.h5',
     'exciton_B_file': 'eigenvectors_B.h5',
 
-    # When q_phonon = Q_B - Q_A is not found in elph_fine.h5, try -q_phonon as well.
+    # When q_phonon = Q_B - Q_A is not found in elph_interpolated_kgrid.h5, try -q_phonon as well.
     # Phonons at q and -q are related by inversion symmetry: g(-q)_{nm} = conj(g(q)_{mn}).
     'use_inv_symm_q_grid': True,
 }

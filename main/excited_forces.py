@@ -428,6 +428,29 @@ Please cite:
     # load pre-interpolated fine-grid el-ph from HDF5 (produced by elph_xml_to_h5.py)
     # elph_cond shape: (Nq, Nmodes, Nk_fi, Nc_fi, Nc_fi)
     # elph_val  shape: (Nq, Nmodes, Nk_fi, Nv_fi, Nv_fi)
+    def _match_band_count(arr, n_target, label):
+        # elph_xml_to_h5.py --skip-interpolation or --wfn_fi_same_wfn_co (elph
+        # computed directly on the fine grid) does not truncate cond/val blocks
+        # to the band range actually used by the BSE calculation (Ncbnds/Nvbnds
+        # from eigenvectors.h5) — only the dtmat-interpolation path does that.
+        # So the array read from the h5 file may carry more (or fewer) bands
+        # than the BSE Hamiltonian uses; match it here, keeping the bands
+        # closest to the band edge (index 0 = LUMO for cond, HOMO for val).
+        n_avail = arr.shape[-1]
+        if n_avail == n_target:
+            return arr
+        if n_avail > n_target:
+            print(f'  NOTE: {label} has {n_avail} bands in {elph_fine_h5_file} but '
+                  f'the BSE calculation uses {n_target} — truncating to the '
+                  f'{n_target} bands closest to the band edge.')
+            return arr[..., :n_target, :n_target]
+        print(f'  WARNING: {label} has only {n_avail} bands in {elph_fine_h5_file} '
+              f'but the BSE calculation uses {n_target} — zero-padding the '
+              f'missing {n_target - n_avail} bands.')
+        padded = np.zeros(arr.shape[:-2] + (n_target, n_target), dtype=arr.dtype)
+        padded[..., :n_avail, :n_avail] = arr
+        return padded
+
     time0 = time.clock_gettime(0)
     print(f'\nLoading fine-grid el-ph from {elph_fine_h5_file}')
     print(  '  This file contains interpolated electron-phonon matrix elements')
@@ -453,7 +476,7 @@ Please cite:
                       and 'phonon_modes/eigenvectors' in fh
                       and 'phonon_modes/frequencies' in fh)
         if not has_g_mode:
-            print('  WARNING: phonon-mode basis datasets not found in elph_fine.h5 '
+            print('  WARNING: phonon-mode basis datasets not found in elph_interpolated_kgrid.h5 '
                   '(matdyn.modes was not provided). Only Cartesian-basis forces will be computed.')
 
         # Track whether we need to apply the g(q) → g(-q) inversion-symmetry transform
@@ -480,7 +503,7 @@ Please cite:
                 print('Please re-run elph_xml_to_h5.py including this q-point.')
                 import sys; sys.exit(1)
             if not _used_minus_q:
-                print(f'  Found phonon q at index iq = {iq_phonon} in elph_fine.h5')
+                print(f'  Found phonon q at index iq = {iq_phonon} in elph_interpolated_kgrid.h5')
         else:
             iq_phonon = 0
 
@@ -512,6 +535,15 @@ Please cite:
                 elph_cond_mode = np.conj(elph_cond_mode).transpose(0, 1, 3, 2)
             elph_cond_cart = np.conj(elph_cond_cart).transpose(0, 1, 3, 2)
             print('  Applied conduction el-ph convention fix: g[k,n,m] → conj(g[k,m,n])')
+
+        # match elph band count to the BSE calculation (Ncbnds/Nvbnds from
+        # eigenvectors.h5) — see _match_band_count docstring above.
+        if has_g_mode:
+            elph_cond_mode = _match_band_count(elph_cond_mode, Ncbnds, 'elph_cond_mode')
+            elph_val_mode  = _match_band_count(elph_val_mode,  Nvbnds, 'elph_val_mode')
+        elph_cond_cart = _match_band_count(elph_cond_cart, Ncbnds, 'elph_cond_cart')
+        elph_val_cart  = _match_band_count(elph_val_cart,  Nvbnds, 'elph_val_cart')
+
         Kpoints_in_elph_file = fh['Kpoints_in_elph_file'][:]                          # (Nk_fi, 3) crystal coords
 
         Displacements = phonon_frequencies = None
@@ -542,6 +574,21 @@ Please cite:
             Edft_cond = fh['Edft_cond'][:] if 'Edft_cond' in fh else None
             Edft_val  = fh['Edft_val'][:] if 'Edft_val' in fh else None
             print(f'  Loaded QP rescaling matrices and energies from {elph_fine_h5_file}')
+
+            QP_rescaling_cond = _match_band_count(QP_rescaling_cond, Ncbnds, 'QP_rescaling_matrix_cond')
+            QP_rescaling_val  = _match_band_count(QP_rescaling_val,  Nvbnds, 'QP_rescaling_matrix_val')
+            if Eqp_cond.shape[-1] != Ncbnds:
+                Eqp_cond = (Eqp_cond[:, :Ncbnds] if Eqp_cond.shape[-1] > Ncbnds
+                            else np.pad(Eqp_cond, ((0, 0), (0, Ncbnds - Eqp_cond.shape[-1]))))
+            if Eqp_val.shape[-1] != Nvbnds:
+                Eqp_val = (Eqp_val[:, :Nvbnds] if Eqp_val.shape[-1] > Nvbnds
+                           else np.pad(Eqp_val, ((0, 0), (0, Nvbnds - Eqp_val.shape[-1]))))
+            if Edft_cond is not None and Edft_cond.shape[-1] != Ncbnds:
+                Edft_cond = (Edft_cond[:, :Ncbnds] if Edft_cond.shape[-1] > Ncbnds
+                             else np.pad(Edft_cond, ((0, 0), (0, Ncbnds - Edft_cond.shape[-1]))))
+            if Edft_val is not None and Edft_val.shape[-1] != Nvbnds:
+                Edft_val = (Edft_val[:, :Nvbnds] if Edft_val.shape[-1] > Nvbnds
+                            else np.pad(Edft_val, ((0, 0), (0, Nvbnds - Edft_val.shape[-1]))))
 
     _Np  = elph_cond_cart.shape[0]
     _Nk  = elph_cond_cart.shape[1]
