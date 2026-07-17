@@ -232,82 +232,53 @@ def get_el_ph_coeffs(iq, Nirreps):  # suitable for xml files written from qe 6.7
 
 def impose_ASR(elph, Displacements, MF_params, acoutic_sum_rule):
 
-    """Impose Acoustic Sum Rule on elph matrix elements
-    Test for just CO until now: I know that first and second displacement
-    patterns are C and O movements in -z direction respectivelly.
-    In future I need to project <i|dH/dr_mu|j> in some direction to remove
-    the center of mass translation. Other alternative is to write everything
-    in eigenmodes basis, so acoustic modes when q goes to 0 have null el-ph coeffs.
-    
+    """Impose Acoustic Sum Rule on elph matrix elements, at every k-point.
+
+    (Fixed 2026-07-17: this previously only applied the correction at
+    k-point index 0, hardcoded, leaving all other k-points' elph
+    uncorrected. Invisible for single-k (e.g. isolated-molecule CO) runs;
+    silently disabled ASR for all multi-k-point systems. Also vectorized
+    with numpy: the equivalent quadruple-nested pure-Python loop over
+    every k-point and band pair is impractically slow once it actually
+    covers all k-points instead of just k=0.)
     """
 
     if acoutic_sum_rule == True:
 
         print('\nApplying acoustic sum rule. Making sum_mu <i|dH/dmu|j> (mu dot n) = 0 for n = x,y,z.')
 
-        Nmodes = MF_params.Nmodes
-        Nat    = MF_params.Nat
+        Nat = MF_params.Nat
 
-        mod_sum_report_diag = []
-        mod_sum_report_offdiag = []
-        mod_sum_report_diag_afterASR = []
-        mod_sum_report_offdiag_afterASR = []    
+        # D_dir[mode, dir] = sum_atom Displacements[mode, atom, dir]
+        D_dir = Displacements.sum(axis=1)
 
-        shape_elph = np.shape(elph)
-        Nbnds_in_xml = shape_elph[2]
+        # sum_elph[k, i, j, dir] = sum_mode elph[mode, k, i, j] * D_dir[mode, dir]
+        sum_elph = np.einsum('mkij,md->kijd', elph, D_dir)
 
-        for iband1 in range(Nbnds_in_xml):
-            for iband2 in range(Nbnds_in_xml):
-                # sum_elph = elph[0, 0, iband1, iband2] + elph[1, 0, iband1, iband2]
+        # correction[mode, k, i, j] = sum_dir D_dir[mode, dir] * sum_elph[k, i, j, dir] / Nat
+        correction = np.einsum('md,kijd->mkij', D_dir, sum_elph) / Nat
+        elph = elph - correction
 
-                # elph[0, 0, iband1, iband2] = elph[0, 0, iband1, iband2] - sum_elph / 2
-                # elph[1, 0, iband1, iband2] = elph[1, 0, iband1, iband2] - sum_elph / 2
+        sum_elph_afterASR = np.einsum('mkij,md->kijd', elph, D_dir)
 
-                sum_elph = np.zeros((3), dtype=complex) # x, y, z
+        Nbnds_in_xml = elph.shape[2]
+        diag_idx = np.arange(Nbnds_in_xml)
+        offdiag_mask = ~np.eye(Nbnds_in_xml, dtype=bool)
 
-                for i_mode in range(Nmodes):
-                    for i_atom in range(Nat):
-                        sum_elph += elph[i_mode, 0, iband1, iband2] * Displacements[i_mode, i_atom]
+        diag_before = np.abs(sum_elph[:, diag_idx, diag_idx, :])
+        diag_after  = np.abs(sum_elph_afterASR[:, diag_idx, diag_idx, :])
+        offdiag_before = np.abs(sum_elph[:, offdiag_mask, :])
+        offdiag_after  = np.abs(sum_elph_afterASR[:, offdiag_mask, :])
 
-                for i_mode in range(Nmodes):
-                    for i_atom in range(Nat):
-                        for i_dir in range(3):
-                            elph[i_mode, 0, iband1, iband2] = elph[i_mode, 0, iband1, iband2] - Displacements[i_mode, i_atom, i_dir] * sum_elph[i_dir] / Nat
+        print("    Mean diag |g_ii| before ASR %.5f" %(np.mean(diag_before)), ' Ry/bohr')
+        print("    Max diag  |g_ii| before ASR %.5f" %(np.max(diag_before)), ' Ry/bohr')
+        print("    Mean diag |g_ii| after ASR  %.5f" %(np.mean(diag_after)), ' Ry/bohr')
+        print("    Max diag  |g_ii| after ASR  %.5f" %(np.max(diag_after)), ' Ry/bohr')
 
-                sum_elph_afterASR = np.zeros((3), dtype=complex) # x, y, z
-
-                for i_mode in range(Nmodes):
-                    for i_atom in range(Nat):
-                        sum_elph_afterASR += elph[i_mode, 0, iband1, iband2] * Displacements[i_mode, i_atom]
-
-
-                if iband1 == iband2:
-                    for i_dir in range(3):
-                        mod_sum_report_diag.append(abs(sum_elph[i_dir]))
-                        mod_sum_report_diag_afterASR.append(abs(sum_elph_afterASR[i_dir]))
-                else:
-                    for i_dir in range(3):
-                        mod_sum_report_offdiag.append(abs(sum_elph[i_dir]))
-                        mod_sum_report_offdiag_afterASR.append(abs(sum_elph_afterASR[i_dir]))
-
-        mean_val = np.mean(mod_sum_report_diag)
-        max_val  = np.max(mod_sum_report_diag)
-        mean_val_afterASR = np.mean(mod_sum_report_diag_afterASR)
-        max_val_afterASR  = np.max(mod_sum_report_diag_afterASR)
-        print("    Mean diag |g_ii| before ASR %.5f" %(mean_val), ' Ry/bohr')
-        print("    Max diag  |g_ii| before ASR %.5f" %(max_val), ' Ry/bohr')
-        print("    Mean diag |g_ii| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
-        print("    Max diag  |g_ii| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
-
-
-        mean_val = np.mean(mod_sum_report_offdiag)
-        max_val  = np.max(mod_sum_report_offdiag)
-        mean_val_afterASR = np.mean(mod_sum_report_offdiag_afterASR)
-        max_val_afterASR  = np.max(mod_sum_report_offdiag_afterASR)
-        print("    Mean offdiag |g_ij| before ASR %.5f" %(mean_val), ' Ry/bohr')
-        print("    Max offdiag  |g_ij| before ASR %.5f" %(max_val), ' Ry/bohr')
-        print("    Mean offdiag |g_ij| after ASR  %.5f" %(mean_val_afterASR), ' Ry/bohr')
-        print("    Max offdiag  |g_ij| after ASR  %.5f" %(max_val_afterASR), ' Ry/bohr')
+        print("    Mean offdiag |g_ij| before ASR %.5f" %(np.mean(offdiag_before)), ' Ry/bohr')
+        print("    Max offdiag  |g_ij| before ASR %.5f" %(np.max(offdiag_before)), ' Ry/bohr')
+        print("    Mean offdiag |g_ij| after ASR  %.5f" %(np.mean(offdiag_after)), ' Ry/bohr')
+        print("    Max offdiag  |g_ij| after ASR  %.5f" %(np.max(offdiag_after)), ' Ry/bohr')
 
     else:
         print('\nNot applying acoustic sum rule')
