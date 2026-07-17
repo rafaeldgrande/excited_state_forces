@@ -429,7 +429,7 @@ Please cite:
     # elph_cond shape: (Nq, Nmodes, Nk_fi, Nc_fi, Nc_fi)
     # elph_val  shape: (Nq, Nmodes, Nk_fi, Nv_fi, Nv_fi)
     def _match_band_count(arr, n_target, label):
-        # elph_xml_to_h5.py --skip-interpolation (el-ph computed directly on the
+        # elph_xml_to_h5.py's default mode (el-ph computed directly on the
         # fine grid) only truncates cond/val blocks to the BSE calculation's band
         # range (Ncbnds/Nvbnds from eigenvectors.h5) when --eqp was also given at
         # collection time; otherwise (or for older/manually-built h5 files) the

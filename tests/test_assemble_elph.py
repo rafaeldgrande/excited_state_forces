@@ -2,7 +2,8 @@
 Tests for elph/elph_xml_to_h5.py (assembly stage):
   cart_to_crystal, wrap_to_bz, find_kpt_index,
   apply_acoustic_sum_rule, read_qpoints_control_ph,
-  read_patterns_xml, parse_matdyn_modes
+  read_patterns_xml, get_representation_sizes, read_elph_xml,
+  parse_matdyn_modes
 """
 import re
 import pytest
@@ -14,6 +15,8 @@ from elph_xml_to_h5 import (
     apply_acoustic_sum_rule,
     read_qpoints_control_ph,
     read_patterns_xml,
+    get_representation_sizes,
+    read_elph_xml,
     parse_matdyn_modes,
 )
 
@@ -281,6 +284,146 @@ class TestReadPatternsXML:
         path = _write_cartesian_patterns_xml(tmp_path, nat)
         U = read_patterns_xml(path, nat)
         assert U.shape == (3 * nat, 3 * nat)
+
+
+# ─────────────────────────────────────────────────────────────
+# get_representation_sizes
+# ─────────────────────────────────────────────────────────────
+
+def _write_multi_rep_patterns_xml(tmp_path, rep_sizes, nat):
+    """Write a patterns.xml with multiple REPRESENTIONs of given sizes,
+    e.g. rep_sizes=[2, 1, 1, 1, 2, 2] mirrors a real degenerate-irrep case
+    (multi-dimensional representations bundling >1 perturbation each)."""
+    npert = 3 * nat
+    assert sum(rep_sizes) == npert
+    lines = [
+        '<?xml version="1.0"?>',
+        '<PATTERNS_FILE>',
+        '  <IRREPS_INFO>',
+        f'    <NUMBER_IRR_REP>{len(rep_sizes)}</NUMBER_IRR_REP>',
+    ]
+    ipert_flat = 0
+    for k, n_per_rep in enumerate(rep_sizes, start=1):
+        lines.append(f'    <REPRESENTION.{k}>')
+        lines.append(f'      <NUMBER_OF_PERTURBATIONS>{n_per_rep}</NUMBER_OF_PERTURBATIONS>')
+        for j in range(1, n_per_rep + 1):
+            vec = np.zeros(npert)
+            vec[ipert_flat] = 1.0
+            nums = ' '.join(f'{x:.1f} 0.0' for x in vec)
+            lines += [
+                f'      <PERTURBATION.{j}>',
+                f'        <DISPLACEMENT_PATTERN>{nums}</DISPLACEMENT_PATTERN>',
+                f'      </PERTURBATION.{j}>',
+            ]
+            ipert_flat += 1
+        lines.append(f'    </REPRESENTION.{k}>')
+    lines += ['  </IRREPS_INFO>', '</PATTERNS_FILE>']
+    path = tmp_path / 'patterns.1.xml'
+    path.write_text('\n'.join(lines))
+    return str(path)
+
+
+class TestGetRepresentationSizes:
+    def test_mixed_representation_sizes(self, tmp_path):
+        # Mirrors a real degenerate case: 9 perturbations (3 atoms) split
+        # across 6 representations, some 2-dimensional (degenerate).
+        rep_sizes = [2, 1, 1, 1, 2, 2]
+        path = _write_multi_rep_patterns_xml(tmp_path, rep_sizes, nat=3)
+        n_irr, sizes = get_representation_sizes(path)
+        assert n_irr == 6
+        assert sizes == rep_sizes
+
+    def test_all_single_perturbation_reps(self, tmp_path):
+        # The "lucky" fully-Cartesian case: one 1D representation per DOF.
+        nat = 2
+        path = _write_cartesian_patterns_xml(tmp_path, nat)
+        n_irr, sizes = get_representation_sizes(path)
+        assert n_irr == 1
+        assert sizes == [3 * nat]
+
+
+# ─────────────────────────────────────────────────────────────
+# read_elph_xml
+# ─────────────────────────────────────────────────────────────
+
+def _write_elph_xml(tmp_path, n_pert, nk, nbnds, fname='elph.1.1.xml', values=None):
+    """Write an elph.iq.<rep>.xml with n_pert <PARTIAL_ELPH perturbation="j">
+    blocks per k-point (n_pert > 1 mirrors a multi-dimensional/degenerate
+    representation bundling several perturbations into one file).
+
+    values[j][ik] (if given) is used as the (nbnds,nbnds) complex matrix for
+    perturbation j (0-indexed), k-point ik (0-indexed); otherwise a distinct
+    constant-valued matrix per (j, ik) is generated so mixups are detectable.
+    """
+    lines = ['<?xml version="1.0"?>', '<Root>',
+             '  <EL_PHON_HEADER><DONE_ELPH>true</DONE_ELPH></EL_PHON_HEADER>',
+             '  <PARTIAL_EL_PHON>',
+             f'    <NUMBER_OF_K>{nk}</NUMBER_OF_K>',
+             f'    <NUMBER_OF_BANDS>{nbnds}</NUMBER_OF_BANDS>']
+    for ik in range(nk):
+        lines.append(f'    <K_POINT.{ik + 1}>')
+        lines.append(f'      <COORDINATES_XK>\n{ik * 0.1} 0.0 0.0\n      </COORDINATES_XK>')
+        for j in range(n_pert):
+            if values is not None:
+                mat = values[j][ik]
+            else:
+                mat = np.full((nbnds, nbnds), (j + 1) + 1j * (ik + 1), dtype=np.complex128)
+            flat = mat.flatten()
+            nums = '\n'.join(f'{v.real:.6e}, {v.imag:.6e}' for v in flat)
+            lines.append(f'      <PARTIAL_ELPH perturbation="{j + 1}">\n{nums}\n      </PARTIAL_ELPH>')
+        lines.append(f'    </K_POINT.{ik + 1}>')
+    lines += ['  </PARTIAL_EL_PHON>', '</Root>']
+    path = tmp_path / fname
+    path.write_text('\n'.join(lines))
+    return str(path)
+
+
+class TestReadElphXML:
+    def test_single_perturbation_per_file(self, tmp_path):
+        path = _write_elph_xml(tmp_path, n_pert=1, nk=2, nbnds=3)
+        kpts, g = read_elph_xml(path)
+        assert kpts.shape == (2, 3)
+        assert g.shape == (1, 2, 3, 3)
+
+    def test_multi_perturbation_file_reads_all_perturbations(self, tmp_path):
+        # This is the regression case: a degenerate 2D representation writes
+        # TWO <PARTIAL_ELPH perturbation="1"/"2"> blocks per k-point in the
+        # SAME file. Both must be read back distinctly, not just the first.
+        n_pert, nk, nbnds = 2, 3, 2
+        path = _write_elph_xml(tmp_path, n_pert=n_pert, nk=nk, nbnds=nbnds)
+        kpts, g = read_elph_xml(path)
+        assert g.shape == (n_pert, nk, nbnds, nbnds)
+        for j in range(n_pert):
+            for ik in range(nk):
+                expected = np.full((nbnds, nbnds), (j + 1) + 1j * (ik + 1), dtype=np.complex128)
+                assert np.allclose(g[j, ik], expected), f"perturbation {j}, k-point {ik} mismatch"
+        # The two perturbations must NOT be identical (that would indicate the
+        # second one was silently dropped/aliased onto the first).
+        assert not np.allclose(g[0], g[1])
+
+    def test_inconsistent_perturbation_count_raises(self, tmp_path):
+        # K_POINT.2 has fewer <PARTIAL_ELPH> blocks than K_POINT.1 -- must
+        # raise rather than silently truncate.
+        path = tmp_path / 'elph.1.1.xml'
+        path.write_text('\n'.join([
+            '<?xml version="1.0"?>', '<Root>',
+            '  <EL_PHON_HEADER><DONE_ELPH>true</DONE_ELPH></EL_PHON_HEADER>',
+            '  <PARTIAL_EL_PHON>',
+            '    <NUMBER_OF_K>2</NUMBER_OF_K>',
+            '    <NUMBER_OF_BANDS>1</NUMBER_OF_BANDS>',
+            '    <K_POINT.1>',
+            '      <COORDINATES_XK>\n0.0 0.0 0.0\n      </COORDINATES_XK>',
+            '      <PARTIAL_ELPH perturbation="1">\n1.0, 0.0\n      </PARTIAL_ELPH>',
+            '      <PARTIAL_ELPH perturbation="2">\n2.0, 0.0\n      </PARTIAL_ELPH>',
+            '    </K_POINT.1>',
+            '    <K_POINT.2>',
+            '      <COORDINATES_XK>\n0.1 0.0 0.0\n      </COORDINATES_XK>',
+            '      <PARTIAL_ELPH perturbation="1">\n1.0, 0.0\n      </PARTIAL_ELPH>',
+            '    </K_POINT.2>',
+            '  </PARTIAL_EL_PHON>', '</Root>',
+        ]))
+        with pytest.raises(ValueError, match='PARTIAL_ELPH'):
+            read_elph_xml(str(path))
 
 
 # ─────────────────────────────────────────────────────────────

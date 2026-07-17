@@ -1,10 +1,37 @@
 # elph
 
-Scripts for assembling, interpolating, and processing electron-phonon (el-ph) matrix elements from Quantum ESPRESSO DFPT calculations. These scripts prepare the `elph_interpolated_kgrid.h5` file consumed by `main/excited_forces.py`.
+Scripts for assembling, interpolating, and processing electron-phonon (el-ph) matrix elements from Quantum ESPRESSO DFPT calculations. These scripts prepare the `elph.h5` file consumed by `main/excited_forces.py`.
 
 ---
 
 ## Workflow Overview
+
+`elph_xml_to_h5.py` has two modes:
+
+**Default mode** — el-ph was computed via DFPT directly on the same grid the
+BSE calculation uses. No interpolation needed.
+
+```
+QE DFPT output              BerkeleyGW output
+(_ph0/, matdyn.modes,      (WFN.h5, or scf.in)
+ scf.in fallback)          (eqp.dat)
+        │                            │
+        ▼                            ▼
+              elph_xml_to_h5.py (default: no --interpolate_elph_coeffs)
+                    assembly + band-match/QP-rescale
+                                → elph.h5  (fine k-grid)
+                                           │
+                                           ▼  (optional)
+                         elph_coeffs_second_derivative.py
+                                → 2nd_order_elph.h5
+                                           │
+                                           ▼
+                                main/excited_forces.py
+```
+
+**`--interpolate_elph_coeffs` mode** — el-ph was computed via DFPT on a
+*coarser* grid, and needs BerkeleyGW's dtmat-based coarse-to-fine
+interpolation to the fine grid the BSE calculation actually uses:
 
 ```
 QE DFPT output              BerkeleyGW output           BerkeleyGW output
@@ -12,25 +39,16 @@ QE DFPT output              BerkeleyGW output           BerkeleyGW output
  scf.in fallback)                                        eqp.dat)
         │                            │                            │
         ▼                            ▼                            │
-                     elph_xml_to_h5.py                             │
-        assembly stage → elph_orig_kgrid.h5 (coarse k-grid)            │
+                     elph_xml_to_h5.py --interpolate_elph_coeffs    │
+        assembly stage → elph_coarse.h5 (coarse k-grid)            │
                     │                                              │
                     └──────── interpolation stage ◄─────────────────┘
-                                → elph_interpolated_kgrid.h5  (fine k-grid)
-                                           │
-                                           ▼  (optional)
-                         elph_coeffs_second_derivative.py
-                                → 2nd_order_elph_interpolated_kgrid.h5
-                                           │
-                                           ▼
-                                main/excited_forces.py
+                                → elph.h5  (fine k-grid)
 ```
 
-`elph_xml_to_h5.py` runs both stages in one process by default (no disk
-round-trip for the coarse data in between), but either stage can also be run
-independently: `--skip-interpolation` stops after writing `elph_orig_kgrid.h5`;
-omitting `--elph_dir` resumes interpolation-only from a previously written
-`elph_orig_kgrid.h5`.
+Either mode can be resumed: omitting `--elph_dir` (with
+`--interpolate_elph_coeffs` and an existing `--elph_coarse`) resumes
+interpolation-only from a previously-assembled file.
 
 ---
 
@@ -40,12 +58,20 @@ omitting `--elph_dir` resumes interpolation-only from a previously written
 
 **Assembly stage** — reads QE DFPT el-ph XML files, rotates from the
 symmetry-adapted pattern basis to the Cartesian atomic-displacement basis
-(and, if `matdyn.modes` is available, to the phonon-mode basis), and writes
-the coarse-grid `elph_orig_kgrid.h5`.
+(and, if `matdyn.modes` is available, to the phonon-mode basis).
 
-**Interpolation stage** — interpolates the coarse-grid el-ph to the fine BSE
-k-grid using the BerkeleyGW coarse-to-fine transformation matrices stored in
-`dtmat`, and writes `elph_interpolated_kgrid.h5`.
+**Default mode (no `--interpolate_elph_coeffs`)** — el-ph is assumed to have
+been computed directly on the grid the BSE calculation uses. The assembled
+data is band-matched to `--eqp`'s Nc/Nv window and QP-rescaled, then written
+straight to `--elph_out` (default `elph.h5`), ready to use as
+`elph_fine_h5_file` in `forces.inp`. No `dtmat`/coarse-to-fine transformation
+involved at all.
+
+**`--interpolate_elph_coeffs` mode** — el-ph was computed via DFPT on a
+coarser grid. The assembled data is written to `--elph_coarse` first, then
+interpolated to the fine BSE k-grid using the BerkeleyGW coarse-to-fine
+transformation matrices stored in `dtmat`, band-matched/QP-rescaled using
+`--eqp`, and written to `--elph_out`:
 
 $$\langle n, \mathbf{k}_{\rm fi}+\mathbf{q} \mid \delta V(\mathbf{q}) \mid m, \mathbf{k}_{\rm fi} \rangle = \sum_{ab} \langle n, \mathbf{k}_{\rm fi}+\mathbf{q} \mid a, \mathbf{k}_{\rm co}+\mathbf{q} \rangle\, g_{ab}(\mathbf{k}_{\rm co}, \mathbf{q})\, \langle b, \mathbf{k}_{\rm co} \mid m, \mathbf{k}_{\rm fi} \rangle$$
 
@@ -59,79 +85,65 @@ where $\mathbf{k}_{\rm co}$ is the nearest coarse k-point to $\mathbf{k}_{\rm fi
 - `_ph0/<prefix>.phsave/patterns.iq.xml` for every q-point
 - `_ph0/<prefix>.phsave/control_ph.xml`
 - Cell, k-points, `nbnd`, and Nval (highest occupied band index): from
-  `WFN_co.h5` (`--wfn_origin`, preferred — authoritative, no guessing) or from
-  `scf.in`/`bands.in` (`--qe_input`, fallback — Nval is auto-derived from
-  `scf.out`'s "number of electrons" line, or from pseudopotential `Z_valence`
-  if no `scf.out` is found). `--Nval` always overrides either source manually.
+  `WFN.h5` of the grid DFPT was run on (`--wfn_dfpt`, preferred — authoritative,
+  no guessing) or from `scf.in`/`bands.in` (`--qe_input`, fallback — Nval is
+  auto-derived from `scf.out`'s "number of electrons" line, or from
+  pseudopotential `Z_valence` if no `scf.out` is found). `--Nval` always
+  overrides either source manually.
 - `matdyn.modes` (optional — produced by `matdyn.x`; enables phonon-mode projection)
+- `eqp.dat` (`--eqp`) — fine-grid QP energies from `inteqp.x`, for band-matching + QP rescaling. Read by default; without it, `--elph_out` is still written but unmatched/un-rescaled.
 
-**Prerequisites (interpolation, i.e. unless `--skip-interpolation`):**
-- `dtmat`, produced by BerkeleyGW's `absorption.<flavour>.x`. Not needed at all
-  if el-ph was computed directly on the fine grid (DFPT run on the fine k/q-grid
-  itself) — use `--skip-interpolation` instead, see below.
-- `WFN_fi.h5` (`--wfn_to_interpolate`) for finite-q interpolation (auto-discovered next to `--dtmat` if not given)
-- `eqp.dat` (`--eqp`, optional) — fine-grid QP energies from `inteqp.x`, for QP rescaling
-
-**`--skip-interpolation`** (el-ph computed directly on the fine grid, e.g. DFPT
-run on the same k/q-grid the BSE calculation uses — no coarse-to-fine
-transformation needed, so `--dtmat`/`--wfn_to_interpolate` are irrelevant): if
-`--eqp` points to a valid fine-grid `eqp.dat`, the assembled el-ph is still
-band-matched to its Nc/Nv window and QP-rescaled — exactly like the
-interpolation stage would do — and written to `--elph_fine`, ready to use
-directly as `elph_fine_h5_file` in `forces.inp`. Without `--eqp`, only the raw,
-unmatched `--elph_coarse` is written.
+**Prerequisites (`--interpolate_elph_coeffs` only):**
+- `dtmat`, produced by BerkeleyGW's `absorption.<flavour>.x`
+- `WFN_fi.h5` (`--wfn_absorption_fine`) — the fine grid actually used by the BSE calculation, for finite-q interpolation (auto-discovered next to `--dtmat` if not given)
 
 **Usage:**
 
 ```bash
-# Full pipeline: assemble XML -> elph_orig_kgrid.h5, interpolate -> elph_interpolated_kgrid.h5
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \
-    --dtmat dtmat --wfn_to_interpolate WFN_fi.h5 --eqp eqp.dat
+# DEFAULT: el-ph computed directly on the fine grid the BSE calculation uses.
+# --eqp band-matches + QP-rescales the result and writes elph.h5.
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --eqp eqp.dat
 
-# El-ph computed directly on the fine grid (DFPT run on the fine k/q-grid
-# itself): no dtmat needed. --eqp band-matches + QP-rescales the result and
-# writes elph_interpolated_kgrid.h5, ready to use as elph_fine_h5_file.
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \
-    --skip-interpolation --eqp eqp.dat
+# Same, but without --eqp: elph.h5 is still written, just unmatched/un-rescaled
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5
 
-# Same, but without --eqp: only the raw, unmatched elph_orig_kgrid.h5 is written
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \
-    --skip-interpolation
+# OPT-IN: el-ph computed on a coarser grid, needs coarse-to-fine interpolation
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_co.h5 \
+    --interpolate_elph_coeffs --dtmat dtmat --wfn_absorption_fine WFN_fi.h5 --eqp eqp.dat
 
-# Resume: interpolate from a previously-written elph_orig_kgrid.h5
-python elph_xml_to_h5.py --elph_coarse elph_orig_kgrid.h5 --wfn_origin WFN_co.h5 \
-    --dtmat dtmat --wfn_to_interpolate WFN_fi.h5
+# Resume: interpolate from a previously-written elph_coarse.h5
+python elph_xml_to_h5.py --elph_coarse elph_coarse.h5 --wfn_dfpt WFN_co.h5 \
+    --interpolate_elph_coeffs --dtmat dtmat --wfn_absorption_fine WFN_fi.h5
 
-# No WFN_co.h5 available: fall back to scf.in / scf.out / pseudopotentials
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --qe_input scf.in \
-    --dtmat dtmat --wfn_to_interpolate WFN_fi.h5
+# No WFN.h5 available: fall back to scf.in / scf.out / pseudopotentials
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --qe_input scf.in --eqp eqp.dat
 
-# Manual Nval override (takes precedence over WFN_co.h5 / scf.in either way)
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 --Nval 13
+# Manual Nval override (takes precedence over WFN.h5 / scf.in either way)
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --Nval 13
 
 # Disable acoustic sum rule (default: ASR applied, assembly stage only)
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 --no-ASR
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --no-ASR
 ```
 
 **Arguments:**
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--elph_dir` | `None` | phsave dir; if given, the assembly stage runs. If omitted, `--elph_coarse` must point to an existing coarse file (resume: interpolation-only) |
+| `--elph_dir` | `None` | phsave dir; if given, the assembly stage runs. If omitted, `--elph_coarse` must point to an existing assembled file and `--interpolate_elph_coeffs` must be set (resume: interpolation-only) |
 | `--modes_file` | `matdyn.modes` | phonon eigenvectors/frequencies from `matdyn.x` (optional) |
 | `--no-ASR` | ASR on | Disable the acoustic sum rule (assembly stage only) |
-| `--wfn_origin` | `None` | Path to `WFN_co.h5`. If given and found, cell, k-points, `nbnd`, and Nval are read directly from its `mf_header` |
-| `--qe_input` | `scf.in` | QE pw.x input file used for cell/k-points/`nbnd`/Nval when `--wfn_origin` is not given or not found |
-| `--Nval` | `None` | Manual override for Nval (highest occupied band index, QE `nbnd` convention). Takes precedence over `--wfn_origin`/`--qe_input` either way |
-| `--elph_coarse` | `elph_orig_kgrid.h5` | Output path when `--elph_dir` is given; required input path (must exist) when `--elph_dir` is omitted |
-| `--elph_fine` | `elph_interpolated_kgrid.h5` | Output HDF5 filename for the fine-grid el-ph file (interpolated, or band-matched/QP-rescaled directly, see `--skip-interpolation`) |
-| `--skip-interpolation` | off | El-ph computed directly on the fine grid; `--dtmat`/`--wfn_to_interpolate` ignored. If `--eqp` is found, band-matches + QP-rescales and writes `--elph_fine`; otherwise only the raw `--elph_coarse` is written |
-| `--dtmat` | `dtmat` | Path to BerkeleyGW `dtmat` binary |
-| `--wfn_to_interpolate` | `WFN_fi.h5` | Path to `WFN_fi.h5` (required for finite-q interpolation; auto-discovered next to `--dtmat` if not found) |
+| `--wfn_dfpt` | `None` | Path to the `WFN.h5` of the grid DFPT was actually run on. Default mode: this IS the fine grid. `--interpolate_elph_coeffs` mode: this is the COARSE grid |
+| `--qe_input` | `scf.in` | QE pw.x input file used for cell/k-points/`nbnd`/Nval when `--wfn_dfpt` is not given or not found |
+| `--Nval` | `None` | Manual override for Nval (highest occupied band index, QE `nbnd` convention). Takes precedence over `--wfn_dfpt`/`--qe_input` either way |
+| `--elph_out` | `elph.h5` | Final output HDF5 filename, ready to use as `elph_fine_h5_file` in `forces.inp` |
+| `--interpolate_elph_coeffs` | off | El-ph was computed on a coarser grid and needs coarse-to-fine interpolation; requires `--dtmat` and `--wfn_absorption_fine`. Default (off): el-ph assumed already on the fine grid, no interpolation |
+| `--elph_coarse` | `elph_coarse.h5` | Output path for the assembled (pre-interpolation) file; only used with `--interpolate_elph_coeffs` |
+| `--dtmat` | `dtmat` | Path to BerkeleyGW `dtmat` binary; only used with `--interpolate_elph_coeffs` |
+| `--wfn_absorption_fine` | `WFN_fi.h5` | Path to the fine-grid `WFN.h5` actually used by the BSE/absorption calculation; only used with `--interpolate_elph_coeffs` (auto-discovered next to `--dtmat` if not found) |
 | `--real` | off | Use real-flavor `dtmat` (default: complex) |
-| `--eqp` | `eqp.dat` | Path to fine-grid `eqp.dat` (output of `inteqp.x`). When found, saves QP rescaling matrices and Eqp/Edft energies into `--elph_fine` (interpolation stage, or `--skip-interpolation` band-matching) |
+| `--eqp` | `eqp.dat` | Path to the fine-grid `eqp.dat` (output of `inteqp.x`). When found, band-matches the el-ph to its Nc/Nv window and saves QP rescaling matrices and Eqp/Edft energies into `--elph_out`. Read by default in both modes |
 
-**Output HDF5 layout** (`elph_orig_kgrid.h5` and `elph_interpolated_kgrid.h5` share the exact
+**Output HDF5 layout** (`--elph_coarse` and `--elph_out` share the exact
 same dataset schema — only the numeric coefficients and k-points differ,
 coarse vs. fine grid):
 
@@ -147,7 +159,7 @@ coarse vs. fine grid):
 | `phonon_modes/qpoints` | `(Nq_md, 3)` | 2π/a | q-points from `matdyn.modes` |
 | `phonon_modes/frequencies` | `(Nq_md, Nmodes)` | cm⁻¹ | Phonon frequencies |
 | `phonon_modes/eigenvectors` | `(Nq_md, Nmodes, Nat, 3)` | dimensionless | Real-space phonon displacement eigenvectors, unit norm |
-| `crystal/atomic_numbers` | `(Nat,)` | — | Atomic numbers, from `WFN_co.h5` or `scf.in` |
+| `crystal/atomic_numbers` | `(Nat,)` | — | Atomic numbers, from `--wfn_dfpt`'s `WFN.h5` or `scf.in` |
 | `crystal/atomic_positions` | `(Nat, 3)` | Å | Cartesian atomic positions |
 | `crystal/lattice_vectors` | `(3, 3)` | Å | Real-space lattice vectors, rows = a1,a2,a3 |
 | `QP_rescaling_matrix_cond` | `(Nk, Nc, Nc)` | dimensionless | QP renorm. ratio $(E^{\rm QP}_n - E^{\rm QP}_m)/(E^{\rm DFT}_n - E^{\rm DFT}_m)$ for conduction bands; fine grid only, present when `--eqp` found |
@@ -172,7 +184,7 @@ values, one written per stage.
 
 ### `elph_coeffs_second_derivative.py`
 
-Computes second-order electron-phonon coupling coefficients via second-order perturbation theory. The output file has the same format as `elph_interpolated_kgrid.h5` and can be used directly as `elph_fine_h5_file` in `forces.inp` with `use_second_derivatives_elph_coeffs True`.
+Computes second-order electron-phonon coupling coefficients via second-order perturbation theory. The output file has the same format as `elph.h5` and can be used directly as `elph_fine_h5_file` in `forces.inp` with `use_second_derivatives_elph_coeffs True`.
 
 **Theory:**
 
@@ -194,24 +206,24 @@ After computing $g^{(2)}$ in the Cartesian basis, it is projected to the phonon-
 
 ```bash
 python elph_coeffs_second_derivative.py \
-    --elph_fine elph_interpolated_kgrid.h5 \
+    --elph_fine elph.h5 \
     --eqp eqp1.dat \
     --Nval <number_of_valence_bands_in_DFPT> \
-    --out 2nd_order_elph_interpolated_kgrid.h5
+    --out 2nd_order_elph.h5
 ```
 
 **Arguments:**
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--elph_fine` | `elph_interpolated_kgrid.h5` | Input from `elph_xml_to_h5.py` |
+| `--elph_fine` | `elph.h5` | Input from `elph_xml_to_h5.py` |
 | `--eqp` | `eqp1.dat` | Fine-grid QP energy file (from BerkeleyGW `absorption`) |
 | `--Nval` | — | Number of valence bands in DFPT |
-| `--out` | `2nd_order_elph_interpolated_kgrid.h5` | Output filename |
+| `--out` | `2nd_order_elph.h5` | Output filename |
 
 Then in `forces.inp`:
 ```
-elph_fine_h5_file              2nd_order_elph_interpolated_kgrid.h5
+elph_fine_h5_file              2nd_order_elph.h5
 use_second_derivatives_elph_coeffs  True
 ```
 
@@ -246,30 +258,34 @@ python modify_WFN_header.py source_header.h5 base_file.h5 --output WFN_mod.h5
 ```bash
 ESF=/path/to/excited_state_forces
 
-# 1-2. Assemble coarse el-ph and interpolate to the fine grid in one run
+# 1. Assemble el-ph directly on the fine grid used by the BSE calculation
+#    (default mode: no coarse-to-fine interpolation)
 python $ESF/elph/elph_xml_to_h5.py \
     --elph_dir /path/to/dfpt/_ph0/mos2.phsave \
-    --wfn_origin WFN_co.h5 \
-    --dtmat dtmat \
-    --wfn_to_interpolate WFN_fi.h5
+    --wfn_dfpt WFN_fi.h5 \
+    --eqp eqp.dat
 
-# 3. Compute forces
+# 2. Compute forces
 python $ESF/main/excited_forces.py
 ```
+
+If el-ph was instead computed via DFPT on a coarser grid, add
+`--interpolate_elph_coeffs --dtmat dtmat --wfn_absorption_fine WFN_fi.h5`
+(with `--wfn_dfpt` now pointing at the coarse grid, `WFN_co.h5`) to step 1.
 
 ### Second-order el-ph (optional)
 
 ```bash
 python $ESF/elph/elph_coeffs_second_derivative.py \
-    --elph_fine elph_interpolated_kgrid.h5 \
+    --elph_fine elph.h5 \
     --eqp eqp1.dat \
     --Nval 13 \
-    --out 2nd_order_elph_interpolated_kgrid.h5
+    --out 2nd_order_elph.h5
 ```
 
 Then set in `forces.inp`:
 ```
-elph_fine_h5_file              2nd_order_elph_interpolated_kgrid.h5
+elph_fine_h5_file              2nd_order_elph.h5
 use_second_derivatives_elph_coeffs  True
 ```
 
@@ -277,9 +293,9 @@ use_second_derivatives_elph_coeffs  True
 
 ## Notes
 
-- **Nval**: the total number of valence bands included in the DFPT calculation (`nbnd` in `scf.in`/`WFN_co.h5` up to and including the HOMO). It determines which rows/columns of the raw QE-ordered el-ph belong to the conduction vs. valence sector. Preferred source: `WFN_co.h5`'s `mf_header/kpoints/ifmax` (authoritative — no guessing). Fallback: `scf.out`'s "number of electrons" line, or pseudopotential `Z_valence` if no `scf.out` is found. `--Nval` always overrides.
+- **Nval**: the total number of valence bands included in the DFPT calculation (`nbnd` in `scf.in`/`WFN.h5` up to and including the HOMO). It determines which rows/columns of the raw QE-ordered el-ph belong to the conduction vs. valence sector. Preferred source: `--wfn_dfpt`'s `mf_header/kpoints/ifmax` (authoritative — no guessing). Fallback: `scf.out`'s "number of electrons" line, or pseudopotential `Z_valence` if no `scf.out` is found. `--Nval` always overrides.
 - **Band ordering** in all output files follows the BerkeleyGW convention: valence index 0 = HOMO, 1 = HOMO-1, …; conduction index 0 = LUMO, 1 = LUMO+1, …
-- **Cartesian vs. mode basis**: both `elph_orig_kgrid.h5` and `elph_interpolated_kgrid.h5` contain both. The Cartesian basis (`_cart` datasets) is needed for forces in the atomic basis; the mode basis (`_mode` datasets) is needed for forces resolved by phonon mode and frequency. Both are used by `excited_forces.py`.
+- **Cartesian vs. mode basis**: both `--elph_coarse` and `--elph_out` contain both. The Cartesian basis (`_cart` datasets) is needed for forces in the atomic basis; the mode basis (`_mode` datasets) is needed for forces resolved by phonon mode and frequency. Both are used by `excited_forces.py`.
 - **Acoustic sum rule**: applied by default during the assembly stage. Disable with `--no-ASR` if you want the raw uncorrected couplings.
 - **Units**: el-ph matrix elements throughout are in Ry/bohr (first order) or Ry/bohr² (second order). Energies in `eqp1.dat` are in eV and are converted to Ry internally where needed.
-- **Coarse band count mismatch (dtmat vs. coarse el-ph)**: `dtmat`'s coarse conduction/valence band counts come from `number_cond_bands_coarse`/`number_val_bands_coarse` in `absorption.inp`, which are usually a *subset* of the bands available in `WFN_co.h5`/the coarse el-ph (e.g. `WFN_co.h5` may have far more total bands than are actually used for BSE). This is expected and handled automatically: `elph_xml_to_h5.py` truncates to the bands closest to the band edge (lowest conduction, highest valence) if more are available than `dtmat` needs, or zero-pads if fewer are available — either way it prints a `NOTE:`/warning naming the counts involved.
+- **Band-window mismatch (Nc/Nv vs. the BSE calculation)**: whether via `dtmat` (in `--interpolate_elph_coeffs` mode, where the coarse conduction/valence band counts come from `number_cond_bands_coarse`/`number_val_bands_coarse` in `absorption.inp`) or via `--eqp`'s own band window (default mode), the assembled el-ph usually has *more* bands available than the BSE calculation actually uses (e.g. the DFPT run may have far more total bands than are used for BSE). This is expected and handled automatically: `elph_xml_to_h5.py` truncates to the bands closest to the band edge (lowest conduction, highest valence) if more are available than needed, or zero-pads if fewer are available — either way it prints a `NOTE:`/warning naming the counts involved.

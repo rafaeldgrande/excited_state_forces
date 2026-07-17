@@ -2,43 +2,50 @@
 elph_xml_to_h5.py
 ==================
 Combined electron-phonon (el-ph) pipeline: assembles QE DFPT elph XML files
-into a coarse-grid HDF5 file, then (optionally) interpolates to a fine k-grid
-using BerkeleyGW's dtmat coarse-to-fine overlap matrices. Writes elph_orig_kgrid.h5
-and/or elph_interpolated_kgrid.h5 with identical dataset schemas (see "Output HDF5 layout").
+into an HDF5 file, and -- only if requested -- interpolates from a coarse DFPT
+grid to the fine k-grid actually used by the BSE calculation, using BerkeleyGW's
+dtmat coarse-to-fine overlap matrices.
 
-This module merges what used to be two separate scripts (assemble_elph_h5.py +
-interpolate_elph_bgw.py) into one, so a single coarse-grid dataset (kept in
-memory) can flow straight into interpolation without a disk round-trip, while
-still supporting each stage independently (--skip-interpolation to stop after
-the coarse file; omit --elph_dir to resume interpolation from an existing
-elph_orig_kgrid.h5).
+DEFAULT MODE: el-ph is assumed to have been computed directly, via DFPT, on the
+same grid the BSE calculation uses. No interpolation is needed or performed.
+The assembled el-ph is band-matched to --eqp's Nc/Nv window and QP-rescaled,
+then written straight to --elph_out (default elph.h5), ready to use as
+elph_fine_h5_file in forces.inp.
+
+OPT-IN MODE (--interpolate_elph_coeffs): el-ph was computed via DFPT on a
+COARSER grid than the one the BSE calculation uses, and needs BerkeleyGW's
+dtmat-based coarse-to-fine interpolation. This requires --dtmat and
+--wfn_absorption_fine (the fine grid actually used by absorption.x); the
+assembled (coarse) data is written to --elph_coarse first, then interpolated
+and written to --elph_out.
+
+In both modes, --wfn_dfpt is the WFN.h5 of the grid DFPT was actually run on
+(the fine grid in the default mode; the coarse grid in --interpolate_elph_coeffs
+mode).
 
 Usage
 -----
-# Full pipeline: assemble XML -> elph_orig_kgrid.h5, interpolate -> elph_interpolated_kgrid.h5
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \\
-    --dtmat dtmat --wfn_to_interpolate WFN_fi.h5 --eqp eqp.dat
+# DEFAULT: el-ph computed directly on the fine grid used by the BSE calculation.
+# --eqp band-matches and QP-rescales the result, written to elph.h5.
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --eqp eqp.dat
 
-# El-ph computed directly on the fine grid (DFPT run on the fine k/q-grid
-# itself, no coarse-to-fine transformation needed). --eqp band-matches and
-# QP-rescales the result and writes elph_interpolated_kgrid.h5, ready to use
-# as elph_fine_h5_file in forces.inp, exactly like the interpolation stage would.
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 \\
-    --skip-interpolation --eqp eqp.dat
+# OPT-IN: el-ph computed on a coarser grid, needs coarse-to-fine interpolation
+# to the fine grid the BSE calculation actually uses.
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_co.h5 \\
+    --interpolate_elph_coeffs --dtmat dtmat --wfn_absorption_fine WFN_fi.h5 --eqp eqp.dat
 
-# Resume: interpolate from a previously-written elph_orig_kgrid.h5
-python elph_xml_to_h5.py --elph_coarse elph_orig_kgrid.h5 --wfn_origin WFN_co.h5 \\
-    --dtmat dtmat --wfn_to_interpolate WFN_fi.h5
+# Resume interpolation from a previously-assembled --elph_coarse
+python elph_xml_to_h5.py --elph_coarse elph_coarse.h5 --wfn_dfpt WFN_co.h5 \\
+    --interpolate_elph_coeffs --dtmat dtmat --wfn_absorption_fine WFN_fi.h5
 
-# No WFN_co.h5 available: fall back to scf.in / scf.out / pseudopotentials
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --qe_input scf.in \\
-    --dtmat dtmat --wfn_to_interpolate WFN_fi.h5
+# No WFN.h5 available: fall back to scf.in / scf.out / pseudopotentials
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --qe_input scf.in --eqp eqp.dat
 
-# Manual Nval override (takes precedence over WFN_co.h5 / scf.in either way)
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_origin WFN_co.h5 --Nval 13
+# Manual Nval override (takes precedence over WFN.h5 / scf.in either way)
+python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --Nval 13
 
-Assembly stage (XML -> coarse grid)
-------------------------------------
+Assembly stage (XML -> assembled grid)
+----------------------------------------
 QE 7.5, ldisp=.true., electron_phonon='simple'.
          QE writes one elph.iq.ipert.xml per (q, perturbation) where
          "ipert" indexes the symmetry-adapted patterns chosen by ph.x
@@ -51,7 +58,7 @@ QE 7.5, ldisp=.true., electron_phonon='simple'.
          <n,k+q|dV/du_pattern_ipert|m,k>  ->  <n,k+q|dV/du_cart_alpha|m,k>.
 
 Cell parameters, reciprocal lattice, Nat, k-points, Nbnds and Nval are read
-from a BerkeleyGW WFN_co.h5 (--wfn_origin) when given, else from the QE input
+from a BerkeleyGW WFN.h5 (--wfn_dfpt) when given, else from the QE input
 file (--qe_input, via ASE + scf.out/pseudopotentials for Nval).
 The list of q-points and Nq are read from <elph_dir>/control_ph.xml
 (Q-POINT_COORDINATES, units = 2pi/a).
@@ -79,7 +86,7 @@ This means the valence block must be reversed along both band axes before
 applying dvn. The output elph_val arrays use the same BGW ordering (v=0 =
 HOMO), which is what the rest of the excited_forces code expects.
 
-Output HDF5 layout (identical schema for elph_orig_kgrid.h5 and elph_interpolated_kgrid.h5 --
+Output HDF5 layout (identical schema for --elph_coarse and --elph_out --
 only the coefficients and k-points differ)
 ------------------------------------------------------------------------------
   elph_cond_mode   complex128  (Nq, Nmodes, Nk, Nc, Nc)  phonon-mode basis, optional
@@ -269,7 +276,7 @@ def parse_matdyn_modes(path, nat):
 
 # ══════════════════════════════════════════════════════════════════════════════
 # QE input fallback: cell/k-points/nbnd (via ASE + regex), used only when
-# --wfn_origin is not given / not found
+# --wfn_dfpt is not given / not found
 # ══════════════════════════════════════════════════════════════════════════════
 
 def load_params_from_qe_input(qe_input_path):
@@ -536,7 +543,7 @@ def get_nval_from_qe_input(qe_input_path: str) -> int:
 # WFN.h5 reading (preferred source for cell/k-points/nbnd/Nval/atomic positions)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def read_wfn_h5_header(wfn_h5_path: str, flag: str = 'wfn_origin') -> dict:
+def read_wfn_h5_header(wfn_h5_path: str, flag: str = 'wfn_dfpt') -> dict:
     """
     Read mean-field header info from a BerkeleyGW WFN.h5 file (WFN_co.h5 or
     WFN_fi.h5), following the mf_header layout documented at
@@ -828,19 +835,61 @@ def read_patterns_xml(xml_path, nat):
     return U
 
 
+def get_representation_sizes(patterns_xml_path):
+    """
+    Parse patterns.iq.xml just for the irrep bookkeeping: how many irreducible
+    representations there are, and how many perturbations each one bundles.
+
+    This matters because ph.x writes one elph.iq.<representation>.xml file per
+    REPRESENTATION, not one per raw Cartesian/pattern perturbation -- for any
+    system whose point-group symmetry gives multi-dimensional (degenerate)
+    irreps (the norm for anything less symmetric than e.g. rocksalt), a single
+    representation -- and so a single elph.iq.<k>.xml file -- bundles more
+    than one perturbation, each written as its own <PARTIAL_ELPH perturbation="j">
+    block per k-point within that one file.
+
+    Returns
+    -------
+    n_irr     : int
+    rep_sizes : list[int], length n_irr -- NUMBER_OF_PERTURBATIONS per representation
+    """
+    tree = ET.parse(patterns_xml_path)
+    root = tree.getroot()
+    irreps = root.find('IRREPS_INFO')
+    if irreps is None:
+        raise ValueError(f"No <IRREPS_INFO> block in {patterns_xml_path}")
+    n_irr = int(irreps.find('NUMBER_IRR_REP').text.strip())
+    rep_sizes = []
+    for k in range(1, n_irr + 1):
+        rep = irreps.find(f'REPRESENTION.{k}')
+        if rep is None:
+            raise ValueError(f"{patterns_xml_path}: missing REPRESENTION.{k}")
+        rep_sizes.append(int(rep.find('NUMBER_OF_PERTURBATIONS').text.strip()))
+    return n_irr, rep_sizes
+
+
 # ══════════════════════════════════════════════════════════════════════════════
-# Read one elph.iq.ipert.xml
+# Read one elph.iq.<representation>.xml
 # ══════════════════════════════════════════════════════════════════════════════
 
 def read_elph_xml(xml_path):
     """
-    Parse one elph.iq.ipert.xml (works for q=0 and q!=0).
+    Parse one elph.iq.<representation>.xml (works for q=0 and q!=0).
+
+    A representation with a multi-dimensional (degenerate) irrep bundles more
+    than one perturbation into this single file: each k-point writes one
+    <PARTIAL_ELPH perturbation="j"> block per perturbation in the
+    representation (j = 1..NUMBER_OF_PERTURBATIONS, matching
+    patterns.iq.xml's REPRESENTION.<this>/PERTURBATION.j). All perturbations
+    in a file share the same k-point list, so the count is read once from
+    K_POINT.1 and every other k-point is required to match it.
 
     Returns
     -------
     kpts_cart : (NK_xml, 3) float64    Cartesian 2pi/alat
-    g_mat     : (NK_xml, nbnds, nbnds) complex128
-                g_mat[ik, n, m] = <n, k+q | dV_SCF/d(tau^ipert) | m, k>  [Ry/bohr]
+    g_mat     : (n_pert_in_file, NK_xml, nbnds, nbnds) complex128
+                g_mat[j, ik, n, m] = <n, k+q | dV_SCF/d(tau^pattern_(j+1)) | m, k>
+                [Ry/bohr]; j is 0-indexed here (XML attribute is 1-indexed)
     """
     tree = ET.parse(xml_path)
     root = tree.getroot()
@@ -848,20 +897,35 @@ def read_elph_xml(xml_path):
     nk    = int(pel.find('NUMBER_OF_K').text)
     nbnds = int(pel.find('NUMBER_OF_BANDS').text)
 
-    kpts_cart = np.empty((nk, 3),             dtype=np.float64)
-    g_mat     = np.empty((nk, nbnds, nbnds),  dtype=np.complex128)
+    kpts_cart = np.empty((nk, 3), dtype=np.float64)
+
+    # Number of perturbations bundled in this file -- read once from K_POINT.1,
+    # every other k-point must agree (checked below).
+    kp0 = pel.find('K_POINT.1')
+    n_pert_in_file = len(kp0.findall('PARTIAL_ELPH'))
+    if n_pert_in_file == 0:
+        raise ValueError(f"{xml_path}: K_POINT.1 has no <PARTIAL_ELPH> blocks")
+
+    g_mat = np.empty((n_pert_in_file, nk, nbnds, nbnds), dtype=np.complex128)
 
     for ik in range(nk):
         kp = pel.find(f'K_POINT.{ik + 1}')
         kpts_cart[ik] = [float(v) for v in kp.find('COORDINATES_XK').text.split()]
-        text  = kp.find('PARTIAL_ELPH').text.replace(',', ' ')
-        nums  = np.fromstring(text, sep='\n')
-        cplx  = nums[::2] + 1j * nums[1::2]
-        if len(cplx) != nbnds * nbnds:
+        perts = kp.findall('PARTIAL_ELPH')
+        if len(perts) != n_pert_in_file:
             raise ValueError(
-                f"{xml_path}: K_POINT.{ik+1} has {len(cplx)} values, "
-                f"expected {nbnds**2}")
-        g_mat[ik] = cplx.reshape(nbnds, nbnds)
+                f"{xml_path}: K_POINT.{ik+1} has {len(perts)} <PARTIAL_ELPH> "
+                f"blocks, expected {n_pert_in_file} (from K_POINT.1)")
+        for pert_el in perts:
+            j = int(pert_el.attrib['perturbation']) - 1  # 0-indexed
+            text = pert_el.text.replace(',', ' ')
+            nums = np.fromstring(text, sep='\n')
+            cplx = nums[::2] + 1j * nums[1::2]
+            if len(cplx) != nbnds * nbnds:
+                raise ValueError(
+                    f"{xml_path}: K_POINT.{ik+1} perturbation {j+1} has "
+                    f"{len(cplx)} values, expected {nbnds**2}")
+            g_mat[j, ik] = cplx.reshape(nbnds, nbnds)
 
     return kpts_cart, g_mat
 
@@ -957,10 +1021,10 @@ def interpolate_elph(
     Interpolate el-ph matrix elements from coarse to fine k-grid.
 
     See module docstring for the interpolation formula and BGW valence-band
-    ordering convention. If the el-ph coefficients were computed directly on
-    the fine grid (WFN_fi == WFN_co, no coarse-to-fine transformation needed),
-    use --skip-interpolation instead of this stage (see main() below) — it
-    handles that case without requiring a dtmat file at all.
+    ordering convention. This stage only runs when --interpolate_elph_coeffs is
+    passed; by default (el-ph already computed directly on the fine grid, no
+    coarse-to-fine transformation needed) main() skips this entirely and
+    writes --elph_out straight from the assembled data, no dtmat needed.
 
     g_co_cond, g_co_val : (Nq, Nb, Nk_co, nc_avail, nc_avail) / (..., nv_avail,
         nv_avail) complex128 — already split into cond/val blocks (BGW
@@ -991,8 +1055,8 @@ def interpolate_elph(
     # ── Load dtmat (coarse-to-fine wavefunction overlaps) ────────────────
     _require_file(dtmat_file, 'dtmat',
                   'BerkeleyGW dtmat binary from absorption.<flavour>.x; '
-                  'or pass --skip-interpolation if the el-ph was computed '
-                  'directly on the fine grid (no interpolation needed)')
+                  'only needed with --interpolate_elph_coeffs -- omit that flag '
+                  'if the el-ph was computed directly on the fine grid')
     print(f"\nLoading dtmat from: {os.path.basename(dtmat_file)}")
     d = read_dtmat(dtmat_file, complex_flavor=complex_flavor)
 
@@ -1082,7 +1146,7 @@ def interpolate_elph(
             raise ValueError(
                 "Fine k-point coordinates are required for finite-q "
                 "interpolation but were not found. Provide a valid WFN.h5 "
-                "with --wfn_to_interpolate (read from its mf_header/kpoints/rk). "
+                "with --wfn_absorption_fine (read from its mf_header/kpoints/rk). "
                 "Run 'python elph_xml_to_h5.py -h' to see all options.")
         print(f"\n  Finite-q detected — will build k_fi -> k_fi+q maps per q.")
     else:
@@ -1353,7 +1417,7 @@ def _truncate_or_pad_bands(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Unified HDF5 writer/reader — shared by elph_orig_kgrid.h5 and elph_interpolated_kgrid.h5
+# Unified HDF5 writer/reader — shared by --elph_coarse and --elph_out
 # ══════════════════════════════════════════════════════════════════════════════
 
 def save_elph_h5(
@@ -1372,8 +1436,8 @@ def save_elph_h5(
     extra_attrs:          dict | None = None,
 ) -> None:
     """
-    Save el-ph arrays to an HDF5 file. Used for BOTH elph_orig_kgrid.h5 and
-    elph_interpolated_kgrid.h5 — the two files share an identical dataset schema; only the
+    Save el-ph arrays to an HDF5 file. Used for BOTH --elph_coarse and
+    --elph_out — the two files share an identical dataset schema; only the
     numeric coefficients and k-points differ (coarse vs. fine grid).
 
     Parameters
@@ -1508,7 +1572,7 @@ def save_elph_h5(
 def load_coarse_elph_h5(path: str) -> dict:
     """
     Load back the split cond/val blocks + k/q-points + phonon_modes from an
-    existing elph_orig_kgrid.h5 (written by save_elph_h5), for the "resume:
+    existing --elph_coarse file (written by save_elph_h5), for the "resume:
     interpolate from a previously-assembled coarse file" CLI path (i.e. when
     --elph_dir is not given).
     """
@@ -1590,26 +1654,30 @@ if __name__ == '__main__':
     g_necessary.add_argument('--elph_dir',
                       help="Directory containing elph.iq.ipert.xml, patterns.iq.xml, and "
                            "control_ph.xml (QE phsave dir, e.g. _ph0/<prefix>.phsave). "
-                           "If given, the assembly stage runs and --elph_coarse is (re)written. "
-                           "If omitted, --elph_coarse must point to an existing coarse file "
-                           "(resume: interpolation-only).")
+                           "If given, the assembly stage runs. If omitted, --elph_coarse must "
+                           "point to an existing assembled file and --interpolate_elph_coeffs "
+                           "must be set (resume: interpolation-only).")
     g_necessary.add_argument('--modes_file', default='matdyn.modes',
                       help="matdyn.modes (from QE DFPT calculations); optional")
-    g_necessary.add_argument('--elph_coarse', default='elph_orig_kgrid.h5',
-                      help="Output path for the coarse el-ph file when --elph_dir is given; "
-                           "required input path (must already exist) when --elph_dir is omitted.")
-    g_necessary.add_argument('--elph_fine', default='elph_interpolated_kgrid.h5',
-                      help="Output HDF5 filename for the fine-grid (interpolated) el-ph file.")
-    g_necessary.add_argument('--dtmat', default='dtmat',
-                      help="Path to dtmat binary file produced by absorption.<flavour>.x. It "
-                           "contains the projections <psi_n,kfi|psi_m,kco> and interpolation "
-                           "coefficients from coarse to fine grids.")
-    g_necessary.add_argument('--wfn_to_interpolate', default='WFN_fi.h5',
-                      help="Path to WFN_fi.h5 (needed for finite-q interpolation).")
+    g_necessary.add_argument('--elph_out', default='elph.h5',
+                      help="Final output HDF5 filename: band-matched (if --eqp found), "
+                           "QP-rescaled el-ph, ready to use as elph_fine_h5_file in forces.inp. "
+                           "Written directly from the assembled data by default (el-ph computed "
+                           "directly on the fine grid); written after coarse-to-fine "
+                           "interpolation when --interpolate_elph_coeffs is set.")
+    g_necessary.add_argument('--wfn_dfpt',
+                      help="Path to the WFN.h5 of the grid DFPT was actually run on. By default "
+                           "(no --interpolate_elph_coeffs) this IS the fine grid used by the BSE "
+                           "calculation. With --interpolate_elph_coeffs, this is the COARSE grid "
+                           "(the fine grid is then given separately via --wfn_absorption_fine). "
+                           "If given and found, cell, k-points, nbnd, and Nval are read directly "
+                           "from its mf_header (authoritative, no pseudopotential/scf.in guessing "
+                           "needed). Falls back to --qe_input if not given or not found.")
     g_necessary.add_argument('--eqp', default='eqp.dat',
-                      help="Path to fine-grid eqp.dat (output of inteqp.x). When found, "
-                           "QP rescaling matrices and Eqp/Edft energies are computed and "
-                           "saved into --elph_fine.")
+                      help="Path to the fine-grid eqp.dat (output of inteqp.x, in the same grid "
+                           "as the BSE calculation). When found, the el-ph is band-matched to "
+                           "its Nc/Nv window and QP rescaling matrices / Eqp/Edft energies are "
+                           "computed and saved into --elph_out. Read by default in both modes.")
 
     # ── Alternative arguments: alternate sources/overrides + optional modifiers ──
     g_alt = cli.add_argument_group(
@@ -1617,35 +1685,40 @@ if __name__ == '__main__':
         'Alternative ways to supply information already covered by the '
         'necessary arguments above, plus optional run modifiers.')
 
-    # Alternative sources for cell/k-points/nbnd/Nval (grouped: pick one, or override)
-    g_alt.add_argument('--wfn_origin',
-                      help="Path to WFN_co.h5. If given and found, cell, k-points, nbnd, "
-                           "and Nval are read directly from its mf_header (authoritative, "
-                           "no pseudopotential/scf.in guessing needed). Falls back to "
-                           "--qe_input if not given or not found.")
     g_alt.add_argument('--qe_input', default='scf.in',
                       help="QE pw.x input file (scf.in or bands.in), used as a fallback "
-                           "source for cell/k-points/nbnd/Nval when --wfn_origin is not given "
+                           "source for cell/k-points/nbnd/Nval when --wfn_dfpt is not given "
                            "or not found.")
     g_alt.add_argument('--Nval', type=int,
                       help="Manual override for Nval (highest occupied band index, QE nbnd "
-                           "convention), bypassing both --wfn_origin and --qe_input.")
+                           "convention), bypassing both --wfn_dfpt and --qe_input.")
 
-    # Alternative run mode: el-ph computed directly on the fine grid, no
-    # coarse-to-fine transformation needed (no --dtmat/--wfn_to_interpolate
-    # required). If --eqp is a valid file, the assembled el-ph is still
-    # band-matched to the BSE calculation's Nc/Nv window and QP-rescaled
-    # (exactly like the interpolation stage would do), and written to
-    # --elph_fine so it can be used directly as elph_fine_h5_file in
-    # forces.inp. If --eqp is not given/found, only the raw --elph_coarse
-    # file is written (no band-matching/QP-rescaling).
-    g_alt.add_argument('--skip-interpolation', dest='skip_interpolation', action='store_true',
-                      help="El-ph coefficients were computed directly on the fine grid "
-                           "(no coarse-to-fine transformation needed). --dtmat/"
-                           "--wfn_to_interpolate are ignored. If --eqp is found, the "
-                           "assembled el-ph is band-matched to it and QP-rescaled, then "
-                           "written to --elph_fine (ready for forces.inp); otherwise only "
-                           "--elph_coarse (raw, unmatched) is written.")
+    # Opt-in run mode: el-ph was computed on a COARSER grid than the BSE
+    # calculation uses, and needs BerkeleyGW dtmat-based coarse-to-fine
+    # interpolation. Requires --dtmat and --wfn_absorption_fine; --wfn_dfpt is
+    # then the coarse grid. Default (flag absent): el-ph is assumed already on
+    # the fine grid -- no --dtmat/--wfn_absorption_fine needed, --elph_out is
+    # written straight from the assembled (band-matched, QP-rescaled) data.
+    g_alt.add_argument('--interpolate_elph_coeffs', dest='interpolate_elph_coeffs',
+                      action='store_true',
+                      help="El-ph was computed via DFPT on a coarser grid than the one the BSE "
+                           "calculation uses, and needs coarse-to-fine interpolation. Requires "
+                           "--dtmat and --wfn_absorption_fine; --wfn_dfpt is then the coarse "
+                           "grid. Default (flag absent): el-ph is assumed already computed "
+                           "directly on the fine grid -- no interpolation performed.")
+    g_alt.add_argument('--elph_coarse', default='elph_coarse.h5',
+                      help="Output path for the assembled (pre-interpolation) el-ph file when "
+                           "--elph_dir is given; required input path (must already exist) when "
+                           "--elph_dir is omitted. Only used with --interpolate_elph_coeffs.")
+    g_alt.add_argument('--dtmat', default='dtmat',
+                      help="Path to dtmat binary file produced by absorption.<flavour>.x. It "
+                           "contains the projections <psi_n,kfi|psi_m,kco> and interpolation "
+                           "coefficients from coarse to fine grids. Required with "
+                           "--interpolate_elph_coeffs.")
+    g_alt.add_argument('--wfn_absorption_fine', default='WFN_fi.h5',
+                      help="Path to the fine-grid WFN.h5 actually used by the BSE/absorption "
+                           "calculation (needed for finite-q interpolation and fine k-point "
+                           "info). Required/used only with --interpolate_elph_coeffs.")
 
     # Optional toggles
     g_alt.add_argument('--no-ASR', dest='asr', action='store_false', default=True,
@@ -1670,23 +1743,23 @@ if __name__ == '__main__':
         _require_path(args.elph_dir, 'elph_dir',
                       'QE phsave directory, e.g. _ph0/<prefix>.phsave', kind='dir')
 
-        wfn_origin_used = args.wfn_origin is not None and os.path.isfile(args.wfn_origin)
-        if wfn_origin_used:
-            wfn_info  = read_wfn_h5_header(args.wfn_origin)
+        wfn_dfpt_used = args.wfn_dfpt is not None and os.path.isfile(args.wfn_dfpt)
+        if wfn_dfpt_used:
+            wfn_info  = read_wfn_h5_header(args.wfn_dfpt)
             kpts_nscf = wfn_info['kpts_crystal']
             NBNDS     = wfn_info['nbnd']
             rec_vecs  = wfn_info['rec_vecs']
             nat       = wfn_info['nat']
             structure = dict(
-                nat=nat, source=f'WFN_co.h5 ({args.wfn_origin})',
+                nat=nat, source=f'WFN.h5 ({args.wfn_dfpt})',
                 atomic_numbers=wfn_info['atomic_numbers'],
                 atomic_positions_ang=wfn_info['atomic_positions_ang'],
                 lattice_vectors_ang=wfn_info['lattice_vectors_ang'],
             )
             Nval_auto = wfn_info['Nval']
         else:
-            if args.wfn_origin is not None:
-                print(f"WARNING: file not found for --wfn_origin: '{args.wfn_origin}'. "
+            if args.wfn_dfpt is not None:
+                print(f"WARNING: file not found for --wfn_dfpt: '{args.wfn_dfpt}'. "
                       f"Falling back to --qe_input. Run 'python elph_xml_to_h5.py "
                       f"-h' to see all options.")
             _require_file(args.qe_input, 'qe_input', 'QE pw.x input file, e.g. scf.in')
@@ -1752,36 +1825,50 @@ if __name__ == '__main__':
                   f"{qpts_cart[iq_idx][1]:9.6f}  {qpts_cart[iq_idx][2]:9.6f}]")
             print(f"{'='*62}")
 
-            missing = [ipert for ipert in range(1, NPERT + 1)
-                       if not os.path.exists(
-                           os.path.join(PHSAVE, f'elph.{iq}.{ipert}.xml'))]
-            if missing:
-                print(f"  SKIP: missing ipert file(s): {missing}  -> g = 0 for this q.")
-                n_skipped += 1
-                continue
-
             patt_path = os.path.join(PHSAVE, f'patterns.{iq}.xml')
             if not os.path.exists(patt_path):
                 print(f"  SKIP: missing {os.path.basename(patt_path)}  -> g = 0 for this q.")
                 n_skipped += 1
                 continue
             U = read_patterns_xml(patt_path, nat)
+            n_irr, rep_sizes = get_representation_sizes(patt_path)
             dev_cart = np.max(np.abs(U - np.eye(NPERT)))
             print(f"  patterns.{iq}.xml: NPERT x NPERT = {U.shape}, "
+                  f"{n_irr} representation(s) (sizes {rep_sizes}), "
                   f"max|U - I| = {dev_cart:.2e} "
                   f"({'~ Cartesian' if dev_cart < 1e-8 else 'symmetry-adapted'})")
+
+            # ph.x writes one elph.iq.<representation>.xml per REPRESENTATION,
+            # not one per raw perturbation -- a multi-dimensional (degenerate)
+            # irrep bundles >1 perturbation into that single file (see
+            # read_elph_xml docstring). So the missing-file check and the
+            # collection loop below both iterate over representations
+            # (1..n_irr), not raw perturbations (1..NPERT).
+            missing = [rep for rep in range(1, n_irr + 1)
+                       if not os.path.exists(
+                           os.path.join(PHSAVE, f'elph.{iq}.{rep}.xml'))]
+            if missing:
+                print(f"  SKIP: missing representation file(s): {missing}  -> g = 0 for this q.")
+                n_skipped += 1
+                continue
 
             g_pat = np.zeros((NPERT, NK_NSCF, NBNDS, NBNDS), dtype=np.complex128)
             kpt_map_done = False
             kmap = np.full(NK_NSCF, -1, dtype=int)
 
-            for ipert in range(1, NPERT + 1):
-                xml_path = os.path.join(PHSAVE, f'elph.{iq}.{ipert}.xml')
-                print(f"  ipert={ipert:2d}  {os.path.basename(xml_path)} ...",
-                      end=' ', flush=True)
+            ipert_cum = 0  # cumulative flat index, must match U's row order
+            for rep in range(1, n_irr + 1):
+                xml_path = os.path.join(PHSAVE, f'elph.{iq}.{rep}.xml')
+                print(f"  representation={rep:2d}  {os.path.basename(xml_path)} "
+                      f"({rep_sizes[rep-1]} pert.) ...", end=' ', flush=True)
                 t_start = datetime.now()
 
                 kpts_xml_cart, g_xml = read_elph_xml(xml_path)
+                if g_xml.shape[0] != rep_sizes[rep - 1]:
+                    raise ValueError(
+                        f"{xml_path}: file has {g_xml.shape[0]} perturbation(s), "
+                        f"but patterns.{iq}.xml says representation {rep} should "
+                        f"have {rep_sizes[rep - 1]}.")
                 kpts_xml_crys = cart_to_crystal(kpts_xml_cart, bt_inv)
 
                 if not kpt_map_done:
@@ -1798,17 +1885,24 @@ if __name__ == '__main__':
                     print(f"\n  k-map: {n_matched}/{NK_NSCF} matched  "
                           f"(XML has {len(kpts_xml_cart)} k-pts)")
 
-                    check_extended_zone(kmap, kpts_nscf, kpts_xml_crys, g_xml)
+                    check_extended_zone(kmap, kpts_nscf, kpts_xml_crys, g_xml[0])
 
                     kpt_map_done = True
 
-                for ik_nscf in range(NK_NSCF):
-                    idx = kmap[ik_nscf]
-                    if idx >= 0:
-                        g_pat[ipert - 1, ik_nscf] = g_xml[idx]
+                for j in range(g_xml.shape[0]):
+                    for ik_nscf in range(NK_NSCF):
+                        idx = kmap[ik_nscf]
+                        if idx >= 0:
+                            g_pat[ipert_cum, ik_nscf] = g_xml[j, idx]
+                    ipert_cum += 1
 
                 dt = (datetime.now() - t_start).total_seconds()
                 print(f"  done in {dt:.1f} s")
+
+            if ipert_cum != NPERT:
+                raise ValueError(
+                    f"iq={iq}: collected {ipert_cum} perturbations across all "
+                    f"representations, expected NPERT = {NPERT}.")
 
             g_all[iq_idx] = np.einsum('Pa,Pknm->aknm', np.conj(U), g_pat)
             print(f"  -> transformed to Cartesian basis  "
@@ -1893,20 +1987,22 @@ if __name__ == '__main__':
 
         qpts_crystal = cart_to_crystal(qpts_cart, bt_inv)
 
-        # ── Split into cond/val (BGW convention) and write elph_orig_kgrid.h5 ──
+        # ── Split into cond/val (BGW convention) ──
         g_cond_cart, g_val_cart = split_cond_val(g_all, Nval)
         g_cond_mode = g_val_mode = None
         if has_g_mode:
             g_cond_mode, g_val_mode = split_cond_val(g_mode, Nval)
 
-        save_elph_h5(
-            args.elph_coarse, g_cond_cart, g_val_cart, g_cond_mode, g_val_mode,
-            kpoints_crystal=kpts_nscf, qpoints_crystal=qpts_crystal, qpoints_cart=qpts_cart,
-            phonon_modes=phonon_modes_dict, structure=structure,
-            extra_attrs={'grid': 'coarse', 'Nval': Nval, 'n_complete': n_complete,
-                         'n_skipped': n_skipped, 'asr_applied': bool(args.asr),
-                         'source_elph_dir': PHSAVE},
-        )
+        if args.interpolate_elph_coeffs:
+            # Only needed as an intermediate before coarse-to-fine interpolation.
+            save_elph_h5(
+                args.elph_coarse, g_cond_cart, g_val_cart, g_cond_mode, g_val_mode,
+                kpoints_crystal=kpts_nscf, qpoints_crystal=qpts_crystal, qpoints_cart=qpts_cart,
+                phonon_modes=phonon_modes_dict, structure=structure,
+                extra_attrs={'grid': 'coarse', 'Nval': Nval, 'n_complete': n_complete,
+                             'n_skipped': n_skipped, 'asr_applied': bool(args.asr),
+                             'source_elph_dir': PHSAVE},
+            )
 
         kpts_co_for_interp  = kpts_nscf
         qpts_co_for_interp  = qpts_crystal
@@ -1914,10 +2010,19 @@ if __name__ == '__main__':
 
     else:
         # ── Resume: interpolation-only from an existing --elph_coarse ──────
+        # Only meaningful with --interpolate_elph_coeffs -- without --elph_dir
+        # there's no assembly to run, and without interpolation there's
+        # nothing further to do with a previously-assembled file.
+        if not args.interpolate_elph_coeffs:
+            print("ERROR: --elph_dir not given and --interpolate_elph_coeffs not set -- "
+                  "nothing to do. Pass --elph_dir to assemble from XML, or pass "
+                  "--interpolate_elph_coeffs with an existing --elph_coarse to resume "
+                  "interpolation from it.")
+            sys.exit(1)
         _require_file(args.elph_coarse, 'elph_coarse',
-                      'existing coarse el-ph file; alternatively pass --elph_dir '
+                      'existing assembled el-ph file; alternatively pass --elph_dir '
                       'to run the assembly stage from scratch')
-        print(f"\n--elph_dir not given: resuming from existing coarse file "
+        print(f"\n--elph_dir not given: resuming from existing assembled file "
               f"{args.elph_coarse}")
         coarse = load_coarse_elph_h5(args.elph_coarse)
         g_cond_cart = coarse['elph_cond_cart']
@@ -1935,20 +2040,20 @@ if __name__ == '__main__':
             Nval = args.Nval
             print(f"Using manually specified --Nval = {Nval} (overrides value stored "
                   f"in {args.elph_coarse}: {coarse['Nval']}).")
-        elif args.wfn_origin is not None and os.path.isfile(args.wfn_origin):
-            Nval = read_wfn_h5_header(args.wfn_origin)['Nval']
+        elif args.wfn_dfpt is not None and os.path.isfile(args.wfn_dfpt):
+            Nval = read_wfn_h5_header(args.wfn_dfpt)['Nval']
         elif os.path.isfile(args.qe_input):
             Nval = get_nval_from_qe_input(args.qe_input)
         else:
             Nval = coarse['Nval']
             print(f"  Using Nval = {Nval} stored in {args.elph_coarse} "
-                  f"(no --Nval/--wfn_origin/--qe_input available).")
+                  f"(no --Nval/--wfn_dfpt/--qe_input available).")
 
     _write_qpoints_dat(qpts_cart_for_interp, qpts_co_for_interp, 'co', HERE)
 
-    if args.skip_interpolation:
-        print(f"\n--skip-interpolation set: el-ph was computed directly on the "
-              f"fine grid (no coarse-to-fine transformation needed).")
+    if not args.interpolate_elph_coeffs:
+        print(f"\nEl-ph computed directly on the fine grid (default mode; pass "
+              f"--interpolate_elph_coeffs if this data needs coarse-to-fine interpolation).")
 
         if args.eqp is not None and os.path.isfile(args.eqp):
             nc_target, nv_target = _get_band_window_from_eqp(args.eqp, Nval)
@@ -1971,45 +2076,52 @@ if __name__ == '__main__':
                                  Edft_cond=Edft_c, Edft_val=Edft_v)
 
             save_elph_h5(
-                args.elph_fine, g_cond_cart, g_val_cart, g_cond_mode, g_val_mode,
+                args.elph_out, g_cond_cart, g_val_cart, g_cond_mode, g_val_mode,
                 kpoints_crystal=kpts_co_for_interp, qpoints_crystal=qpts_co_for_interp,
                 qpoints_cart=qpts_cart_for_interp, phonon_modes=phonon_modes_dict,
                 structure=structure, qp_rescaling=qp_rescaling,
                 extra_attrs={'grid': 'fine', 'Nval': Nval,
-                             'interpolation': 'identity (el-ph computed directly on '
-                                               'the fine grid, --skip-interpolation)',
-                             'source_elph_coarse': args.elph_coarse},
+                             'interpolation': 'none (el-ph computed directly on the fine grid)'},
             )
-            print(f"\n{args.elph_fine} written: band-matched, QP-rescaled el-ph, "
+            print(f"\n{args.elph_out} written: band-matched, QP-rescaled el-ph, "
                   f"ready to use as elph_fine_h5_file in forces.inp.")
         else:
-            print(f"  No usable --eqp file found ('{args.eqp}') — skipping band-matching "
-                  f"and QP rescaling. Only the raw {args.elph_coarse} is available. Pass "
-                  f"--eqp pointing at the fine-grid eqp.dat to also get a band-matched, "
-                  f"QP-rescaled {args.elph_fine}.")
+            print(f"  No usable --eqp file found ('{args.eqp}') — writing el-ph without "
+                  f"band-matching or QP rescaling.")
+            save_elph_h5(
+                args.elph_out, g_cond_cart, g_val_cart, g_cond_mode, g_val_mode,
+                kpoints_crystal=kpts_co_for_interp, qpoints_crystal=qpts_co_for_interp,
+                qpoints_cart=qpts_cart_for_interp, phonon_modes=phonon_modes_dict,
+                structure=structure, qp_rescaling=None,
+                extra_attrs={'grid': 'fine', 'Nval': Nval,
+                             'interpolation': 'none (el-ph computed directly on the fine grid)'},
+            )
+            print(f"\n{args.elph_out} written (no QP rescaling — pass --eqp pointing at "
+                  f"the fine-grid eqp.dat to also get that).")
 
         sys.exit(0)
 
     # ══════════════════════════════════════════════════════════════════════
-    # Interpolation stage (coarse -> fine, via dtmat)
+    # Interpolation stage (coarse -> fine, via dtmat) -- only reached with
+    # --interpolate_elph_coeffs
     # ══════════════════════════════════════════════════════════════════════
     kpts_fi = None
-    wfn_to_interpolate_path = args.wfn_to_interpolate
-    if wfn_to_interpolate_path is None:
+    wfn_absorption_fine_path = args.wfn_absorption_fine
+    if wfn_absorption_fine_path is None:
         _dtmat_dir = os.path.dirname(os.path.abspath(args.dtmat))
         _candidate = os.path.join(_dtmat_dir, 'WFN_fi.h5')
         if os.path.isfile(_candidate):
-            wfn_to_interpolate_path = _candidate
-            print(f"Auto-discovered WFN_fi.h5: {wfn_to_interpolate_path}")
+            wfn_absorption_fine_path = _candidate
+            print(f"Auto-discovered WFN_fi.h5: {wfn_absorption_fine_path}")
 
-    if wfn_to_interpolate_path and os.path.isfile(wfn_to_interpolate_path):
-        print(f"\nReading fine k-points from {wfn_to_interpolate_path} ...")
-        with h5py.File(wfn_to_interpolate_path, 'r') as fh:
+    if wfn_absorption_fine_path and os.path.isfile(wfn_absorption_fine_path):
+        print(f"\nReading fine k-points from {wfn_absorption_fine_path} ...")
+        with h5py.File(wfn_absorption_fine_path, 'r') as fh:
             rk = fh['mf_header/kpoints/rk'][:]  # h5py reads Fortran rk(3,nrk) as (nrk, 3)
             kpts_fi = rk if rk.shape[-1] == 3 else rk.T
         print(f"  {len(kpts_fi)} fine k-points loaded, shape {kpts_fi.shape}")
     else:
-        print(f"WARNING: file not found for --wfn_to_interpolate: '{wfn_to_interpolate_path}'. "
+        print(f"WARNING: file not found for --wfn_absorption_fine: '{wfn_absorption_fine_path}'. "
               f"'Kpoints_in_elph_file' will NOT be saved in the output, and "
               f"finite-q interpolation will fail if any q != Gamma is present. "
               f"Run 'python elph_xml_to_h5.py -h' to see all options.")
@@ -2052,7 +2164,7 @@ if __name__ == '__main__':
               f"rescaling. Run 'python elph_xml_to_h5.py -h' to see all options.")
 
     save_elph_h5(
-        args.elph_fine, elph_cond_cart_fi, elph_val_cart_fi,
+        args.elph_out, elph_cond_cart_fi, elph_val_cart_fi,
         elph_cond_mode_fi, elph_val_mode_fi,
         kpoints_crystal=kpts_fi, qpoints_crystal=qpts_co_for_interp,
         qpoints_cart=qpts_cart_for_interp, phonon_modes=phonon_modes_dict,
