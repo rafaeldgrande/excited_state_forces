@@ -181,12 +181,12 @@ $\sum_{\rm atoms} g_{iq,\, 3\cdot\text{atom}+d,\, ik,nm} = 0$ for each
 Cartesian direction $d$; it is applied by default during assembly.
 
 In addition to the HDF5 files, plain-text q-point report files are written
-to the working directory: `qpoints_cart_co.dat`/`qpoints_crystal_co.dat`
+to the working directory: `qpoints_cart_dfpt.dat`/`qpoints_crystal_dfpt.dat`
 (written once `--elph_coarse` is available, whether freshly assembled or
-resumed) and `qpoints_cart_fi.dat`/`qpoints_crystal_fi.dat` (written after
-the interpolation stage completes). q-points don't change between the coarse
-and fine grids — only k-points do — so the `_co`/`_fi` pairs carry the same
-values, one written per stage.
+resumed) and `qpoints_cart_interpolated.dat`/`qpoints_crystal_interpolated.dat`
+(written after the interpolation stage completes). q-points don't change
+between the coarse and fine grids — only k-points do — so the `_dfpt`/
+`_interpolated` pairs carry the same values, one written per stage.
 
 ---
 

@@ -1625,7 +1625,8 @@ def load_coarse_elph_h5(path: str) -> dict:
 def _write_qpoints_dat(qpts_cart, qpts_crystal, suffix: str, here: str) -> None:
     """
     Write qpoints_cart_<suffix>.dat and qpoints_crystal_<suffix>.dat report
-    files (suffix = 'co' for the coarse grid, 'fi' for the fine grid).
+    files (suffix = 'dfpt' for the grid DFPT was run on, 'interpolated' for
+    the coarse-to-fine-interpolated grid).
     """
     if qpts_cart is None or qpts_crystal is None:
         print(f"  q-points not available — skipping qpoints_*_{suffix}.dat.")
@@ -2091,7 +2092,7 @@ if __name__ == '__main__':
             print(f"  Using Nval = {Nval} stored in {args.elph_coarse} "
                   f"(no --Nval/--wfn_dfpt/--qe_input available).")
 
-    _write_qpoints_dat(qpts_cart_for_interp, qpts_co_for_interp, 'co', HERE)
+    _write_qpoints_dat(qpts_cart_for_interp, qpts_co_for_interp, 'dfpt', HERE)
 
     if not args.interpolate_elph_coeffs:
         print(f"\nEl-ph computed directly on the fine grid (default mode; pass "
@@ -2217,7 +2218,7 @@ if __name__ == '__main__':
                      'source_dtmat': args.dtmat},
     )
 
-    _write_qpoints_dat(qpts_cart_for_interp, qpts_co_for_interp, 'fi', HERE)
+    _write_qpoints_dat(qpts_cart_for_interp, qpts_co_for_interp, 'interpolated', HERE)
 
     total_time = (datetime.now() - t0).total_seconds()
     print(f"\nDone in {total_time:.1f} s.")
