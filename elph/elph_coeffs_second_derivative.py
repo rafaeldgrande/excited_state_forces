@@ -35,12 +35,18 @@ python elph_coeffs_second_derivative.py \\
 
 import sys
 import argparse
+import warnings
 import numpy as np
 import h5py
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent))        # elph_xml_to_h5 (same dir)
+sys.path.insert(0, str(Path(__file__).parent.parent))  # common
 from common import TOL_ZERO, eV2ry
+from elph_xml_to_h5 import (
+    read_wfn_h5_header, _get_band_window_from_eqp,
+    _truncate_or_pad_bands, _build_kpt_map, build_qp_rescaling_ratio,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -128,6 +134,64 @@ def read_eqp(eqp_file, Nk, Nc, Nv, Nval):
     return Eqp_cond, Eqp_val, Edft_cond, Edft_val
 
 
+def read_eqp_full_range(eqp_file, Nk, Nc_avail, Nv_avail, Nval,
+                         kpoints_crystal, wfn_dfpt_path=None):
+    """
+    Like read_eqp, but sized to (Nc_avail, Nv_avail) — which may be wider than
+    eqp_file's own Nc/Nv window (e.g. when reading elph_not_filtered.h5).
+
+    Bands inside the window get QP energies from eqp_file, as usual. Bands
+    outside it have no GW data (GW is not normally run beyond the BSE window)
+    and fall back to DFT eigenvalues read from wfn_dfpt_path.
+
+    For out-of-window bands, Eqp is set equal to this DFT fallback (no QP
+    correction known), so Edft_cond/Edft_val are filled with the same values
+    -- this makes any QP/DFT rescaling ratio built from the two (see
+    elph_xml_to_h5.build_qp_rescaling_ratio) come out to 1.0 for band pairs
+    entirely within the fallback region, i.e. no rescaling where there is no
+    real QP data to rescale by.
+
+    Returns
+    -------
+    Eqp_cond, Eqp_val, Edft_cond, Edft_val : (Nk, Nc_avail)/(Nk, Nv_avail)
+    nc_window, nv_window : int
+        Band window implied by eqp_file — the caller truncates the computed
+        g2 back down to this window before saving.
+    """
+    nc_window, nv_window = _get_band_window_from_eqp(eqp_file, Nval)
+    Eqp_cond, Eqp_val, Edft_cond, Edft_val = read_eqp(
+        eqp_file, Nk, Nc_avail, Nv_avail, Nval)   # zero-filled beyond the window
+
+    need_fallback = Nc_avail > nc_window or Nv_avail > nv_window
+    if need_fallback:
+        if not wfn_dfpt_path:
+            raise ValueError(
+                f"{eqp_file} only covers {nc_window} cond / {nv_window} val "
+                f"bands, but the loaded el-ph has {Nc_avail} cond / {Nv_avail} "
+                f"val bands. Pass --wfn_dfpt to supply DFT eigenvalues for the "
+                f"bands outside eqp.dat's window.")
+        wfn_info = read_wfn_h5_header(wfn_dfpt_path, flag='wfn_dfpt')
+        kmap = _build_kpt_map(kpoints_crystal, wfn_info['kpts_crystal'])
+        eig = wfn_info['eigenvalues_ev']   # (Nk_wfn, mnband)
+        n_unmatched = int(np.sum(kmap < 0))
+        if n_unmatched:
+            warnings.warn(f"{n_unmatched}/{Nk} elph k-points had no match in "
+                           f"{wfn_dfpt_path} — DFT fallback energies stay 0 there.")
+        for ik in range(Nk):
+            if kmap[ik] < 0:
+                continue
+            ikw = kmap[ik]
+            for ic in range(nc_window, Nc_avail):
+                Eqp_cond[ik, ic] = Edft_cond[ik, ic] = eig[ikw, Nval + ic]
+            for iv in range(nv_window, Nv_avail):
+                Eqp_val[ik, iv] = Edft_val[ik, iv] = eig[ikw, Nval - 1 - iv]
+        print(f"  Bands outside eqp.dat's window ({nc_window}..{Nc_avail} cond, "
+              f"{nv_window}..{Nv_avail} val) use unrescaled DFT eigenvalues "
+              f"from {wfn_dfpt_path} as their energy denominator.")
+
+    return Eqp_cond, Eqp_val, Edft_cond, Edft_val, nc_window, nv_window
+
+
 def _build_q_map(qpts_elph_cart, ph_qpts_cart, tol=1e-5):
     """
     Map each elph q-point (Cartesian) to its index in phonon_modes q-points.
@@ -154,8 +218,21 @@ if __name__ == '__main__':
                      help='Input from elph_xml_to_h5.py (default: elph.h5)')
     cli.add_argument('--eqp',       default='eqp1.dat',
                      help='Fine-grid QP energy file from absorption step (default: eqp1.dat)')
-    cli.add_argument('--Nval',      required=True, type=int,
-                     help='Number of valence bands in DFPT (QE nbnd convention)')
+    cli.add_argument('--Nval',      type=int, default=None,
+                     help='Number of valence bands in DFPT (QE nbnd convention). '
+                          'If omitted, read from --elph_fine\'s stored Nval attribute.')
+    cli.add_argument('--wfn_dfpt',  default=None,
+                     help='WFN.h5 providing DFT eigenvalues for bands outside eqp.dat\'s '
+                          'Nc/Nv window. Only required when --elph_fine has more bands than '
+                          'eqp.dat covers (e.g. elph_not_filtered.h5 from elph_xml_to_h5.py '
+                          '--save_not_filtered).')
+    cli.add_argument('--renormalize_elph_with_Eqp', action='store_true',
+                     help='Rescale the 1st-derivative el-ph by the QP/DFT ratio '
+                          '(Eqp_kn - Eqp_km)/(Edft_kn - Edft_km) before computing the '
+                          'second-order sum (must happen before the sum, not after). '
+                          'Band pairs with no real QP data (e.g. out-of-window bands '
+                          'from elph_not_filtered.h5) get ratio=1, i.e. the raw DFT '
+                          'el-ph is used unchanged for those.')
     cli.add_argument('--out',       default='2nd_order_elph.h5',
                      help='Output HDF5 filename (default: 2nd_order_elph.h5)')
     args = cli.parse_args()
@@ -187,6 +264,23 @@ if __name__ == '__main__':
         qpts_cart_elph = fh['qpoints_cart'][:]    if has_qcart else None
         qpts_crys_elph = fh['qpoints_crystal'][:] if has_qcrys else None
 
+        Nval_from_file = fh.attrs.get('Nval', None)
+        if Nval_from_file is not None:
+            Nval_from_file = int(Nval_from_file)
+
+    if args.Nval is not None:
+        Nval = args.Nval
+        if Nval_from_file is not None and Nval != Nval_from_file:
+            print(f"NOTE: --Nval={Nval} overrides the value stored in "
+                  f"{args.elph_fine} (Nval={Nval_from_file}).")
+    elif Nval_from_file is not None:
+        Nval = Nval_from_file
+        print(f"Using Nval={Nval} from {args.elph_fine}'s stored attribute.")
+    else:
+        raise ValueError(
+            f"{args.elph_fine} has no stored 'Nval' attribute (older file?) and "
+            f"--Nval was not given — pass --Nval explicitly.")
+
     Nq, Npert, Nk, Nc, _ = g_cond_cart.shape
     Nv     = g_val_cart.shape[3]
     Nq_md  = evecs.shape[0]
@@ -214,12 +308,27 @@ if __name__ == '__main__':
 
     # ── 3. Read QP energies ───────────────────────────────────────────────────
     print(f'\nReading QP energies from {args.eqp} ...')
-    Eqp_cond, Eqp_val, Edft_cond, Edft_val = read_eqp(
-        args.eqp, Nk, Nc, Nv, args.Nval)
+    Eqp_cond, Eqp_val, Edft_cond, Edft_val, nc_window, nv_window = read_eqp_full_range(
+        args.eqp, Nk, Nc, Nv, Nval, Kpoints, wfn_dfpt_path=args.wfn_dfpt)
     print(f'  Eqp_cond : shape {Eqp_cond.shape},  '
           f'range [{Eqp_cond.min():.3f}, {Eqp_cond.max():.3f}] eV')
     print(f'  Eqp_val  : shape {Eqp_val.shape},   '
           f'range [{Eqp_val.min():.3f}, {Eqp_val.max():.3f}] eV')
+
+    # ── 3b. Renormalize the 1st-derivative el-ph with the QP/DFT ratio ────────
+    # Must happen here, before the second-order sum below -- rescaling g2
+    # itself afterward would not be equivalent (g2 is quadratic in g).
+    if args.renormalize_elph_with_Eqp:
+        print(f'\nRenormalizing el-ph with (Eqp_kn-Eqp_km)/(Edft_kn-Edft_km) '
+              f'before the second-order sum ...')
+        ratio_cond = build_qp_rescaling_ratio(Eqp_cond, Edft_cond)   # (Nk, Nc, Nc)
+        ratio_val  = build_qp_rescaling_ratio(Eqp_val,  Edft_val)    # (Nk, Nv, Nv)
+        g_cond_cart = g_cond_cart * ratio_cond[None, None, :, :, :]
+        g_val_cart  = g_val_cart  * ratio_val[None, None, :, :, :]
+        print(f'  ratio_cond: mean={ratio_cond.mean():.4f}, '
+              f'range [{ratio_cond.min():.4f}, {ratio_cond.max():.4f}]')
+        print(f'  ratio_val : mean={ratio_val.mean():.4f}, '
+              f'range [{ratio_val.min():.4f}, {ratio_val.max():.4f}]')
 
     # Convert eV → Ry for energy denominators (g is in Ry/bohr)
     E_cond_ry = Eqp_cond * eV2ry   # (Nk, Nc)
@@ -254,6 +363,20 @@ if __name__ == '__main__':
         print(f'  iq={iq+1}/{Nq}:  '
               f'max|g2_cond_cart|={np.max(np.abs(g2_cond_cart[iq])):.3e}  '
               f'max|g2_val_cart|={np.max(np.abs(g2_val_cart[iq])):.3e}  Ry/bohr^2')
+
+    # ── 4b. Truncate output back to eqp.dat's Nc/Nv window ──────────────────
+    # No-op when --elph_fine was already band-matched to eqp.dat (e.g. elph.h5);
+    # a real truncation when it was the wider elph_not_filtered.h5 — the
+    # intermediate sum above ran over the full available band range, but the
+    # saved g2 stays a drop-in replacement for elph.h5 in forces.inp.
+    if (Nc, Nv) != (nc_window, nv_window):
+        print(f'\nTruncating output from ({Nc},{Nv}) to eqp.dat\'s window '
+              f'({nc_window},{nv_window}) ...')
+        g2_cond_cart, g2_val_cart = _truncate_or_pad_bands(
+            g2_cond_cart, g2_val_cart, nc_window, nv_window, label='g2')
+        g2_cond_mode, g2_val_mode = _truncate_or_pad_bands(
+            g2_cond_mode, g2_val_mode, nc_window, nv_window, label='g2 (mode)')
+        Nc, Nv = nc_window, nv_window
 
     # ── 5. Save ───────────────────────────────────────────────────────────────
     print(f'\nSaving to {args.out} ...')
@@ -295,11 +418,12 @@ if __name__ == '__main__':
         out.attrs['Nk_fi']           = Nk
         out.attrs['Nc_fi']           = Nc
         out.attrs['Nv_fi']           = Nv
-        out.attrs['Nval']            = args.Nval
+        out.attrs['Nval']            = Nval
         out.attrs['note']            = ('Second-order el-ph coefficients (Ry/bohr^2), '
                                         'same format as elph.h5')
         out.attrs['source_elph_fine'] = args.elph_fine
         out.attrs['source_eqp']       = args.eqp
+        out.attrs['renormalized_with_Eqp'] = bool(args.renormalize_elph_with_Eqp)
 
     print(f'Done.  Output: {args.out}')
     print(f'  g2_cond_cart shape : {g2_cond_cart.shape}')

@@ -1,10 +1,14 @@
 """
 Tests for elph/elph_coeffs_second_derivative.py:
-  _inv_dE, compute_g2_cart, _build_q_map, read_eqp
+  _inv_dE, compute_g2_cart, _build_q_map, read_eqp, read_eqp_full_range
 """
+import h5py
 import pytest
 import numpy as np
-from elph_coeffs_second_derivative import _inv_dE, compute_g2_cart, _build_q_map, read_eqp
+from elph_coeffs_second_derivative import (
+    _inv_dE, compute_g2_cart, _build_q_map, read_eqp, read_eqp_full_range,
+)
+from elph_xml_to_h5 import RY_TO_EV, build_qp_rescaling_ratio
 
 
 # ─────────────────────────────────────────────────────────────
@@ -229,3 +233,134 @@ class TestReadEqpElph:
         assert Edft_c[0, 0] == pytest.approx(1.0)
         # ic=1 ↔ ibnd=Nval+2=6: dft = 6 * 0.2 = 1.2
         assert Edft_c[0, 1] == pytest.approx(1.2)
+
+
+# ─────────────────────────────────────────────────────────────
+# read_eqp_full_range
+# ─────────────────────────────────────────────────────────────
+
+class TestReadEqpFullRange:
+    def _wfn_h5(self, tmp_path, kpts_crystal, eigenvalues_ev, Nval, nat=1):
+        """Minimal WFN.h5 with just the mf_header fields read_wfn_h5_header needs."""
+        path = tmp_path / 'WFN_test.h5'
+        nrk = len(kpts_crystal)
+        mnband = eigenvalues_ev.shape[1]
+        with h5py.File(path, 'w') as fh:
+            mf = fh.create_group('mf_header')
+            kp = mf.create_group('kpoints')
+            kp.create_dataset('rk', data=np.asarray(kpts_crystal, dtype=np.float64))
+            kp.create_dataset('mnband', data=mnband)
+            kp.create_dataset('nspin', data=1)
+            kp.create_dataset('ifmax', data=np.full((1, nrk), Nval, dtype=np.int32))
+            el_ry = np.asarray(eigenvalues_ev, dtype=np.float64) / RY_TO_EV
+            kp.create_dataset('el', data=el_ry[None, :, :])   # (nspin, nrk, mnband)
+            cr = mf.create_group('crystal')
+            cr.create_dataset('alat', data=1.0)
+            cr.create_dataset('avec', data=np.eye(3))
+            cr.create_dataset('bvec', data=np.eye(3))
+            cr.create_dataset('nat', data=nat)
+            cr.create_dataset('atyp', data=np.ones(nat, dtype=np.int32))
+            cr.create_dataset('apos', data=np.zeros((nat, 3)))
+        return str(path)
+
+    def test_no_fallback_matches_plain_read_eqp(self, tmp_path):
+        # Nc/Nv already match eqp.dat's own window -- no WFN.h5 needed at all.
+        Nk, Nc, Nv, Nval = 2, 2, 2, 6
+        f = TestReadEqpElph()._make_eqp_file(tmp_path, Nk, Nc, Nv, Nval)
+        Eqp_c1, Eqp_v1, Edft_c1, Edft_v1 = read_eqp(f, Nk, Nc, Nv, Nval)
+        Eqp_c2, Eqp_v2, Edft_c2, Edft_v2, ncw, nvw = read_eqp_full_range(
+            f, Nk, Nc, Nv, Nval, kpoints_crystal=np.zeros((Nk, 3)), wfn_dfpt_path=None)
+        assert (ncw, nvw) == (Nc, Nv)
+        assert np.allclose(Eqp_c1, Eqp_c2)
+        assert np.allclose(Eqp_v1, Eqp_v2)
+        assert np.allclose(Edft_c1, Edft_c2)
+        assert np.allclose(Edft_v1, Edft_v2)
+
+    def test_missing_wfn_dfpt_raises(self, tmp_path):
+        Nk, Nc, Nv, Nval = 1, 2, 2, 6
+        f = TestReadEqpElph()._make_eqp_file(tmp_path, Nk, Nc, Nv, Nval)
+        with pytest.raises(ValueError, match='wfn_dfpt'):
+            read_eqp_full_range(f, Nk, Nc + 2, Nv, Nval,
+                                 kpoints_crystal=np.zeros((Nk, 3)), wfn_dfpt_path=None)
+
+    def test_out_of_window_uses_dft_fallback(self, tmp_path):
+        Nk, Nc_window, Nv_window, Nval = 1, 2, 2, 6
+        f = TestReadEqpElph()._make_eqp_file(tmp_path, Nk, Nc_window, Nv_window, Nval)
+        Nc_avail, Nv_avail = Nc_window + 2, Nv_window + 1
+        kpts = np.array([[0.0, 0.0, 0.0]])
+        mnband = Nval + Nc_avail
+        eig = np.arange(mnband, dtype=float).reshape(1, mnband) * 0.11  # eV, arbitrary
+        wfn = self._wfn_h5(tmp_path, kpts, eig, Nval)
+
+        Eqp_c, Eqp_v, Edft_c, Edft_v, ncw, nvw = read_eqp_full_range(
+            f, Nk, Nc_avail, Nv_avail, Nval, kpoints_crystal=kpts, wfn_dfpt_path=wfn)
+        assert (ncw, nvw) == (Nc_window, Nv_window)
+
+        # In-window bands: unaffected by the fallback, still eqp.dat's QP energies.
+        Eqp_c_win, Eqp_v_win, _, _ = read_eqp(f, Nk, Nc_window, Nv_window, Nval)
+        assert np.allclose(Eqp_c[:, :Nc_window], Eqp_c_win)
+        assert np.allclose(Eqp_v[:, :Nv_window], Eqp_v_win)
+
+        # Out-of-window bands: filled from the WFN.h5 DFT eigenvalues, not left at 0.
+        for ic in range(Nc_window, Nc_avail):
+            assert Eqp_c[0, ic] == pytest.approx(eig[0, Nval + ic])
+        for iv in range(Nv_window, Nv_avail):
+            assert Eqp_v[0, iv] == pytest.approx(eig[0, Nval - 1 - iv])
+
+    def test_out_of_window_edft_equals_eqp_fallback(self, tmp_path):
+        # The out-of-window fallback sets Edft equal to Eqp (both = the DFT
+        # eigenvalue) -- this is what makes build_qp_rescaling_ratio come out
+        # to 1.0 for band pairs entirely in the fallback region (see below).
+        Nk, Nc_window, Nv_window, Nval = 1, 1, 1, 5
+        f = TestReadEqpElph()._make_eqp_file(tmp_path, Nk, Nc_window, Nv_window, Nval)
+        Nc_avail, Nv_avail = Nc_window + 2, Nv_window + 2
+        kpts = np.array([[0.0, 0.0, 0.0]])
+        mnband = Nval + Nc_avail
+        eig = np.arange(mnband, dtype=float).reshape(1, mnband) * 0.13
+        wfn = self._wfn_h5(tmp_path, kpts, eig, Nval)
+
+        Eqp_c, Eqp_v, Edft_c, Edft_v, _, _ = read_eqp_full_range(
+            f, Nk, Nc_avail, Nv_avail, Nval, kpoints_crystal=kpts, wfn_dfpt_path=wfn)
+        assert np.allclose(Eqp_c[:, Nc_window:], Edft_c[:, Nc_window:])
+        assert np.allclose(Eqp_v[:, Nv_window:], Edft_v[:, Nv_window:])
+
+
+# ─────────────────────────────────────────────────────────────
+# build_qp_rescaling_ratio (imported from elph_xml_to_h5)
+# ─────────────────────────────────────────────────────────────
+
+class TestBuildQpRescalingRatio:
+    def test_diagonal_is_one(self):
+        Eqp  = np.array([[1.0, 2.5, 4.0]])
+        Edft = np.array([[0.8, 2.0, 3.5]])
+        ratio = build_qp_rescaling_ratio(Eqp, Edft)
+        for ib in range(3):
+            assert ratio[0, ib, ib] == pytest.approx(1.0)
+
+    def test_degenerate_dft_pair_gives_one(self):
+        # Edft difference below tol_deg -> ratio=1.0 even if Eqp differs
+        Eqp  = np.array([[1.0, 3.0]])
+        Edft = np.array([[2.0, 2.0]])
+        ratio = build_qp_rescaling_ratio(Eqp, Edft, tol_deg=1e-5)
+        assert np.allclose(ratio, 1.0)
+
+    def test_analytical_ratio(self):
+        Eqp  = np.array([[1.0, 3.0]])
+        Edft = np.array([[0.5, 2.5]])
+        ratio = build_qp_rescaling_ratio(Eqp, Edft)
+        expected = (1.0 - 3.0) / (0.5 - 2.5)
+        assert ratio[0, 0, 1] == pytest.approx(expected)
+        assert ratio[0, 1, 0] == pytest.approx(expected)   # symmetric: both diffs flip sign
+
+    def test_eqp_equals_edft_gives_all_ones(self):
+        # No QP correction anywhere -> ratio is identically 1 -> raw DFT el-ph unchanged
+        E = np.array([[0.1, 1.2, 2.3, 3.4]])
+        ratio = build_qp_rescaling_ratio(E, E)
+        assert np.allclose(ratio, 1.0)
+
+    def test_multiple_kpoints_independent(self):
+        Eqp  = np.array([[1.0, 3.0], [0.0, 10.0]])
+        Edft = np.array([[0.5, 2.5], [0.0, 5.0]])
+        ratio = build_qp_rescaling_ratio(Eqp, Edft)
+        assert ratio[0, 0, 1] == pytest.approx((1.0 - 3.0) / (0.5 - 2.5))
+        assert ratio[1, 0, 1] == pytest.approx((0.0 - 10.0) / (0.0 - 5.0))

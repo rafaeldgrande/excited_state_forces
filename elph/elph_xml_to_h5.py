@@ -150,6 +150,7 @@ from bgw_binary_io import read_dtmat
 
 TOL_K = 1e-5   # tolerance for k-point matching in crystal coords
 BOHR_TO_ANGSTROM = 0.529177210903
+RY_TO_EV = 13.605693122994
 
 
 def _require_path(path: str, flag: str, what: str | None = None, kind: str = 'file') -> None:
@@ -569,6 +570,8 @@ def read_wfn_h5_header(wfn_h5_path: str, flag: str = 'wfn_dfpt') -> dict:
       atomic_positions_ang   (nat, 3) float64    Cartesian, Angstrom
       lattice_vectors_ang    (3, 3) float64      rows = a1,a2,a3, Angstrom
       Nval                   int
+      eigenvalues_ev          (nrk, mnband) float64  DFT eigenvalues, spin 0, eV
+                              (row order matches kpts_crystal)
     """
     _require_file(wfn_h5_path, flag, 'BerkeleyGW WFN.h5 (mean-field header)')
     with h5py.File(wfn_h5_path, 'r') as fh:
@@ -577,6 +580,7 @@ def read_wfn_h5_header(wfn_h5_path: str, flag: str = 'wfn_dfpt') -> dict:
         nbnd         = int(mf['kpoints/mnband'][()])
         nspin        = int(mf['kpoints/nspin'][()])
         ifmax        = mf['kpoints/ifmax'][:]               # (nspin, nrk)
+        el           = mf['kpoints/el'][:]                  # (nspin, nrk, mnband), Ry
 
         alat  = float(mf['crystal/alat'][()])                # bohr
         avec  = mf['crystal/avec'][:]                         # (3,3), units alat
@@ -618,6 +622,7 @@ def read_wfn_h5_header(wfn_h5_path: str, flag: str = 'wfn_dfpt') -> dict:
         atomic_positions_ang=atomic_positions_ang,
         lattice_vectors_ang=lattice_vectors_ang,
         Nval=Nval,
+        eigenvalues_ev=el[0] * RY_TO_EV,
     )
 
 
@@ -1249,6 +1254,22 @@ def interpolate_elph(
 # QP rescaling: read eqp.dat and build per-k rescaling matrices
 # ══════════════════════════════════════════════════════════════════════════════
 
+def build_qp_rescaling_ratio(Eqp: np.ndarray, Edft: np.ndarray,
+                              tol_deg: float = 1e-5) -> np.ndarray:
+    """
+    ratio[ik, n, m] = (Eqp[ik,n] - Eqp[ik,m]) / (Edft[ik,n] - Edft[ik,m]),
+    with ratio = 1.0 for degenerate pairs (|Edft difference| <= tol_deg) --
+    including the diagonal, and any band pair where Eqp==Edft (e.g. bands with
+    no real QP correction available, only a DFT-eigenvalue fallback).
+
+    Eqp, Edft : (nk, nb) float64, eV
+    """
+    dEqp  = Eqp[:, :, None] - Eqp[:, None, :]    # (nk, nb, nb)
+    dEdft = Edft[:, :, None] - Edft[:, None, :]
+    mask  = np.abs(dEdft) > tol_deg
+    return np.where(mask, dEqp / np.where(mask, dEdft, 1.0), 1.0)
+
+
 def _read_eqp_and_build_rescaling(
     eqp_file: str,
     nk: int,
@@ -1319,14 +1340,8 @@ def _read_eqp_and_build_rescaling(
 
     print(f'  Read {ik + 1} k-points; Eqp_cond shape {Eqp_cond.shape}, Eqp_val shape {Eqp_val.shape}')
 
-    def _build_ratio(Eqp, Edft):
-        dEqp  = Eqp[:, :, None] - Eqp[:, None, :]    # (nk, nb, nb)
-        dEdft = Edft[:, :, None] - Edft[:, None, :]
-        mask  = np.abs(dEdft) > tol_deg
-        return np.where(mask, dEqp / np.where(mask, dEdft, 1.0), 1.0)
-
-    QP_rescaling_cond = _build_ratio(Eqp_cond, Edft_cond)
-    QP_rescaling_val  = _build_ratio(Eqp_val,  Edft_val)
+    QP_rescaling_cond = build_qp_rescaling_ratio(Eqp_cond, Edft_cond, tol_deg)
+    QP_rescaling_val  = build_qp_rescaling_ratio(Eqp_val,  Edft_val,  tol_deg)
     print(f'  QP_rescaling_cond shape {QP_rescaling_cond.shape}, '
           f'QP_rescaling_val shape {QP_rescaling_val.shape}')
 
@@ -1692,6 +1707,17 @@ if __name__ == '__main__':
     g_alt.add_argument('--Nval', type=int,
                       help="Manual override for Nval (highest occupied band index, QE nbnd "
                            "convention), bypassing both --wfn_dfpt and --qe_input.")
+    g_alt.add_argument('--save_not_filtered', action='store_true',
+                      help="Also write --elph_not_filtered with ALL available cond/val "
+                           "bands from DFPT (no truncation to --eqp's Nc/Nv window). "
+                           "Intended as input to elph_coeffs_second_derivative.py for a "
+                           "better-converged intermediate-state sum. Only supported in the "
+                           "default (non-interpolated) mode -- with --interpolate_elph_coeffs "
+                           "the band window is a hard limit of dtmat's own dimensions, so "
+                           "there is nothing wider to save.")
+    g_alt.add_argument('--elph_not_filtered', default='elph_not_filtered.h5',
+                      help="Output path for the unfiltered el-ph file (only used with "
+                           "--save_not_filtered).")
 
     # Opt-in run mode: el-ph was computed on a COARSER grid than the BSE
     # calculation uses, and needs BerkeleyGW dtmat-based coarse-to-fine
@@ -1992,6 +2018,22 @@ if __name__ == '__main__':
         g_cond_mode = g_val_mode = None
         if has_g_mode:
             g_cond_mode, g_val_mode = split_cond_val(g_mode, Nval)
+
+        if args.save_not_filtered:
+            if args.interpolate_elph_coeffs:
+                print("WARNING: --save_not_filtered has no effect with "
+                      "--interpolate_elph_coeffs (dtmat's Nc/Nv window is a hard "
+                      "limit of the interpolation itself) — skipping.")
+            else:
+                save_elph_h5(
+                    args.elph_not_filtered, g_cond_cart, g_val_cart, g_cond_mode, g_val_mode,
+                    kpoints_crystal=kpts_nscf, qpoints_crystal=qpts_crystal,
+                    qpoints_cart=qpts_cart, phonon_modes=phonon_modes_dict,
+                    structure=structure, qp_rescaling=None,
+                    extra_attrs={'grid': 'fine', 'Nval': Nval, 'filtered': False,
+                                 'note': 'All DFPT-available cond/val bands, no Nc/Nv '
+                                         'windowing to the BSE calculation.'},
+                )
 
         if args.interpolate_elph_coeffs:
             # Only needed as an intermediate before coarse-to-fine interpolation.
