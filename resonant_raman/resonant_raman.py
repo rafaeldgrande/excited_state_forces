@@ -111,8 +111,15 @@ has_double       = flavor in {3, 5}
 cart_dir = ['x', 'y', 'z']
 
 freqs_rec_cm = None
-# Try to read phonon frequencies from whichever susceptibility h5 file is available
-for _h5 in [first_order_file, second_order_file, ipa_first_order_file, ipa_second_order_file]:
+# Try to read phonon frequencies from whichever susceptibility h5 file is available.
+# In --q-points-file (BZ-averaged) mode, second_order_file itself is never written;
+# per-q files named ..._q_{iq}.h5 are used instead (see the q_points_file branch
+# below), so try the iq=0 file too.
+_freq_candidates = [first_order_file, second_order_file, ipa_first_order_file, ipa_second_order_file]
+if q_points_file is not None:
+    _freq_candidates.insert(1, second_order_file.replace('.h5', '_q_0.h5'))
+    _freq_candidates.insert(2, ipa_second_order_file.replace('.h5', '_q_0.h5'))
+for _h5 in _freq_candidates:
     try:
         with h5py.File(_h5, 'r') as _hf:
             if 'phonon_frequencies_cm' in _hf:
@@ -188,10 +195,28 @@ if flavor in {6, 8}:
         alpha_tensor_first_order = f['susceptibility_tensor_first_order'][:]
 
 if flavor in {7, 8}:
-    print(f'Reading IPA second-order susceptibilities from {ipa_second_order_file}')
-    with h5py.File(ipa_second_order_file, 'r') as f:
-        excitation_energies_2nd   = f['excitation_energies'][:]
-        alpha_tensor_second_order = f['susceptibility_tensor_second_order'][:]
+    if q_points_file is not None:
+        _q_data = np.loadtxt(q_points_file)
+        if _q_data.ndim == 1:
+            _q_data = _q_data[np.newaxis, :]
+        _q_weights = _q_data[:, 3]
+        _q_norm    = _q_weights.sum()
+        print(f'Loading q-averaged IPA second-order susceptibilities from {len(_q_weights)} q-points (q_points.dat)')
+        for iq, w_q in enumerate(_q_weights):
+            fname = f'susceptibility_tensors_second_order_IPA_q_{iq}.h5'
+            print(f'  iq={iq}: {fname}  (weight={w_q})')
+            with h5py.File(fname, 'r') as f:
+                exc_en_q   = f['excitation_energies'][:]
+                alpha_q    = f['susceptibility_tensor_second_order'][:]
+                freqs_q_cm = f['phonon_frequencies_cm'][:]
+            q_contributions.append({'weight': w_q, 'alpha': alpha_q,
+                                     'freqs_cm': freqs_q_cm, 'exc_en': exc_en_q})
+        excitation_energies_2nd = q_contributions[0]['exc_en']
+    else:
+        print(f'Reading IPA second-order susceptibilities from {ipa_second_order_file}')
+        with h5py.File(ipa_second_order_file, 'r') as f:
+            excitation_energies_2nd   = f['excitation_energies'][:]
+            alpha_tensor_second_order = f['susceptibility_tensor_second_order'][:]
 
 # ---------------------------------------------------------------------------
 # Optional down-sampling of the excitation energy axis

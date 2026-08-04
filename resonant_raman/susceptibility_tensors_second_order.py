@@ -9,7 +9,7 @@ import multiprocessing as mp
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from common import _gb, rec_cm_to_eV
+from common import _gb, rec_cm_to_eV, cartesian_from_bvec_basis
 
 # ---------------------------------------------------------------------------
 # Module-level state shared with fork-based worker processes (COW, no copy)
@@ -330,6 +330,10 @@ parser.add_argument('--dip_mom_file_b2', default='eigenvalues_b2.dat',
                     help='Dipole moment file for polarization b2 (default: eigenvalues_b2.dat)')
 parser.add_argument('--dip_mom_file_b3', default='eigenvalues_b3.dat',
                     help='Dipole moment file for polarization b3 (default: eigenvalues_b3.dat)')
+parser.add_argument('--eigenvectors_file', default='eigenvectors.h5',
+                    help='Q=0 eigenvectors.h5 file, used only to read mf_header/crystal/bvec '
+                         '(reciprocal lattice vectors) so the b1/b2/b3-basis dipole moments '
+                         'can be converted to Cartesian x/y/z (default: eigenvectors.h5)')
 parser.add_argument('--dE', type=float, default=0.001, help='Energy step in eV for the Ex grid (default: 0.001 eV)')
 parser.add_argument('--gamma', type=float, default=0.01, help='Broadening parameter in eV (default: 0.01 eV)')
 parser.add_argument('--vectorized_flavor', type=int, default=2, choices=[0, 1, 2],
@@ -379,6 +383,7 @@ print(f'  freqs_file        : {freqs_file if freqs_file else "(read from h5)"}')
 print(f'  dip_mom_file_b1   : {dip_mom_file_b1}')
 print(f'  dip_mom_file_b2   : {dip_mom_file_b2}')
 print(f'  dip_mom_file_b3   : {dip_mom_file_b3}')
+print(f'  eigenvectors_file : {args.eigenvectors_file}')
 print(f'  dE                : {dE} eV')
 print(f'  gamma             : {gamma} eV')
 print(f'  vectorized_flavor : {vectorized_flavor} ({flavor_desc[vectorized_flavor]})')
@@ -538,6 +543,14 @@ elif _Nexc_Qq_en > _Nexc_Qq_mat:
 exc_ph_dag = exc_ph.conj().transpose(0, 2, 1)  # (Nmodes, Nexc_Qq, Nexc_Q0)
 
 pos_operator_list = [pos_operator_b1, pos_operator_b2, pos_operator_b3]
+
+# The b1/b2/b3 dipole moments above are projections onto the (generally
+# non-orthogonal) reciprocal lattice unit vectors -- BerkeleyGW's default
+# polarization basis, per BSE/vmtxel.f90 -- not Cartesian x/y/z. Convert
+# before using them as Cartesian tensor indices anywhere downstream.
+with h5py.File(args.eigenvectors_file, 'r') as hf:
+    bvec = hf['mf_header/crystal/bvec'][:]
+pos_operator_list = list(cartesian_from_bvec_basis(*pos_operator_list, bvec))
 
 print('Exciton energies read successfully.')
 

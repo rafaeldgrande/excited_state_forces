@@ -7,7 +7,7 @@ import h5py
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from common import _gb, read_eqp_dat_file, rec_cm_to_eV
+from common import _gb, read_eqp_dat_file, rec_cm_to_eV, Ry2eV, bohr2A, cartesian_from_bvec_basis
 
 def delta_E(Econd, Eval):
     # Econd: (nc, nk), Eval: (nv, nk) → output: (nk, nc, nv)
@@ -346,6 +346,10 @@ parser.add_argument('--no_renorm_elph', action='store_true',
 parser.add_argument('--dip_mom_noeh_file_b1', default='eigenvalues_b1_noeh.dat', help='Dipole moment file for polarization b1 (default: eigenvalues_b1_noeh.dat)')
 parser.add_argument('--dip_mom_noeh_file_b2', default='eigenvalues_b2_noeh.dat', help='Dipole moment file for polarization b2 (default: eigenvalues_b2_noeh.dat)')
 parser.add_argument('--dip_mom_noeh_file_b3', default='eigenvalues_b3_noeh.dat', help='Dipole moment file for polarization b3 (default: eigenvalues_b3_noeh.dat)')
+parser.add_argument('--eigenvectors_file', default='eigenvectors.h5',
+                    help='eigenvectors.h5 file, used only to read mf_header/crystal/bvec '
+                         '(reciprocal lattice vectors) so the b1/b2/b3-basis dipole moments '
+                         'can be converted to Cartesian x/y/z (default: eigenvectors.h5)')
 parser.add_argument('--dE', type=float, default=0.001, help='Energy step in eV for the Ex grid')
 parser.add_argument('--Emin', type=float, default=0.0, help='Minimum excitation energy in eV')
 parser.add_argument('--Emax', type=float, default=10.0, help='Maximum excitation energy in eV')
@@ -407,6 +411,7 @@ print(f'  freqs_file        : {freqs_file}  (fallback if freqs not in h5)')
 print(f'  dip_mom_file_b1   : {dip_mom_noeh_file_b1}')
 print(f'  dip_mom_file_b2   : {dip_mom_noeh_file_b2}')
 print(f'  dip_mom_file_b3   : {dip_mom_noeh_file_b3}')
+print(f'  eigenvectors_file : {args.eigenvectors_file}')
 print(f'  dE                : {dE} eV')
 print(f'  Emin              : {Emin} eV')
 print(f'  Emax              : {Emax} eV')
@@ -444,8 +449,16 @@ with h5py.File(elph_fine_file, 'r') as hf:
         sys.exit(f'ERROR: q=0 (Gamma) not found in {elph_fine_file} qpoints_crystal.')
     print(f'  q=0 (Gamma): index iq={iq0}  (q_crystal = {qpoints_crystal[iq0]})')
 
-    g_cond = hf['elph_cond_mode'][iq0].astype(complex)  # (Nmodes, Nk, Nc, Nc)
-    g_val  = hf['elph_val_mode'][iq0].astype(complex)   # (Nmodes, Nk, Nv, Nv)
+    # elph_cond_mode/elph_val_mode are stored in raw Ry/bohr (DFPT dV/dR units,
+    # never converted in elph_xml_to_h5.py). Convert to eV/Ang here to match the
+    # convention excited_forces.py uses for the analogous BSE exciton-phonon
+    # coupling (exc_forces.h5 forces are produced via the same Ry2eV/bohr2A
+    # factor) -- otherwise this susceptibility mixes eV-scale dipole/energy
+    # quantities with un-converted Ry/bohr-scale coupling, off by ~13.6x per
+    # phonon vertex used (compounding to ~185x for the two-vertex 2nd-order term).
+    _elph_unit = Ry2eV / bohr2A
+    g_cond = hf['elph_cond_mode'][iq0].astype(complex) * _elph_unit  # (Nmodes, Nk, Nc, Nc)
+    g_val  = hf['elph_val_mode'][iq0].astype(complex) * _elph_unit   # (Nmodes, Nk, Nv, Nv)
 
     # Phonon frequencies from phonon_modes group (same q ordering as elph arrays)
     if 'phonon_modes/frequencies' in hf:
@@ -554,6 +567,14 @@ pos_op_b1 = 1j * dip_moments_b1 / DeltaE
 pos_op_b2 = 1j * dip_moments_b2 / DeltaE
 pos_op_b3 = 1j * dip_moments_b3 / DeltaE
 
+# The b1/b2/b3 dipole moments above are projections onto the (generally
+# non-orthogonal) reciprocal lattice unit vectors -- BerkeleyGW's default
+# polarization basis, per BSE/vmtxel.f90 -- not Cartesian x/y/z. Convert
+# before using them as Cartesian tensor indices anywhere downstream.
+with h5py.File(args.eigenvectors_file, 'r') as hf:
+    bvec = hf['mf_header/crystal/bvec'][:]
+pos_op_b1, pos_op_b2, pos_op_b3 = cartesian_from_bvec_basis(pos_op_b1, pos_op_b2, pos_op_b3, bvec)
+
 pos_operator_list = [pos_op_b1, pos_op_b2, pos_op_b3]
 
 # ---------------------------------------------------------------------------
@@ -648,6 +669,11 @@ if not skip_first_order_calculation:
             else:
                 susceptibility_tensor_first_order[ialpha, ibeta] = calculate_tensor_first_order_not_vectorized(ialpha, ibeta)
 
+    # BZ average over the electron k-grid: Sigma_k -> (1/Nk) Sigma_k, so this matches
+    # the BSE exciton-phonon susceptibility, whose Sum_cvk |A_cvk|^2 = 1 normalization
+    # already makes it an intensive (per-k-averaged) quantity.
+    susceptibility_tensor_first_order /= nk_elph
+
     output_h5_file = 'susceptibility_tensors_first_order_IPA.h5'
     with h5py.File(output_h5_file, 'w') as hf:
         hf.create_dataset('excitation_energies', data=Ex)
@@ -670,8 +696,9 @@ if compute_second_order:
         q_crystal = _qpts_cryst[iq_second_order]
         print(f'  q-point iq={iq_second_order}: q_crystal = {q_crystal}')
 
-        g_cond_q = hf_q['elph_cond_mode'][iq_second_order].astype(complex)
-        g_val_q  = hf_q['elph_val_mode'][iq_second_order].astype(complex)
+        # Same raw Ry/bohr -> eV/Ang conversion as the Gamma load above.
+        g_cond_q = hf_q['elph_cond_mode'][iq_second_order].astype(complex) * _elph_unit
+        g_val_q  = hf_q['elph_val_mode'][iq_second_order].astype(complex) * _elph_unit
 
     # Apply QP renormalization
     if not no_renorm_elph:
@@ -692,6 +719,11 @@ if compute_second_order:
     for ialpha in range(3):
         for ibeta in range(3):
             susceptibility_tensor_second_order[ialpha, ibeta] = _run_second_order_fn(ialpha, ibeta)
+
+    # Same 1/Nk BZ-average as the first-order tensor above (electron k-grid, not
+    # the phonon q-grid -- the 1/Nq average over q is applied separately, per-file,
+    # by resonant_raman.py's --q-points-file weighting).
+    susceptibility_tensor_second_order /= nk_elph
 
     output_h5_file_2nd = f'susceptibility_tensors_second_order_IPA_q_{iq_second_order}.h5'
     with h5py.File(output_h5_file_2nd, 'w') as hf:

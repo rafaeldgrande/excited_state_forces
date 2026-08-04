@@ -3,6 +3,7 @@ import numpy as np
 __all__ = [
     'ignore_0_freq_modes', 'FLAVOR_DESC',
     '_gb', '_downsample_idx', 'unpolarized_invariant', 'read_eqp_dat_file',
+    'cartesian_from_bvec_basis',
 ]
 
 ignore_0_freq_modes = True
@@ -53,6 +54,36 @@ def unpolarized_invariant(a):
                     np.abs(a[0, 2] - a[2, 0])**2 +
                     np.abs(a[1, 2] - a[2, 1])**2)
     return 45 * np.abs(alpha_bar)**2 + 7 * gamma2 + 5 * delta2
+
+
+def cartesian_from_bvec_basis(d_b1, d_b2, d_b3, bvec):
+    """
+    Convert dipole/position-operator components measured along the
+    (generally non-orthogonal) reciprocal lattice unit vectors b1,b2,b3 --
+    BerkeleyGW's default polarization basis when no `polarization` card is
+    given in absorption.inp, per BSE/vmtxel.f90 + Common/mtxel_optical.f90 --
+    into genuine Cartesian x,y,z components.
+
+    Each input is d_bi = P . b_hat_i (P = true Cartesian vector, b_hat_i =
+    unit vector along reciprocal lattice vector i). Stacking B_hat =
+    [b_hat_1 | b_hat_2 | b_hat_3] (columns): d = B_hat^T . P, so
+    P = (B_hat^T)^-1 . d.
+
+    bvec : (3,3) array, columns = reciprocal lattice vectors in Cartesian
+        directions (e.g. from eigenvectors.h5's mf_header/crystal/bvec --
+        units of `blat` are fine, the scale cancels on normalization).
+    d_b1, d_b2, d_b3 : arrays of matching shape (broadcastable), real or
+        complex.
+
+    Returns (d_x, d_y, d_z), same shape as the inputs. A no-op (returns the
+    inputs unchanged, up to floating-point precision) when bvec's columns
+    are already Cartesian-orthonormal.
+    """
+    b_hat = bvec / np.linalg.norm(bvec, axis=0, keepdims=True)
+    transform = np.linalg.inv(b_hat.T)
+    stacked = np.stack([d_b1, d_b2, d_b3], axis=0)
+    cart = np.tensordot(transform, stacked, axes=(1, 0))
+    return cart[0], cart[1], cart[2]
 
 
 def read_eqp_dat_file(eqp_file):
