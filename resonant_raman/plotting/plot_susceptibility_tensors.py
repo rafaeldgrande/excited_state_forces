@@ -41,11 +41,14 @@ flavor_label = FLAVOR_DESC[flavor]
 T            = args.temperature
 cart_dir     = ['x', 'y', 'z']
 
-# Derived flags
-has_first_order  = flavor in {0, 1, 4, 5}
-use_d2           = flavor == 0
-has_second_order = flavor in {2, 3, 4, 5}
-has_double       = flavor in {3, 5}
+# Derived flags (flavor numbering per FLAVOR_DESC in common/utils.py --
+# renumbered 2026-08-05, see resonant_raman/README.md's "Raman Flavor Index".
+# This script only ever supported the BSE (non-IPA) flavors.)
+has_first_order  = flavor in {3, 4, 8}
+use_diag_only    = flavor == 3
+has_second_order = flavor in {5, 6, 7, 8}
+has_triple       = flavor in {5, 7, 8}
+has_double       = flavor in {6, 7, 8}
 
 freqs_rec_cm = np.loadtxt(args.freqs_file)
 Nmodes       = len(freqs_rec_cm)
@@ -62,22 +65,29 @@ if has_first_order:
     print(f'Reading first-order susceptibilities from {args.first_order_file}')
     with h5py.File(args.first_order_file, 'r') as f:
         excitation_energies_1st = f['excitation_energies'][:]
-        alpha_tensor_d2         = f['alpha_tensor_d2'][:]
-        alpha_tensor_d3         = f['alpha_tensor_d3'][:]
-    alpha_tensor_first_order = alpha_tensor_d2 if use_d2 else alpha_tensor_d3
+        alpha_tensor_diag       = f['alpha_tensor_d2'][:]
+        alpha_tensor_full       = f['alpha_tensor_d3'][:]
+    alpha_tensor_first_order = alpha_tensor_diag if use_diag_only else alpha_tensor_full
 
 excitation_energies_2nd   = None
 alpha_tensor_second_order = None
 if has_second_order:
     print(f'Reading second-order susceptibilities from {args.second_order_file}')
     with h5py.File(args.second_order_file, 'r') as f:
-        excitation_energies_2nd   = f['excitation_energies'][:]
-        alpha_tensor_second_order = f['alpha_tensor_triple_resonance'][:]
+        excitation_energies_2nd = f['excitation_energies'][:]
+        if has_triple:
+            alpha_tensor_second_order = f['alpha_tensor_triple_resonance'][:]
+        else:
+            _tr_ds = f['alpha_tensor_triple_resonance']
+            alpha_tensor_second_order = np.zeros(_tr_ds.shape, dtype=_tr_ds.dtype)
         if has_double:
             alpha_tensor_double_res = f['alpha_tensor_double_resonance'][:]
     if has_double:
         for imode in range(Nmodes):
-            alpha_tensor_second_order[:, :, imode, imode, :] += alpha_tensor_double_res[:, :, imode, :]
+            if has_triple:
+                alpha_tensor_second_order[:, :, imode, imode, :] += alpha_tensor_double_res[:, :, imode, :]
+            else:
+                alpha_tensor_second_order[:, :, imode, imode, :] = alpha_tensor_double_res[:, :, imode, :]
 
 # ---------------------------------------------------------------------------
 # Plot 1: |α¹[ialpha, ibeta, imode, :]| vs excitation energy, one fig per mode
