@@ -8,7 +8,7 @@ import numpy as np
 from elph_coeffs_second_derivative import (
     _inv_dE, compute_g2_cart, _build_q_map, read_eqp, read_eqp_full_range,
 )
-from elph_xml_to_h5 import RY_TO_EV, build_qp_rescaling_ratio
+from elph_xml_to_h5_QE import RY_TO_EV, build_qp_rescaling_ratio
 
 
 # ─────────────────────────────────────────────────────────────

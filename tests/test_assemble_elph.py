@@ -8,7 +8,7 @@ Tests for elph/elph_xml_to_h5.py (assembly stage):
 import re
 import pytest
 import numpy as np
-from elph_xml_to_h5 import (
+from elph_xml_to_h5_QE import (
     cart_to_crystal,
     wrap_to_bz,
     find_kpt_index,

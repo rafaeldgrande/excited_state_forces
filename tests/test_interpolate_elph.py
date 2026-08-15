@@ -5,7 +5,7 @@ Tests for elph/elph_xml_to_h5.py (interpolation stage):
 """
 import pytest
 import numpy as np
-from elph_xml_to_h5 import wrap_to_bz as _wrap_bz, _build_kpt_map
+from elph_xml_to_h5_QE import wrap_to_bz as _wrap_bz, _build_kpt_map
 
 
 # ─────────────────────────────────────────────────────────────
