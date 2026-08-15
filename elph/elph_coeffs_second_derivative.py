@@ -43,7 +43,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))        # elph_xml_to_h5 (same dir)
 sys.path.insert(0, str(Path(__file__).parent.parent))  # common
 from common import TOL_ZERO, eV2ry
-from elph_xml_to_h5 import (
+from elph_xml_to_h5_QE import (
     read_wfn_h5_header, _get_band_window_from_eqp,
     _truncate_or_pad_bands, _build_kpt_map, build_qp_rescaling_ratio,
 )

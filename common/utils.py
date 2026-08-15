@@ -4,21 +4,27 @@ __all__ = [
     'ignore_0_freq_modes', 'FLAVOR_DESC',
     '_gb', '_downsample_idx', 'unpolarized_invariant', 'read_eqp_dat_file',
     'cartesian_from_bvec_basis',
+    'isotropic_parallel', 'isotropic_perpendicular', 'depolarization_ratio',
 ]
 
 ignore_0_freq_modes = True
 
-# Flavor labels for resonant Raman calculations
+# Flavor labels for resonant Raman calculations.
+# Renumbered 2026-08-05 (IPA flavors moved to the front; "d2"/"d3" jargon
+# renamed to explicit diagonal/off-diagonal language; new flavor 6, second-
+# order double resonance alone, previously never offered on its own). See
+# resonant_raman/README.md's "Raman Flavor Index" table for the full
+# description of each combination and which files/directories they read from.
 FLAVOR_DESC = {
-    0: 'First-order d2 only',
-    1: 'First-order d3 only',
-    2: 'Second-order triple resonance only',
-    3: 'Second-order triple + double resonance',
-    4: 'Second-order triple resonance + first-order d3',
-    5: 'Second-order triple + double resonance + first-order d3',
-    6: 'IPA first order',
-    7: 'IPA second order',
-    8: 'IPA first + second order',
+    0: 'IPA first order',
+    1: 'IPA second order',
+    2: 'IPA first + second order',
+    3: 'First order, diagonal exciton-phonon only',
+    4: 'First order, diagonal + off-diagonal exciton-phonon',
+    5: 'Second order, triple resonance only',
+    6: 'Second order, double resonance only',
+    7: 'Second order, double + triple resonance',
+    8: 'First order (diag+offdiag) + second order (double+triple)',
 }
 
 
@@ -35,13 +41,14 @@ def _downsample_idx(n_full, n_target):
     return np.round(np.linspace(0, n_full - 1, n_target)).astype(int)
 
 
-def unpolarized_invariant(a):
+def _raman_invariants(a):
     """
-    Unpolarized Raman invariant  45|ᾱ|² + 7γ² + 5δ².
+    Shared building blocks for the isotropic (powder-averaged) Raman
+    invariants: mean polarizability alpha_bar, anisotropy^2 gamma2, and
+    antisymmetric-anisotropy^2 delta2.
 
     a : (3, 3, ...) complex array — first two axes are Cartesian indices.
-    Works for any trailing shape: (), (Nfreq,), (N, Nfreq), etc.
-    Returns an array (or scalar) with the same trailing shape.
+    Returns (alpha_bar, gamma2, delta2), each with the trailing shape of `a`.
     """
     alpha_bar = (a[0, 0] + a[1, 1] + a[2, 2]) / 3.0
     gamma2 = (0.5 * (np.abs(a[0, 0] - a[1, 1])**2 +
@@ -53,7 +60,49 @@ def unpolarized_invariant(a):
     delta2 = 3/4 * (np.abs(a[0, 1] - a[1, 0])**2 +
                     np.abs(a[0, 2] - a[2, 0])**2 +
                     np.abs(a[1, 2] - a[2, 1])**2)
+    return alpha_bar, gamma2, delta2
+
+
+def unpolarized_invariant(a):
+    """
+    Unpolarized Raman invariant  45|ᾱ|² + 7γ² + 5δ² = I_parallel^iso + I_perp^iso.
+
+    a : (3, 3, ...) complex array — first two axes are Cartesian indices.
+    Works for any trailing shape: (), (Nfreq,), (N, Nfreq), etc.
+    Returns an array (or scalar) with the same trailing shape.
+    """
+    alpha_bar, gamma2, delta2 = _raman_invariants(a)
     return 45 * np.abs(alpha_bar)**2 + 7 * gamma2 + 5 * delta2
+
+
+def isotropic_parallel(a):
+    """
+    Isotropic (powder-averaged) parallel-polarized Raman intensity
+    I_parallel^iso = 45|ᾱ|² + 4γ², for a randomly-oriented sample (e.g.
+    molecules) where theta is not meaningful. Same input convention as
+    `unpolarized_invariant`.
+    """
+    alpha_bar, gamma2, _ = _raman_invariants(a)
+    return 45 * np.abs(alpha_bar)**2 + 4 * gamma2
+
+
+def isotropic_perpendicular(a):
+    """
+    Isotropic (powder-averaged) perpendicular-polarized Raman intensity
+    I_perp^iso = 3γ² + 5δ². Same input convention as `unpolarized_invariant`.
+    """
+    _, gamma2, delta2 = _raman_invariants(a)
+    return 3 * gamma2 + 5 * delta2
+
+
+def depolarization_ratio(a):
+    """
+    Depolarization ratio rho = I_perp^iso / I_parallel^iso for a randomly
+    oriented sample. rho ~ 0 for totally symmetric modes (e.g. benzene's
+    a1g ring-breathing mode); rho -> 3/4 in the fully depolarized limit.
+    Same input convention as `unpolarized_invariant`.
+    """
+    return isotropic_perpendicular(a) / isotropic_parallel(a)
 
 
 def cartesian_from_bvec_basis(d_b1, d_b2, d_b3, bvec):

@@ -6,7 +6,7 @@ Scripts for assembling, interpolating, and processing electron-phonon (el-ph) ma
 
 ## Workflow Overview
 
-`elph_xml_to_h5.py` has two modes:
+`elph_xml_to_h5_QE.py` has two modes:
 
 **Default mode** — el-ph was computed via DFPT directly on the same grid the
 BSE calculation uses. No interpolation needed.
@@ -17,7 +17,7 @@ QE DFPT output              BerkeleyGW output
  scf.in fallback)          (eqp.dat)
         │                            │
         ▼                            ▼
-              elph_xml_to_h5.py (default: no --interpolate_elph_coeffs)
+              elph_xml_to_h5_QE.py (default: no --interpolate_elph_coeffs)
                     assembly + band-match/QP-rescale
                                 → elph.h5  (fine k-grid)
                                            │
@@ -39,7 +39,7 @@ QE DFPT output              BerkeleyGW output           BerkeleyGW output
  scf.in fallback)                                        eqp.dat)
         │                            │                            │
         ▼                            ▼                            │
-                     elph_xml_to_h5.py --interpolate_elph_coeffs    │
+                     elph_xml_to_h5_QE.py --interpolate_elph_coeffs    │
         assembly stage → elph_coarse.h5 (coarse k-grid)            │
                     │                                              │
                     └──────── interpolation stage ◄─────────────────┘
@@ -54,7 +54,7 @@ interpolation-only from a previously-assembled file.
 
 ## Scripts
 
-### `elph_xml_to_h5.py`
+### `elph_xml_to_h5_QE.py`
 
 **Assembly stage** — reads QE DFPT el-ph XML files, rotates from the
 symmetry-adapted pattern basis to the Cartesian atomic-displacement basis
@@ -102,32 +102,32 @@ where $\mathbf{k}_{\rm co}$ is the nearest coarse k-point to $\mathbf{k}_{\rm fi
 ```bash
 # DEFAULT: el-ph computed directly on the fine grid the BSE calculation uses.
 # --eqp band-matches + QP-rescales the result and writes elph.h5.
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --eqp eqp.dat
+python elph_xml_to_h5_QE.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --eqp eqp.dat
 
 # Same, but without --eqp: elph.h5 is still written, just unmatched/un-rescaled
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5
+python elph_xml_to_h5_QE.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5
 
 # OPT-IN: el-ph computed on a coarser grid, needs coarse-to-fine interpolation
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_co.h5 \
+python elph_xml_to_h5_QE.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_co.h5 \
     --interpolate_elph_coeffs --dtmat dtmat --wfn_absorption_fine WFN_fi.h5 --eqp eqp.dat
 
 # Resume: interpolate from a previously-written elph_coarse.h5
-python elph_xml_to_h5.py --elph_coarse elph_coarse.h5 --wfn_dfpt WFN_co.h5 \
+python elph_xml_to_h5_QE.py --elph_coarse elph_coarse.h5 --wfn_dfpt WFN_co.h5 \
     --interpolate_elph_coeffs --dtmat dtmat --wfn_absorption_fine WFN_fi.h5
 
 # No WFN.h5 available: fall back to scf.in / scf.out / pseudopotentials
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --qe_input scf.in --eqp eqp.dat
+python elph_xml_to_h5_QE.py --elph_dir _ph0/mos2.phsave --qe_input scf.in --eqp eqp.dat
 
 # Manual Nval override (takes precedence over WFN.h5 / scf.in either way)
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --Nval 13
+python elph_xml_to_h5_QE.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --Nval 13
 
 # Disable acoustic sum rule (default: ASR applied, assembly stage only)
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --no-ASR
+python elph_xml_to_h5_QE.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --no-ASR
 
 # Also write elph_not_filtered.h5 (ALL available DFPT bands, no Nc/Nv windowing) --
 # feed this into elph_coeffs_second_derivative.py for a better-converged
 # intermediate-state sum. Default mode only (no --interpolate_elph_coeffs).
-python elph_xml_to_h5.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --eqp eqp.dat \
+python elph_xml_to_h5_QE.py --elph_dir _ph0/mos2.phsave --wfn_dfpt WFN_fi.h5 --eqp eqp.dat \
     --save_not_filtered
 ```
 
@@ -214,7 +214,7 @@ The intermediate-state sum over $l$ runs over whatever band range `--elph_fine`
 provides. With plain `elph.h5` that's just the BSE `Nc`/`Nv` window — usually
 too narrow for a converged sum, since DFPT normally computes far more bands
 than the BSE calculation uses. For a better-converged sum, generate
-`elph_not_filtered.h5` via `elph_xml_to_h5.py --save_not_filtered` (all
+`elph_not_filtered.h5` via `elph_xml_to_h5_QE.py --save_not_filtered` (all
 DFPT-available bands, cond/val split but not windowed) and pass that as
 `--elph_fine` instead — the script sums $l$ over the full available range and
 truncates the *output* $g^{(2)}$ back down to `eqp.dat`'s window before
@@ -231,9 +231,9 @@ before the sum above — this must happen *before* the sum, not after, since
 $g^{(2)}$ is quadratic in $g$. Band pairs with no real QP data (out-of-window
 bands when using `elph_not_filtered.h5`, or any near-degenerate DFT pair) get
 ratio 1.0, i.e. the raw DFT el-ph is used unchanged for those. Uses the same
-ratio formula as `elph_xml_to_h5.py`'s `QP_rescaling_matrix_cond`/`_val`
+ratio formula as `elph_xml_to_h5_QE.py`'s `QP_rescaling_matrix_cond`/`_val`
 (`build_qp_rescaling_ratio`, shared between both scripts) — but note that
-`elph_xml_to_h5.py` only ever *saves* that ratio matrix for downstream use, it
+`elph_xml_to_h5_QE.py` only ever *saves* that ratio matrix for downstream use, it
 never applies it to the el-ph itself; this flag is what actually applies it,
 and only here, before the second-order sum.
 
@@ -261,7 +261,7 @@ python elph_coeffs_second_derivative.py \
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--elph_fine` | `elph.h5` | Input from `elph_xml_to_h5.py` (`elph.h5` or `elph_not_filtered.h5`) |
+| `--elph_fine` | `elph.h5` | Input from `elph_xml_to_h5_QE.py` (`elph.h5` or `elph_not_filtered.h5`) |
 | `--eqp` | `eqp1.dat` | Fine-grid QP energy file (from BerkeleyGW `absorption`) |
 | `--Nval` | `None` | Number of valence bands in DFPT. If omitted, read from `--elph_fine`'s stored `Nval` attribute |
 | `--wfn_dfpt` | `None` | `WFN.h5` providing DFT eigenvalues for bands outside `eqp.dat`'s Nc/Nv window. Only required when `--elph_fine` has more bands than `eqp.dat` covers (e.g. `elph_not_filtered.h5`) |
@@ -284,7 +284,7 @@ Low-level reader for BerkeleyGW unformatted Fortran binary files. Provides:
 - `read_vmtxel(filename, complex_flavor=True)` — reads optical matrix elements from `vmtxel`.
 - `dtmat_to_hdf5(in_path, out_path)` / `vmtxel_to_hdf5(in_path, out_path)` — dump to self-describing HDF5.
 
-Used internally by `elph_xml_to_h5.py` (interpolation stage).
+Used internally by `elph_xml_to_h5_QE.py` (interpolation stage).
 
 ---
 
@@ -307,7 +307,7 @@ ESF=/path/to/excited_state_forces
 
 # 1. Assemble el-ph directly on the fine grid used by the BSE calculation
 #    (default mode: no coarse-to-fine interpolation)
-python $ESF/elph/elph_xml_to_h5.py \
+python $ESF/elph/elph_xml_to_h5_QE.py \
     --elph_dir /path/to/dfpt/_ph0/mos2.phsave \
     --wfn_dfpt WFN_fi.h5 \
     --eqp eqp.dat
@@ -347,5 +347,5 @@ use_second_derivatives_elph_coeffs  True
 - **Cartesian vs. mode basis**: both `--elph_coarse` and `--elph_out` contain both. The Cartesian basis (`_cart` datasets) is needed for forces in the atomic basis; the mode basis (`_mode` datasets) is needed for forces resolved by phonon mode and frequency. Both are used by `excited_forces.py`.
 - **Acoustic sum rule**: applied by default during the assembly stage. Disable with `--no-ASR` if you want the raw uncorrected couplings.
 - **Units**: el-ph matrix elements throughout are in Ry/bohr (first order) or Ry/bohr² (second order). Energies in `eqp1.dat` are in eV and are converted to Ry internally where needed.
-- **Band-window mismatch (Nc/Nv vs. the BSE calculation)**: whether via `dtmat` (in `--interpolate_elph_coeffs` mode, where the coarse conduction/valence band counts come from `number_cond_bands_coarse`/`number_val_bands_coarse` in `absorption.inp`) or via `--eqp`'s own band window (default mode), the assembled el-ph usually has *more* bands available than the BSE calculation actually uses (e.g. the DFPT run may have far more total bands than are used for BSE). This is expected and handled automatically: `elph_xml_to_h5.py` truncates to the bands closest to the band edge (lowest conduction, highest valence) if more are available than needed, or zero-pads if fewer are available — either way it prints a `NOTE:`/warning naming the counts involved.
+- **Band-window mismatch (Nc/Nv vs. the BSE calculation)**: whether via `dtmat` (in `--interpolate_elph_coeffs` mode, where the coarse conduction/valence band counts come from `number_cond_bands_coarse`/`number_val_bands_coarse` in `absorption.inp`) or via `--eqp`'s own band window (default mode), the assembled el-ph usually has *more* bands available than the BSE calculation actually uses (e.g. the DFPT run may have far more total bands than are used for BSE). This is expected and handled automatically: `elph_xml_to_h5_QE.py` truncates to the bands closest to the band edge (lowest conduction, highest valence) if more are available than needed, or zero-pads if fewer are available — either way it prints a `NOTE:`/warning naming the counts involved.
 - **Not-filtered el-ph and the second-order sum**: `elph.h5`'s `elph_cond_cart`/`elph_val_cart` are always windowed to the BSE `Nc`/`Nv` (via `--eqp`) — fine for first-order forces, but the intermediate-state sum in `elph_coeffs_second_derivative.py` is then artificially confined to that narrow window. `--save_not_filtered` gives that script the full DFPT band range to sum over instead. Note this still keeps the conduction and valence manifolds separate (the intermediate state `l` never crosses between them) — the cross-manifold (cond-val) coupling terms of the raw QE el-ph matrix are discarded during assembly and are not currently reconstructable from either output file.
