@@ -109,7 +109,7 @@ python $ESF_DIR/main/excited_forces.py                                       →
 python $ESF_DIR/post_processing/cart2ph_eigvec.py --read_exciton_pairs_file  → forces in phonon basis
 python $ESF_DIR/resonant_raman/assemble_exciton_phonon_coeffs.py             → exciton_phonon_couplings.h5
 python $ESF_DIR/resonant_raman/susceptibility_tensors_first_order.py         → susceptibility_tensors_first_order.h5
-python $ESF_DIR/resonant_raman/resonant_raman.py --flavor 0                  → Raman maps
+python $ESF_DIR/resonant_raman/resonant_raman.py --flavor 3                  → Raman maps
 ```
 
 ### 2nd Order Workflow
@@ -140,7 +140,7 @@ python $ESF_DIR/resonant_raman/susceptibility_tensors_second_order.py
 python $ESF_DIR/resonant_raman/resonant_raman.py \
     --first-order-file ../1st_der_exc_ph/susceptibility_tensors_first_order.h5 \
     --second-order-file susceptibility_tensors_second_order.h5 \
-    --flavor 3
+    --flavor 7
 ```
 
 ---
@@ -191,11 +191,13 @@ See [`resonant_raman/README.md`](resonant_raman/README.md).
 | `susceptibility_tensors_first_order.py` | 1st-order polarizability derivatives vs. excitation energy |
 | `susceptibility_tensors_second_order.py` | 2nd-order susceptibility tensors (triple + double resonance); `--finite-q` for finite-q phonons |
 | `susceptibility_tensors_IPA.py` | IPA susceptibility tensors (1st and 2nd order) from `elph_interpolated_kgrid.h5` directly |
-| `resonant_raman.py` | Raman intensity maps; flavors 0–8 covering 1st/2nd order BSE and IPA contributions |
+| `resonant_raman.py` | Raman intensity maps; flavors 0–8 covering 1st/2nd order BSE and IPA contributions; `--polarized` for angle-resolved $I_\parallel(\theta)$/$I_\perp(\theta)$ |
+| `polarization.py` | Frame construction + Cartesian-tensor contraction helpers for polarized Raman |
 | `plotting/plot_raman_spectra.py` | Raman spectra at fixed excitation energies |
 | `plotting/plot_susceptibility_tensors.py` | Raw susceptibility tensor components vs. excitation energy |
 | `plotting/interactive_vis_resonant_map.py` | Self-contained interactive HTML Raman map viewer (BSE, flavors 0–8) |
 | `plotting/interactive_vis_resonant_map_2D_materials.py` | Interactive BZ q-contribution map for second-order Raman in 2D materials |
+| `plotting/plot_polar_raman.py` | Polar plots and $\theta$–$\omega$/$\theta$–$\Omega$ maps from `resonant_raman.py --polarized` output |
 
 ### `common/`
 
