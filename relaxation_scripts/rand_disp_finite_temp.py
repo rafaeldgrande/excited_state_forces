@@ -1,8 +1,9 @@
 
 import numpy as np
+from ase.data import atomic_masses, atomic_numbers
 
 eigvecs_file = 'eigvecs' # eigvecs file with phonon frequencies and dynamical matrix eigenvectors. This file is produced by dynmat.x through the variable fileig
-atomic_pos_file = 'Atoms_info' # file with atomic species and their masses in a.u.. The format of the file is the following:
+atomic_pos_file = 'Atoms_info' # file with atomic species and their positions. The format of the file is the following:
 #  Li   0.000000000   0.000000000   0.000000000
 #  F    -2.02948455    2.02948455    2.02948455
 
@@ -73,7 +74,8 @@ for line in arq:
     atomic_pos.append(z)
     atomic_simb.append(line_split[0])
     # masses in kg -> 1a.u. corresposnts to 1g/mol
-    Masses.append(float(line_split[1]) * 1e-3 / Na)
+    mass_amu = atomic_masses[atomic_numbers[line_split[0]]]
+    Masses.append(mass_amu * 1e-3 / Na)
 arq.close()
 
 Natoms = len(atomic_simb) 

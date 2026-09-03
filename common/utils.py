@@ -1,9 +1,10 @@
 import numpy as np
+import h5py
 
 __all__ = [
     'ignore_0_freq_modes', 'FLAVOR_DESC',
     '_gb', '_downsample_idx', 'unpolarized_invariant', 'read_eqp_dat_file',
-    'cartesian_from_bvec_basis',
+    'cartesian_from_bvec_basis', 'load_exciton_phonon_matrix',
     'isotropic_parallel', 'isotropic_perpendicular', 'depolarization_ratio',
 ]
 
@@ -133,6 +134,65 @@ def cartesian_from_bvec_basis(d_b1, d_b2, d_b3, bvec):
     stacked = np.stack([d_b1, d_b2, d_b3], axis=0)
     cart = np.tensordot(transform, stacked, axes=(1, 0))
     return cart[0], cart[1], cart[2]
+
+
+def load_exciton_phonon_matrix(h5_path, limit_Nexc=None):
+    """
+    Load an exciton-phonon coupling file (produced by
+    assemble_exciton_phonon_coeffs.py or excited_forces.py) and return the
+    dense Hermitian matrix g^{BA}_nu = <B|dH/dQ_nu|A> plus phonon
+    frequencies, in the same convention used throughout resonant_raman/.
+
+    Handles both known on-disk schemas:
+      - "new format": exciton_pairs (Npairs, 2), forces/ph/RPA (Npairs,
+        Nmodes) with F = -<A|dH|B> per pair; assembled into a dense
+        (Nmodes, Nexc, Nexc) matrix (missing pairs assumed zero, Hermitian
+        symmetry applied: exc_ph[:, j, i] = exc_ph[:, i, j].conj()).
+      - "old format": rpa_offdiag, already a dense (Nmodes, Nexc, Nexc)
+        array.
+
+    Parameters
+    ----------
+    h5_path : str
+        Path to the exciton-phonon coupling HDF5 file.
+    limit_Nexc : int or None
+        If given, truncate the exciton index to the first limit_Nexc states
+        (for quick testing).
+
+    Returns
+    -------
+    exc_ph : (Nmodes, Nexc, Nexc) complex ndarray
+        exc_ph[nu, i, j] = <i|dH/dQ_nu|j>, eV/ang (or eV/ang^2 if built from
+        a second-derivative run -- units are not converted here, only
+        carried through from the source file).
+    freqs_eV : (Nmodes,) ndarray or None
+        Phonon frequencies in eV, if present in the file under
+        system/phonon_frequencies (stored in cm^-1); None otherwise.
+    """
+    from .constants import rec_cm_to_eV
+
+    freqs_eV = None
+    with h5py.File(h5_path, 'r') as hf:
+        if 'forces/ph/RPA' in hf:
+            pairs = hf['exciton_pairs'][:]      # (Npairs, 2) 1-based
+            forces = hf['forces/ph/RPA'][:]     # (Npairs, Nmodes)
+            max_exc = int(pairs.max())
+            _Nm = forces.shape[1]
+            exc_ph = np.zeros((_Nm, max_exc, max_exc), dtype=complex)
+            for k, (i, j) in enumerate(pairs):
+                val = -forces[k]                # negate: F = -<A|dH|B> -> <A|dH|B>
+                exc_ph[:, i - 1, j - 1] = val
+                if i != j:
+                    exc_ph[:, j - 1, i - 1] = val.conj()
+        else:
+            exc_ph = hf['rpa_offdiag'][:]
+        if 'system/phonon_frequencies' in hf:
+            freqs_eV = hf['system/phonon_frequencies'][:] * rec_cm_to_eV
+
+    if limit_Nexc is not None:
+        exc_ph = exc_ph[:, :limit_Nexc, :limit_Nexc]
+
+    return exc_ph, freqs_eV
 
 
 def read_eqp_dat_file(eqp_file):
