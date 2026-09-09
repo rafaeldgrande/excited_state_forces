@@ -34,10 +34,16 @@ displacement (from the full history) in the same atom_index/dx/dy/dz
 format apply_displacements.py expects, with a max_disp cap (uniform
 rescale, direction preserved) since neither method's raw step is
 guaranteed to be a safe size.
+
+Excited-state forces are read from forces_cart.out (the raw per-atom force
+block, not the full excited_forces.out log), which has no embedded exciton
+energy -- so excited_forces_files points to a file with one
+'forces_cart.out_path  exciton_energy_eV' pair per line instead of a bare
+list of paths.
 '''
 
 list_position_files = 'list_position_files.dat'
-excited_forces_files = 'excited_forces_files.dat'
+excited_forces_files = 'excited_forces_files.dat'  # lines: "forces_cart.out_path  exciton_energy_eV"
 flavor = 2
 minimize_just_excited_state = False
 exciton_per_unit_cell = 1
@@ -168,24 +174,35 @@ def parse_dft_forces_and_energy(qe_output_path, Natoms):
     return forces, energy_ry * ry2ev
 
 
-# Two conventions seen across code versions: newer runs print
-# "Exciton energy (eV): <value>" directly; older runs (e.g. mid-2024) print
-# an "Exciton energies (eV):" block with "Omega = <value>" as the first entry.
-exciton_energy_re = re.compile(r'Exciton energy \(eV\):\s*([\-\d.Ee]+)')
-omega_energy_re = re.compile(r'Omega\s*=\s*([\-\d.Ee]+)')
 exc_force_line_re = re.compile(r'^\s*(\d+)\s+([xyz])\s+(.+)$', re.MULTILINE)
 
 
-def parse_excited_forces_and_energy(excited_forces_path, flavor, Natoms):
+def read_excited_forces_list(path):
+    '''excited_forces_files.dat now carries the exciton energy alongside each
+    forces_cart.out path (that file has no embedded energy line, unlike the
+    older excited_forces.out), one 'file energy' pair per line:
+        forces_cart_step0.out  4.139289
+        forces_cart_step1.out  4.087213
+        ...
+    '''
+    entries = []
+    with open(path) as arq:
+        for line in arq:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split()
+            if len(parts) < 2:
+                raise ValueError(
+                    f"{path}: expected 'file energy' per line, got: '{line}'"
+                )
+            entries.append((parts[0], float(parts[1])))
+    return entries
+
+
+def parse_excited_forces_and_energy(excited_forces_path, flavor, Natoms, exciton_energy):
     with open(excited_forces_path) as arq:
         text = arq.read()
-
-    energy_matches = exciton_energy_re.findall(text) or omega_energy_re.findall(text)
-    if not energy_matches:
-        print(f'WARNING! {excited_forces_path}: exciton energy line not found. Setting exciton energy to NaN.')
-        exciton_energy = np.nan
-    else:
-        exciton_energy = float(energy_matches[0])
 
     dir_index = {'x': 0, 'y': 1, 'z': 2}
     forces = np.zeros(3 * Natoms)
@@ -219,7 +236,9 @@ def load_history(list_position_files, excited_forces_files, flavor,
                   minimize_just_excited_state, exciton_per_unit_cell):
 
     position_files = read_list_file(list_position_files)
-    exc_force_files = read_list_file(excited_forces_files)
+    exc_entries = read_excited_forces_list(excited_forces_files)
+    exc_force_files = [entry[0] for entry in exc_entries]
+    exc_energies_input = [entry[1] for entry in exc_entries]
 
     if len(position_files) != len(exc_force_files):
         raise ValueError(f"{list_position_files} and {excited_forces_files} have different lengths.")
@@ -228,7 +247,7 @@ def load_history(list_position_files, excited_forces_files, flavor,
     positions_all, dft_forces_all, exc_forces_all = [], [], []
     dft_energies, exc_energies = [], []
 
-    for pos_file, exc_file in zip(position_files, exc_force_files):
+    for pos_file, exc_file, exc_energy_in in zip(position_files, exc_force_files, exc_energies_input):
         qe_input_path = derive_qe_input_path(pos_file)
         symbols_i, positions_i = parse_positions_from_qe_input(qe_input_path)
 
@@ -241,7 +260,7 @@ def load_history(list_position_files, excited_forces_files, flavor,
         dft_forces, dft_energy = parse_dft_forces_and_energy(pos_file, Natoms)
         dft_forces = dft_forces * ry2ev / bohr2ang
 
-        exc_forces, exc_energy = parse_excited_forces_and_energy(exc_file, flavor, Natoms)
+        exc_forces, exc_energy = parse_excited_forces_and_energy(exc_file, flavor, Natoms, exc_energy_in)
         exc_forces = exc_forces * exciton_per_unit_cell
 
         positions_all.append(positions_i)

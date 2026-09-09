@@ -33,9 +33,12 @@ Config file: `optimizer_test.inp`
 | `output_displacements_file` | `displacements_{method}.dat` | the actual proposed next displacement (see format below) |
 
 Input files it reads:
-- **`list_position_files.dat`** / **`excited_forces_files.dat`**: plain text,
-  one file path per line, same order, same length. Line `i` of each pairs
-  up as configuration `i`.
+- **`list_position_files.dat`**: plain text, one QE output file path per
+  line.
+- **`excited_forces_files.dat`**: plain text, one `path  energy` pair per
+  line (whitespace-separated) — same order/length as
+  `list_position_files.dat`; line `i` of each pairs up as configuration
+  `i`.
 - Each **position-list entry** is a QE `pw.x` output file (e.g. `scf.out`)
   from a **single-point `calculation='scf'` run** — DFT forces and the
   total energy are parsed from it (`atom N type M force = ...` lines, last
@@ -45,13 +48,27 @@ Input files it reads:
   never moves the atoms — this is why only the input, not the output, has
   a reliable `ATOMIC_POSITIONS angstrom` block. Non-angstrom units raise
   an error (not handled).
-- Each **excited-forces-list entry** is an `excited_forces.py`-style log
-  (e.g. `excited_forces.out`, not the bare `forces_cart.out` table) —
-  the force table (`atom_index  x|y|z  <complex per flavor>...`) is
-  extracted from it, plus the exciton energy, matched by either
-  `Exciton energy (eV): <value>` (newer code) or `Exciton energies (eV):`
-  block with `Omega = <value>` (older, pre-2026-07 code) — whichever is
-  found first.
+- Each **excited-forces-list entry's `path`** is the bare numeric
+  excited-state-forces table, not a full run log:
+  `forces_cart.out` for the pre-2026-07 code, or
+  `exc_forces_<iexc>_<jexc>_cart.dat` (e.g. `exc_forces_1_1_cart.dat` for
+  the default diagonal single-exciton relaxation setup, `iexc=jexc=1`) for
+  the current `excited_forces.py` (`main/`) — both share the same
+  `# Atom  dir  <flavor columns...>` header and `atom_index  x|y|z
+  <values...>` row format, so no code changes are needed to read either,
+  only the path in this list. The **`energy`** on the same line is the
+  exciton energy (eV) for that configuration — this file has no energy
+  info of its own in either code version, so it must be supplied here,
+  read off the corresponding run's stdout log (`Exciton energy (eV):
+  <value>` for the current code; `Omega = <value>` for the pre-2026-07
+  code — printed only when a single exciton is loaded, i.e. `iexc=jexc`
+  and no exciton pairs list).
+- **Caveat for the current code**: `report_forces(..., None, suffix='cart', ...)`
+  in `main/excited_forces.py` always passes `F_kernel=None` for the
+  cart-basis file, so its 3rd column (`RPA_diag_plus_Kernel`) is
+  currently always identical to column 1 (`RPA_diag`) regardless of the
+  `Calculate_Kernel` setting — `flavor=3` is effectively a no-op in this
+  file until that's wired up.
 
 Output `displacements_{method}.dat` format (also used/expected by
 `apply_displacements.py`): one line per atom,
