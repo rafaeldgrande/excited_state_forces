@@ -2,13 +2,29 @@
 import numpy as np
 from ase.data import atomic_masses, atomic_numbers
 
-eigvecs_file = 'eigvecs' # eigvecs file with phonon frequencies and dynamical matrix eigenvectors. This file is produced by dynmat.x through the variable fileig
-atomic_pos_file = 'Atoms_info' # file with atomic species and their positions. The format of the file is the following:
-#  Li   0.000000000   0.000000000   0.000000000
-#  F    -2.02948455    2.02948455    2.02948455
+import argparse
 
-T = 300 # temperature in K
-seed = 1234
+parser = argparse.ArgumentParser(
+    description='Generate random atomic displacements along the normal modes at finite temperature.')
+parser.add_argument('--eigvecs_file', default='eigvecs',
+                    help='eigvecs file with phonon frequencies and dynamical matrix eigenvectors. '
+                         'This file is produced by dynmat.x through the variable fileig (default: eigvecs)')
+parser.add_argument('--atomic_pos_file', default='Atoms_info',
+                    help='file with atomic species and their positions, one atom per line, e.g. '
+                         '"Li   0.000000000   0.000000000   0.000000000" (default: Atoms_info)')
+parser.add_argument('-T', '--temperature', type=float, default=300,
+                    help='temperature in K (default: 300)')
+parser.add_argument('--seed', type=int, default=None,
+                    help='seed for the random number generator (default: None -> different '
+                         'displacements at every run)')
+args = parser.parse_args()
+
+eigvecs_file = args.eigvecs_file
+atomic_pos_file = args.atomic_pos_file
+T = args.temperature # temperature in K
+seed = args.seed
+if seed is not None:
+    np.random.seed(seed)
 
 # Tolerance for values to be considered zero
 zero_tol = 1e-6
@@ -68,16 +84,17 @@ Masses = []
 arq = open(atomic_pos_file)
 for line in arq:
     line_split = line.split()
-    x, y, z = float(line_split[1]), float(line_split[2]), float(line_split[3])
-    atomic_pos.append(x)
-    atomic_pos.append(y)
-    atomic_pos.append(z)
-    atomic_simb.append(line_split[0])
-    # masses in kg -> 1a.u. corresposnts to 1g/mol
-    mass_amu = atomic_masses[atomic_numbers[line_split[0]]]
-    Masses.append(mass_amu * 1e-3 / Na)
+    if len(line_split) == 4:
+        x, y, z = float(line_split[1]), float(line_split[2]), float(line_split[3])
+        atomic_pos.append(x)
+        atomic_pos.append(y)
+        atomic_pos.append(z)
+        atomic_simb.append(line_split[0])
+        # masses in kg -> 1a.u. corresposnts to 1g/mol
+        mass_amu = atomic_masses[atomic_numbers[line_split[0]]]
+        Masses.append(mass_amu * 1e-3 / Na)
 arq.close()
-
+                                                                                                               
 Natoms = len(atomic_simb) 
 atomic_pos = np.array(atomic_pos)
 
@@ -148,11 +165,13 @@ final_pos = displacements + atomic_pos
 # write final pos
 arq = open('atomic_disp_rand_displacements', 'w')
 
+arq.write("ATOMIC_POSITIONS angstrom")
+
 for i_atom in range(Natoms):
     x = final_pos[3*i_atom]
     y = final_pos[3*i_atom + 1 ]
     z = final_pos[3*i_atom + 2]
-    arq.write(f"{atomic_simb[i_atom]} {x:.8f} {y:.8f} {z:.8f}\n")
+    arq.write(f"{atomic_simb[i_atom]}   {x:.8f}   {y:.8f}   {z:.8f}\n")
 
 arq.close()
 
