@@ -148,19 +148,35 @@ force_line_re = re.compile(
 total_energy_re = re.compile(r'!\s+total energy\s*=\s*([\-\d.Ee]+)\s*Ry')
 
 
+forces_header_re = re.compile(r'Forces acting on atoms.*?:\s*\n')
+
+
 def parse_dft_forces_and_energy(qe_output_path, Natoms):
     with open(qe_output_path) as arq:
         text = arq.read()
 
-    matches = force_line_re.findall(text)
+    # With verbosity='high', QE prints the real total force block ONCE,
+    # right after the "Forces acting on atoms (...)" header, followed by
+    # several per-atom breakdown blocks (non-local, ionic, local,
+    # core-correction, Hubbard, SCF-correction contributions) that are NOT
+    # the total force -- the last of those (SCF correction) is expected to
+    # be near-zero. Anchor on that header and take the FIRST Natoms matches
+    # after it, not the last Natoms matches in the whole file (the old
+    # `matches[-Natoms:]` silently picked up the near-zero SCF-correction
+    # block instead of the real forces whenever verbosity='high' -- bug
+    # found and fixed 2026-09-19, see LiF_defects/NOTES.md).
+    header_match = forces_header_re.search(text)
+    search_text = text[header_match.end():] if header_match else text
+
+    matches = force_line_re.findall(search_text)
     if len(matches) < Natoms:
         print(f'WARNING! {qe_output_path}: found only {len(matches)} force lines, expected {Natoms}. '
               'Setting DFT forces to zero.')
         forces = np.zeros(3 * Natoms)
     else:
-        last_block = matches[-Natoms:]
+        first_block = matches[:Natoms]
         forces = np.zeros(3 * Natoms)
-        for iatom, fx, fy, fz in last_block:
+        for iatom, fx, fy, fz in first_block:
             i = int(iatom) - 1
             forces[3 * i:3 * i + 3] = [float(fx), float(fy), float(fz)]
 
@@ -383,6 +399,25 @@ def compute_final_displacement(method, final_state, F_final):
         return alpha_opt * d
 
 
+def estimate_energy_change(displacement, dft_forces, exc_forces):
+    '''First-order (constant-force) energy change for the step, same convention
+    as displacements_from_forces.py: Delta E = - displacement . force, with
+    forces at the configuration the step starts from (the last one in the
+    history). Evaluated for both channels regardless of minimize_just_excited_state,
+    since the step itself is what is being assessed.'''
+    delta_E_dft = -np.dot(displacement, dft_forces)
+    delta_E_exc = -np.dot(displacement, exc_forces)
+    delta_E_tot = delta_E_dft + delta_E_exc
+
+    print(f"""Expected energy changes for the displacement above (first order, forces held constant):
+x_i = last configuration in the history, x_new = x_i + displacement
+
+DFT energy change: Edft(x_new) - Edft(x_i) = - dot_product(Fdft, displacement) = {delta_E_dft:.8f} eV
+Exciton energy change: Omega(x_new) - Omega(x_i) = - dot_product(Excited_state_force, displacement) = {delta_E_exc:.8f} eV
+
+Total energy change: Edft+Omega(x_new) - Edft+Omega(x_i) = {delta_E_tot:.8f} eV""")
+
+
 if __name__ == '__main__':
 
     print(100 * '#')
@@ -453,7 +488,7 @@ if __name__ == '__main__':
     print(f'\nDisplacement from the {method.upper()} step using the full history (total channel, '
           f'{len(position_files)} configs), from the last configuration ({position_files[-1]}):')
     write_displacements(displacement, output_displacements_file, Natoms)
-    print(f'Apply it with apply_displacements.py against {derive_qe_input_path(position_files[-1])} '
-          'to get the next structure to evaluate.')
+    print('')
+    estimate_energy_change(displacement, dft_forces[-1], exc_forces[-1])
 
     print('\nFinished!')
